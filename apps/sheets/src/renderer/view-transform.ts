@@ -141,73 +141,133 @@ interface Span {
   end: number
 }
 
-/// Envelope of a span's image through an insertion: a monotone shift, so the
-/// span ends map to the envelope ends.
-function insertEnvelope(span: Span, index: number, count: number): Span {
-  return {
-    start: span.start >= index ? span.start + count : span.start,
-    end: span.end >= index ? span.end + count : span.end,
+/// The image of a span after structural ops, as a sorted list of disjoint
+/// intervals. A single bounding box cannot represent it: a move tears a span
+/// into pieces, and a later removal can delete one piece while sparing
+/// another — the box would then claim survivors that no longer exist.
+type SpanList = { start: number; end: number }[]
+
+/// Insert `count` lines at `index`: a monotone shift of everything at/after it.
+function insertEnvelopeList(list: SpanList, index: number, count: number): SpanList {
+  return list.map((seg) => ({
+    start: seg.start >= index ? seg.start + count : seg.start,
+    end: seg.end >= index ? seg.end + count : seg.end,
+  }))
+}
+
+/// Remove `count` lines at `index`: intervals overlapping the block are cut
+/// in place; survivors right of it shift left. Empty pieces vanish.
+function removeEnvelopeList(list: SpanList, index: number, count: number): SpanList {
+  const result: SpanList = []
+  for (const seg of list) {
+    if (seg.end < index) {
+      result.push(seg)
+      continue
+    }
+    if (seg.start >= index + count) {
+      result.push({ start: seg.start - count, end: seg.end - count })
+      continue
+    }
+    const leftEnd = Math.min(seg.end, index - 1)
+    if (seg.start <= leftEnd) result.push({ start: seg.start, end: leftEnd })
+    const rightStart = Math.max(seg.start, index + count)
+    if (rightStart <= seg.end) {
+      result.push({ start: rightStart - count, end: seg.end - count })
+    }
+  }
+  return result
+}
+
+/// Image of one interval through one move: the map is piecewise (shift by
+/// +len(second) inside the first block, -len(first) inside the second,
+/// identity elsewhere), so the interval is split at block boundaries and
+/// each piece shifts. Pieces are appended in order; the caller keeps the
+/// list sorted because moves can reorder pieces.
+function moveEnvelopeSegment(seg: Span, a: Span, b: Span, forward: boolean, out: SpanList): void {
+  // Cut points inside the segment where the mapping changes.
+  const cuts: number[] = [seg.start]
+  for (const boundary of [a.start, a.end + 1, b.start, b.end + 1]) {
+    if (boundary > seg.start && boundary <= seg.end) cuts.push(boundary)
+  }
+  cuts.push(seg.end + 1)
+  const unique = [...new Set(cuts)].sort((x, y) => x - y)
+  const secondLength = b.end - b.start + 1
+  const firstLength = a.end - a.start + 1
+  for (let i = 0; i < unique.length - 1; i += 1) {
+    const subStart = unique[i] ?? seg.start
+    const subEnd = (unique[i + 1] ?? seg.end + 1) - 1
+    const mid = (subStart + subEnd) >> 1
+    let mappedStart = subStart
+    let mappedEnd = subEnd
+    if (mid >= a.start && mid <= a.end) {
+      // Original swapMap: inside a → position + len(b) (forward) or the
+      // inverse's a-block (the post-image of second) → position + len(b).
+      mappedStart = subStart + secondLength
+      mappedEnd = subEnd + secondLength
+    } else if (mid >= b.start && mid <= b.end) {
+      mappedStart = subStart - firstLength
+      mappedEnd = subEnd - firstLength
+    }
+    if (mappedStart <= mappedEnd) out.push({ start: mappedStart, end: mappedEnd })
   }
 }
 
-/// Envelope of a span's image through a removal; null when the whole span
-/// falls inside the removed block.
-function removeEnvelope(span: Span, index: number, count: number): Span | null {
-  const left = span.start < index ? { start: span.start, end: Math.min(span.end, index - 1) } : null
-  const right =
-    span.end >= index + count
-      ? { start: Math.max(span.start, index + count) - count, end: span.end - count }
-      : null
-  if (left && right) return { start: left.start, end: right.end }
-  return left ?? right
-}
-
-/// Envelope of a span's image through one move. The map is a translation on
-/// each swap block and the identity elsewhere, so extremes over the span sit
-/// at the span ends or at block boundaries inside the span.
-function moveEnvelope(
-  span: Span,
+/// Image of a whole interval list through one move.
+function moveEnvelopeList(
+  list: SpanList,
   op: Extract<RowColumnOp, { before: number }>,
   forward: boolean,
-): Span {
+): SpanList {
   const [a, b] = swapImageBlocks(op, forward)
-  let start = Infinity
-  let end = -Infinity
-  for (const position of [span.start, span.end, a.start, a.end, b.start, b.end]) {
-    if (position < span.start || position > span.end) continue
-    const mapped = swapMap(position, op, forward)
-    start = Math.min(start, mapped)
-    end = Math.max(end, mapped)
-  }
-  return { start, end }
+  const out: SpanList = []
+  for (const seg of list) moveEnvelopeSegment(seg, a, b, forward, out)
+  out.sort((x, y) => x.start - y.start)
+  return out
 }
 
 /// Envelope of a span's image through the whole op sequence (`forward` =
-/// file → screen). Moves make the composite non-monotonic, so the envelope is
-/// tracked op by op: each op's blocks are evaluated in the intermediate
-/// coordinate space that op actually ran in. Over-reading is safe, tearing is
-/// not. Null when nothing in the span survives the mapping.
+/// file → screen). Moves make the composite non-monotonic, so the image is
+/// tracked op by op as an interval list: each op's blocks are evaluated in
+/// the intermediate coordinate space that op actually ran in. Over-reading
+/// within the surviving extremes is safe, tearing is not; an empty list
+/// means nothing in the span survives the mapping.
+function spanEnvelopeList(
+  ops: readonly StructuralOp[],
+  axis: Axis,
+  span: Span,
+  forward: boolean,
+): SpanList {
+  const relevant = rowColumnOps(ops, axis)
+  if (!forward) relevant.reverse()
+  let current: SpanList = [{ start: span.start, end: span.end }]
+  for (const op of relevant) {
+    if (current.length === 0) return current
+    if ('before' in op) {
+      current = moveEnvelopeList(current, op, forward)
+    } else if (isInsert(op) === forward) {
+      // Inserts applied forward and removals inverted both shift lines apart.
+      current = insertEnvelopeList(current, op.index, op.count)
+    } else {
+      current = removeEnvelopeList(current, op.index, op.count)
+    }
+  }
+  return current
+}
+
+/// Bounding box of a span image. Null when nothing survives — the fix for
+/// the phantom-range bug: a box tracked op-by-op can keep claiming survivors
+/// after a later removal deleted the last real occupant.
 function spanEnvelope(
   ops: readonly StructuralOp[],
   axis: Axis,
   span: Span,
   forward: boolean,
 ): Span | null {
-  const relevant = rowColumnOps(ops, axis)
-  if (!forward) relevant.reverse()
-  let current: Span | null = span
-  for (const op of relevant) {
-    if (!current) return null
-    if ('before' in op) {
-      current = moveEnvelope(current, op, forward)
-    } else if (isInsert(op) === forward) {
-      // Inserts applied forward and removals inverted both shift lines apart.
-      current = insertEnvelope(current, op.index, op.count)
-    } else {
-      current = removeEnvelope(current, op.index, op.count)
-    }
-  }
-  return current
+  const image = spanEnvelopeList(ops, axis, span, forward)
+  const first = image[0]
+  const last = image[image.length - 1]
+  if (!first || !last) return null
+  return { start: first.start, end: last.end }
 }
 
 /// File-space range backing a screen-space range. The result may span file

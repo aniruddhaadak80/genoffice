@@ -263,3 +263,48 @@ describe('move-rows mapping', () => {
     expect(range?.endRow).toBeGreaterThanOrEqual(5)
   })
 })
+
+describe('fileRangeToScreenRange: fully-deleted spans return null (no phantom survivors)', () => {
+  it('returns null when a move+delete stack deletes every row of the range', () => {
+    // The minimal repro from the phantom-range bug: track file span [6..7]
+    // through a stack where both rows end up deleted, yet a box-tracked
+    // envelope keeps a phantom survivor.
+    const ops: StructuralOp[] = [
+      { kind: 'move-rows', index: 11, count: 1, before: 7 }, // box [6..8]
+      { kind: 'remove-rows', index: 8, count: 1 }, // deletes file row 7 → [6..7]
+      { kind: 'move-rows', index: 10, count: 2, before: 2 }, // box [8..9]
+      { kind: 'remove-rows', index: 8, count: 1 }, // deletes file row 6
+    ]
+    // Both file rows 6 and 7 are gone — the screen range must be null, not a
+    // phantom {startRow:8, endRow:8} occupied by unrelated content.
+    expect(
+      fileRangeToScreenRange(ops, { startRow: 6, endRow: 7, startColumn: 0, endColumn: 0 }),
+    ).toBeNull()
+    // Sanity: neither deleted file row maps anywhere.
+    expect(fileToScreen(ops, 'row', 6)).toBeNull()
+    expect(fileToScreen(ops, 'row', 7)).toBeNull()
+  })
+
+  it('still returns the bounding box when some rows survive', () => {
+    // Same stack, but track a span that includes a surviving row alongside
+    // the fully-deleted [6..7] — the envelope must cover the survivor.
+    const ops: StructuralOp[] = [
+      { kind: 'move-rows', index: 11, count: 1, before: 7 },
+      { kind: 'remove-rows', index: 8, count: 1 },
+      { kind: 'move-rows', index: 10, count: 2, before: 2 },
+      { kind: 'remove-rows', index: 8, count: 1 },
+    ]
+    // File row 5 survives: op 3 (move 10..11 before 2) shifts rows 2..9 down
+    // by 2, so file 5 lands at screen 7; the removal at 8 doesn't touch it.
+    expect(fileToScreen(ops, 'row', 5)).toBe(7)
+    const range = fileRangeToScreenRange(ops, {
+      startRow: 5,
+      endRow: 7,
+      startColumn: 0,
+      endColumn: 0,
+    })
+    expect(range).not.toBeNull()
+    expect(range?.startRow).toBeLessThanOrEqual(7)
+    expect(range?.endRow).toBeGreaterThanOrEqual(7)
+  })
+})
