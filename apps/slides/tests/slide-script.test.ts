@@ -345,6 +345,33 @@ describe('runLayoutScript security boundary', () => {
     ])
       expect(runLayoutScript(code, els, canvas).error).toBeTruthy()
   })
+
+  it('bounds regex test input so backtracking patterns finish inside the step budget', () => {
+    // Build a long non-matching string via concatenation, then hit it with a
+    // classic catastrophic-backtracking pattern. Without the interpreter's
+    // input cap the native regex engine would run unbounded — freezing the
+    // renderer past the step limit; with it, the match runs on a bounded
+    // slice and returns promptly.
+    const r = runLayoutScript(
+      `
+        let long = '';
+        for (let i = 0; i < 2000; i++) long += 'aaaaaaaaaa';
+        const re = /(a+)+$/;
+        return re.test(long + 'b');
+      `,
+      els,
+      canvas,
+    )
+    expect(r.error).toBeUndefined()
+    // The capped slice is all a's (the 'b' is beyond it), so the pattern matches.
+    expect(r.returned).toBe('true')
+  })
+
+  it('regex test still matches correctly on normal-length strings', () => {
+    const r = runLayoutScript(`return /^(shape|text)$/.test(els[0].type);`, els, canvas)
+    expect(r.error).toBeUndefined()
+    expect(r.returned).toBe('true')
+  })
 })
 
 // ── execute_slide_script tool chain ────────────────────────────

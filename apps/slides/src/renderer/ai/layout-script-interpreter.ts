@@ -13,6 +13,12 @@ type HostCall = (...args: ScriptValue[]) => ScriptValue
 const MAX_STEPS = 25_000
 const MAX_CALL_DEPTH = 64
 const MAX_COLLECTION_SIZE = 10_000
+/// Regex matching runs on the engine's backtracking machinery outside the
+/// step budget, so a catastrophic-backtracking pattern against a long string
+/// could freeze the renderer past the interpreter's own limits. Capping the
+/// input bounds the worst case to a slice a pathological pattern still
+/// finishes on; layout scripts match against element text, which is short.
+const MAX_REGEX_INPUT_LENGTH = 10_000
 
 class Builtin {
   constructor(
@@ -403,7 +409,12 @@ export function interpretLayoutScript(
     }
     if (target instanceof RegexValue) {
       if (key === 'test')
-        return new Builtin((value) => new RegExp(target.source, target.flags).test(String(value)))
+        return new Builtin((value) => {
+          const text = String(value)
+          return new RegExp(target.source, target.flags).test(
+            text.length > MAX_REGEX_INPUT_LENGTH ? text.slice(0, MAX_REGEX_INPUT_LENGTH) : text,
+          )
+        })
       throw new Error(`Regular-expression property "${key}" is not available in layout scripts`)
     }
     if (target instanceof Builtin) {
