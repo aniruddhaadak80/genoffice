@@ -1042,6 +1042,11 @@ export async function activateFormulaClosure(
         return giveUp()
       }
       if (lazyWorkbookRef.current !== state) return
+      // The pre-analysis guard above ran before these awaits: a structural
+      // edit landing mid-install would shift the coordinates every later
+      // patch and pin is written at, corrupting the live view. Give up
+      // instead — the same rule the analysis phase already applies.
+      if (state.editJournal.structuralOps.size > 0) return giveUp()
       const picked = result.cells.filter((cell) => cells.has(cellKey(cell.row, cell.column)))
       recordCachedFormulaValues(state, sheetId, picked)
       const wanted = degradeCostlyFormulas(state, sheetMeta.name, picked)
