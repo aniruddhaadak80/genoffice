@@ -128,6 +128,8 @@ import {
   SCROLL_PAD,
   SIDEBAR_W_KEY,
   SIDEBAR_CHROME,
+  clampScale,
+  clampScaleFit,
   clampSidebarW,
   loadSidebarW,
   DOC_OPTS,
@@ -1128,8 +1130,6 @@ export default function App() {
     }
   }, [activeFormWidgetId, formCatalog])
 
-  const clampScale = (s: number) => Math.min(MAX_SCALE, Math.max(MIN_SCALE, s))
-
   /** Overall size of a row (in spread mode widths add up, including the page gap) */
   const rowSize = useCallback(
     (row: number[]): PageSize => {
@@ -1209,8 +1209,8 @@ export default function App() {
     const availW = el.clientWidth - SCROLL_PAD * 2 - (noteMarginOn ? NOTE_MARGIN_W + PAGE_GAP : 0)
     const next =
       mode === 'width'
-        ? clampScale(availW / maxW)
-        : clampScale(
+        ? clampScaleFit(availW / maxW)
+        : clampScaleFit(
             Math.min(
               availW / maxW,
               (el.clientHeight - PAGE_GAP * 2) / Math.max(...dims.map((s) => s.height)),
