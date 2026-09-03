@@ -162,6 +162,43 @@ export const AI_PROVIDERS: AiProviderMeta[] = [
     keyPlaceholder: 'sk-or-...',
   },
   {
+    id: 'opencode-zen',
+    label: 'OpenCode Zen',
+    // Curated OpenCode Zen models per https://opencode.ai/docs/zen/#endpoints
+    // Endpoint: https://opencode.ai/zen/v1 — use opencode/<model-id> form
+    models: [
+      'opencode/gpt-5.6-sol',
+      'opencode/gpt-5.6-terra',
+      'opencode/claude-opus-5',
+      'opencode/claude-sonnet-5',
+      'opencode/gemini-3.8-flash',
+      'opencode/grok-4.6',
+      'opencode/kimi-k3',
+      'opencode/deepseek-v4-pro',
+      'opencode/muse-spark-1.2',
+    ],
+    defaultModel: 'opencode/gpt-5.6-sol',
+    keyPlaceholder: 'sk-...',
+  },
+  {
+    id: 'opencode-go',
+    label: 'OpenCode Go',
+    // Low-cost subscription per https://opencode.ai/docs/go/#endpoints
+    // Endpoint: https://opencode.ai/zen/go/v1 — model ids use opencode-go/<id>
+    models: [
+      'opencode-go/grok-4.6',
+      'opencode-go/gpt-5.6-luna',
+      'opencode-go/glm-5.3-flash',
+      'opencode-go/kimi-k3',
+      'opencode-go/deepseek-v4-pro',
+      'opencode-go/muse-spark-1.2',
+      'opencode-go/qwen3.8-max',
+      'opencode-go/minimax-m3',
+    ],
+    defaultModel: 'opencode-go/gpt-5.6-luna',
+    keyPlaceholder: 'sk-...',
+  },
+  {
     id: 'custom',
     label: 'Custom',
     models: [],
