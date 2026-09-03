@@ -27,10 +27,7 @@ export const GEMINI_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta
  *    cannot start list."
  * because the proto's `type` field is not repeated. See #186.
  */
-function sanitizeGeminiSchema(
-  schema: unknown,
-  definitions?: Record<string, unknown>,
-): unknown {
+function sanitizeGeminiSchema(schema: unknown, definitions?: Record<string, unknown>): unknown {
   if (schema == null || typeof schema !== 'object') return schema
   if (Array.isArray(schema)) {
     // Tuple `items: [ {...}, {...} ]` is not supported — take first element
@@ -43,8 +40,7 @@ function sanitizeGeminiSchema(
     if (ref.startsWith('#/definitions/') && definitions) {
       const key = ref.slice('#/definitions/'.length)
       const resolved = (definitions as Record<string, unknown>)[key] as
-        | Record<string, unknown>
-        | undefined
+        Record<string, unknown> | undefined
       if (resolved) {
         const { $ref: _r, definitions: _d, ...rest } = s
         const base = sanitizeGeminiSchema(resolved, definitions) as Record<string, unknown>
