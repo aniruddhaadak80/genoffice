@@ -125,7 +125,9 @@ export async function streamGemini(
   options: GeminiRequestOptions = {},
 ): Promise<void> {
   const wd = createStreamWatchdog(cb.signal)
-  return wd.guard(() => geminiTurn(config, system, messages, tools, maxTokens, cb, baseUrl, wd, options))
+  return wd.guard(() =>
+    geminiTurn(config, system, messages, tools, maxTokens, cb, baseUrl, wd, options),
+  )
 }
 
 async function geminiTurn(
