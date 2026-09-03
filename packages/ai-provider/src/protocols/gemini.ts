@@ -109,6 +109,11 @@ function emitGeminiJsonMessage(bodyText: string, cb: StreamCallbacks): void {
   if (stopReason) cb.onStopReason?.(stopReason)
 }
 
+/** Per-endpoint request shaping resolved from the provider registry. */
+export interface GeminiRequestOptions {
+  omitTemperature?: boolean | undefined
+}
+
 export async function streamGemini(
   config: AiProviderConfig,
   system: string,
@@ -117,9 +122,10 @@ export async function streamGemini(
   maxTokens: number,
   cb: StreamCallbacks,
   baseUrl = GEMINI_BASE_URL,
+  options: GeminiRequestOptions = {},
 ): Promise<void> {
   const wd = createStreamWatchdog(cb.signal)
-  return wd.guard(() => geminiTurn(config, system, messages, tools, maxTokens, cb, baseUrl, wd))
+  return wd.guard(() => geminiTurn(config, system, messages, tools, maxTokens, cb, baseUrl, wd, options))
 }
 
 async function geminiTurn(
@@ -131,6 +137,7 @@ async function geminiTurn(
   cb: StreamCallbacks,
   baseUrl: string,
   wd: StreamWatchdog,
+  options: GeminiRequestOptions,
 ): Promise<void> {
   const onBytes = () => {
     wd.touch()
@@ -161,7 +168,13 @@ async function geminiTurn(
             ],
           }
         : {}),
-      generationConfig: { temperature: 0.3, maxOutputTokens: maxTokens },
+      // temperature/topK/topP are deprecated and ignored by gemini-3.7-flash,
+      // gemini-3.6-flash and gemini-3.5-flash-lite (HTTP 400 in future
+      // generations per Google) — omit for those models via omitTemperature.
+      generationConfig: {
+        ...(options.omitTemperature ? {} : { temperature: 0.3 }),
+        maxOutputTokens: maxTokens,
+      },
     }),
   })
   // headers arrived: ping the renderer watchdog too, or a slow first chunk could trip it
@@ -244,6 +257,7 @@ export async function chatGemini(
   system: string,
   user: string,
   baseUrl = GEMINI_BASE_URL,
+  options: GeminiRequestOptions = {},
 ): Promise<AiChatResponse> {
   const url = `${baseUrl.replace(/\/$/, '')}/models/${config.model}:generateContent`
   const response = await aiFetch(url, {
@@ -257,7 +271,7 @@ export async function chatGemini(
     body: JSON.stringify({
       systemInstruction: { parts: [{ text: system }] },
       contents: [{ role: 'user', parts: [{ text: user }] }],
-      generationConfig: { temperature: 0.3 },
+      generationConfig: { ...(options.omitTemperature ? {} : { temperature: 0.3 }) },
     }),
   })
   wd.touch()

@@ -40,10 +40,12 @@ function metaOf(id: AiProviderId): AiProviderMeta {
  * route — vendor API, the Genspark proxy, OpenRouter's vendor-prefixed ids,
  * or a mirror behind a custom base URL. Kimi K3 answers "only 1 is allowed";
  * OpenAI's GPT-5 reasoning family rejects any temperature other than the
- * default outright.
+ * default outright. Google deprecated temperature/topK/topP on Gemini 3.7
+ * Flash, 3.6 Flash and 3.5 Flash-Lite (accepted and ignored today, HTTP 400
+ * in future generations per Google), so it must not be sent there either.
  */
 export function modelHasFixedSampling(model: string): boolean {
-  return /(^|\/)(kimi-k3|gpt-5)/.test(model)
+  return /(^|\/)(kimi-k3|gpt-5|gemini-3\.(5-flash-lite|6-flash|7-flash)$)/.test(model)
 }
 
 /**
