@@ -187,7 +187,11 @@ export function registerAiIpc(): void {
           stopReason = reason
         },
       })
-      send({ requestId, type: 'done', stopReason })
+      send(
+        stopReason === undefined
+          ? { requestId, type: 'done' }
+          : { requestId, type: 'done', stopReason },
+      )
     } catch (err) {
       if (controller.signal.aborted) {
         send({ requestId, type: 'done' })

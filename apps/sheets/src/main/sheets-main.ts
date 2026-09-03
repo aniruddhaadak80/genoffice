@@ -3140,7 +3140,14 @@ export function registerSheetsAiIpc(): void {
           stopReason = reason
         },
       })
-      send({ requestId, type: 'done', stopReason })
+      // sheets tsconfig sets exactOptionalPropertyTypes: an explicit
+      // `stopReason: undefined` is not assignable to AiStreamChunk, so only
+      // include the property when a reason was actually reported.
+      send(
+        stopReason === undefined
+          ? { requestId, type: 'done' }
+          : { requestId, type: 'done', stopReason },
+      )
     } catch (err) {
       if (controller.signal.aborted) {
         send({ requestId, type: 'done' })
