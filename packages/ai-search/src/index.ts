@@ -72,9 +72,9 @@ export async function webSearch(
             : { results, method: 'serper' }
         }
       }
-      } catch {
-    /* fall back to Tavily/DuckDuckGo */
-  }
+    } catch {
+      /* fall back to Tavily/DuckDuckGo */
+    }
   }
   const tavilyKey = TAVILY_KEY()
   if (tavilyKey) {
