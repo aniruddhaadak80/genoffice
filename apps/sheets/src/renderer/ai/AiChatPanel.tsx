@@ -279,7 +279,9 @@ export function AiChatPanel({
   readonly onExpand: () => void
   readonly onCollapse: () => void
 }): React.JSX.Element {
-  const { t } = useI18n()
+  const { t, lang } = useI18n()
+  // Panel chrome follows the UI language; message text follows its own content (dir=auto below)
+  const isRtl = lang === 'ar' || lang === 'he'
   const chatRef = useRef<HTMLDivElement | null>(null)
   const inputRef = useRef<HTMLTextAreaElement | null>(null)
   const stickToBottomRef = useRef(true)
@@ -479,6 +481,7 @@ export function AiChatPanel({
     <aside
       ref={asideRef}
       className={`copilot${dragOver ? ' ai-panel-dragover' : ''}${resizing ? ' ai-panel-resizing' : ''}`}
+      dir={isRtl ? 'rtl' : undefined}
       onDragOver={(e) => {
         if (e.dataTransfer.types.includes('Files')) {
           e.preventDefault()
@@ -535,7 +538,11 @@ export function AiChatPanel({
                   <SentAttachments atts={entry.attachments} previews={attachmentPreviews} />
                 )}
                 {entry.tools.length > 0 && <ToolChipList tools={entry.tools} />}
-                {entry.text && <Markdown text={entry.text} nav={citationNav} />}
+                {entry.text && (
+                  <div dir="auto">
+                    <Markdown text={entry.text} nav={citationNav} />
+                  </div>
+                )}
               </div>
             ))}
             <div className="ai-history-sep">{t('aiHistorySep')}</div>
@@ -561,7 +568,7 @@ export function AiChatPanel({
                 {entry.attachments && entry.attachments.length > 0 && (
                   <SentAttachments atts={entry.attachments} previews={attachmentPreviews} />
                 )}
-                {entry.text}
+                <span dir="auto">{entry.text}</span>
                 {entry.undelivered && (
                   <div className="ai-msg-undelivered">
                     {t('aiUndelivered')}
@@ -580,7 +587,9 @@ export function AiChatPanel({
               <>
                 {entry.tools.length > 0 && <ToolChipList tools={entry.tools} />}
                 {entry.text ? (
-                  <Markdown text={entry.text} nav={citationNav} />
+                  <div dir="auto">
+                    <Markdown text={entry.text} nav={citationNav} />
+                  </div>
                 ) : (
                   entry.streaming && (
                     <span className="ai-typing-row">
