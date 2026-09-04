@@ -2496,27 +2496,45 @@ function RibbonInner({
                 </button>
               </div>
               <div className="table-tool-grid table-tool-grid-three">
-                <button data-tip={t('ribbonOuterBordersTip')} onClick={() => applyCellBorders('top')}>
+                <button
+                  data-tip={t('ribbonOuterBordersTip')}
+                  onClick={() => applyCellBorders('top')}
+                >
                   <IconBorderTop />
                   {t('ribbonBorderTop')}
                 </button>
-                <button data-tip={t('ribbonOuterBordersTip')} onClick={() => applyCellBorders('bottom')}>
+                <button
+                  data-tip={t('ribbonOuterBordersTip')}
+                  onClick={() => applyCellBorders('bottom')}
+                >
                   <IconBorderBottom />
                   {t('ribbonBorderBottom')}
                 </button>
-                <button data-tip={t('ribbonOuterBordersTip')} onClick={() => applyCellBorders('left')}>
+                <button
+                  data-tip={t('ribbonOuterBordersTip')}
+                  onClick={() => applyCellBorders('left')}
+                >
                   <IconBorderLeft />
                   {t('ribbonBorderLeft')}
                 </button>
-                <button data-tip={t('ribbonOuterBordersTip')} onClick={() => applyCellBorders('right')}>
+                <button
+                  data-tip={t('ribbonOuterBordersTip')}
+                  onClick={() => applyCellBorders('right')}
+                >
                   <IconBorderRight />
                   {t('ribbonBorderRight')}
                 </button>
-                <button data-tip={t('ribbonTableInsideHBordersTip')} onClick={() => applyCellBorders('insideH')}>
+                <button
+                  data-tip={t('ribbonTableInsideHBordersTip')}
+                  onClick={() => applyCellBorders('insideH')}
+                >
                   <IconBorderInsideH />
                   {t('ribbonTableInsideHBorders')}
                 </button>
-                <button data-tip={t('ribbonTableInsideVBordersTip')} onClick={() => applyCellBorders('insideV')}>
+                <button
+                  data-tip={t('ribbonTableInsideVBordersTip')}
+                  onClick={() => applyCellBorders('insideV')}
+                >
                   <IconBorderInsideV />
                   {t('ribbonTableInsideVBorders')}
                 </button>
