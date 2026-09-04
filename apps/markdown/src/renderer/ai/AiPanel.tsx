@@ -669,7 +669,7 @@ export function AiPanel({
                   <div dir="auto">
                     <Markdown text={entry.text} nav={docNav} />
                   </div>
-                )}
+                )
               )}
               {hasTools && <ToolChipList tools={entry.tools!} />}
               {showToolbar && (
