@@ -170,9 +170,9 @@ async function geminiTurn(
             ],
           }
         : {}),
-      // temperature/topK/topP are deprecated and ignored by gemini-3.7-flash,
-      // gemini-3.6-flash and gemini-3.5-flash-lite (HTTP 400 in future
-      // generations per Google) — omit for those models via omitTemperature.
+      // Google recommends the default temperature (1.0) for the Gemini 3
+      // family — lower values may cause looping or degraded reasoning —
+      // so omit our hard-coded 0.3 for those models via omitTemperature.
       generationConfig: {
         ...(options.omitTemperature ? {} : { temperature: 0.3 }),
         maxOutputTokens: maxTokens,
