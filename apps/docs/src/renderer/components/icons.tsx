@@ -773,7 +773,7 @@ export function IconBorderNone(props: IconProps) {
   )
 }
 
-function IconBorderDashedFrame(props: IconProps) {
+function IconBorderDashedFrame() {
   return (
     <rect
       x="3.02"
@@ -791,7 +791,7 @@ function IconBorderDashedFrame(props: IconProps) {
 export function IconBorderTop(props: IconProps) {
   return (
     <Svg {...props}>
-      <IconBorderDashedFrame {...props} />
+      <IconBorderDashedFrame />
       <path d="M 3.02 3.02 h 9.96" />
     </Svg>
   )
@@ -800,7 +800,7 @@ export function IconBorderTop(props: IconProps) {
 export function IconBorderBottom(props: IconProps) {
   return (
     <Svg {...props}>
-      <IconBorderDashedFrame {...props} />
+      <IconBorderDashedFrame />
       <path d="M 3.02 12.98 h 9.96" />
     </Svg>
   )
@@ -809,7 +809,7 @@ export function IconBorderBottom(props: IconProps) {
 export function IconBorderLeft(props: IconProps) {
   return (
     <Svg {...props}>
-      <IconBorderDashedFrame {...props} />
+      <IconBorderDashedFrame />
       <path d="M 3.02 3.02 v 9.96" />
     </Svg>
   )
@@ -818,7 +818,7 @@ export function IconBorderLeft(props: IconProps) {
 export function IconBorderRight(props: IconProps) {
   return (
     <Svg {...props}>
-      <IconBorderDashedFrame {...props} />
+      <IconBorderDashedFrame />
       <path d="M 12.98 3.02 v 9.96" />
     </Svg>
   )
@@ -827,7 +827,7 @@ export function IconBorderRight(props: IconProps) {
 export function IconBorderInsideH(props: IconProps) {
   return (
     <Svg {...props}>
-      <IconBorderDashedFrame {...props} />
+      <IconBorderDashedFrame />
       <path d="M 3.02 8 h 9.96" />
     </Svg>
   )
@@ -836,7 +836,7 @@ export function IconBorderInsideH(props: IconProps) {
 export function IconBorderInsideV(props: IconProps) {
   return (
     <Svg {...props}>
-      <IconBorderDashedFrame {...props} />
+      <IconBorderDashedFrame />
       <path d="M 8 3.02 v 9.96" />
     </Svg>
   )
