@@ -2690,8 +2690,7 @@ function openGeneratedDocument(filePath: string): boolean {
 
 /** Plain text → restricted HTML paragraphs for the docs renderer. */
 function textToParagraphsHtml(text: string): string {
-  const esc = (s: string) =>
-    s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
   return text
     .split('\n')
     .map((line) => `<p>${esc(line) || '<br>'}</p>`)
