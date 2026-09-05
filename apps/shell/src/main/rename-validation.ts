@@ -4,6 +4,7 @@ import { basename, dirname } from 'node:path'
     auto-renamer set (apps/pdf/src/main/pdf-main.ts) — the Home rename gate
     must reject them with a localized error instead of letting renameSync
     throw a raw OS error. */
+// eslint-disable-next-line no-control-regex -- the C0 range IS the check: Windows forbids controls in names.
 export const RENAME_ILLEGAL_NAME_CHARS = /[\\/:*?"<>|\u0000-\u001f]/
 
 /** True when the trimmed name is usable as a file name. */
