@@ -159,9 +159,10 @@ interface RibbonProps {
   onSaveAs: () => void
   showAi: boolean
   onToggleAi: () => void
-  /** Word-style collapse: the tab row (frameless drag area) stays, the tool body hides */
-  ribbonCollapsed: boolean
-  onToggleRibbonCollapse: () => void
+  /** Word-style collapse: the tab row (frameless drag area) stays, the tool body hides.
+      Optional so test-only mounts render the classic expanded ribbon. */
+  ribbonCollapsed?: boolean
+  onToggleRibbonCollapse?: () => void
   section: SectionSettings | null
   onSection: (next: SectionSettings) => void
   /** Multi-section documents: index of the cursor's section (0-based); null for single-section */
@@ -618,7 +619,7 @@ function RibbonInner({
   onSaveAs,
   showAi,
   onToggleAi,
-  ribbonCollapsed,
+  ribbonCollapsed = false,
   onToggleRibbonCollapse,
   section,
   onSection,
