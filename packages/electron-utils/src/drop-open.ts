@@ -29,6 +29,15 @@ const MAX_DROPPED_FILES = 20
 /** the resolver signature webUtils.getPathForFile satisfies; injectable for tests */
 type PathResolver = (file: File) => string
 
+/** Resolve one dropped file, tolerating resolver failures (see droppableFilePaths). */
+function tryResolvePath(file: File, getPathForFile: PathResolver): string {
+  try {
+    return getPathForFile(file).trim()
+  } catch {
+    return ''
+  }
+}
+
 /**
  * Resolve an event's dropped files to local paths. Returns null when the drag
  * carries no OS files at all (internal text/element drags), or [] when it does
@@ -44,14 +53,9 @@ export function droppableFilePaths(
   for (const file of Array.from(transfer.files)) {
     // A throwing resolver (e.g. a sandboxed entry Electron cannot map) must
     // not abort the whole drop: skip that file like a virtual entry.
-    let resolved = ''
-    try {
-      resolved = getPathForFile(file).trim()
-    } catch {
-      continue
-    }
-    // non-empty guard covers virtual entries (e.g. page-referenced blobs) that resolve to ''
-    if (resolved) paths.push(resolved)
+    // Non-empty guard covers virtual entries (e.g. page-referenced blobs).
+    const path = tryResolvePath(file, getPathForFile)
+    if (path) paths.push(path)
   }
   return paths
 }
