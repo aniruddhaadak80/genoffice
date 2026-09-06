@@ -42,9 +42,16 @@ export function droppableFilePaths(
   if (!transfer || !transfer.types.includes('Files')) return null
   const paths: string[] = []
   for (const file of Array.from(transfer.files)) {
+    // A throwing resolver (e.g. a sandboxed entry Electron cannot map) must
+    // not abort the whole drop: skip that file like a virtual entry.
+    let resolved = ''
+    try {
+      resolved = getPathForFile(file).trim()
+    } catch {
+      continue
+    }
     // non-empty guard covers virtual entries (e.g. page-referenced blobs) that resolve to ''
-    const path = getPathForFile(file).trim()
-    if (path) paths.push(path)
+    if (resolved) paths.push(resolved)
   }
   return paths
 }
