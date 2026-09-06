@@ -115,6 +115,7 @@ describe('chatForProvider', () => {
     const headers = fetchMock.mock.calls[0]![1].headers as Record<string, string>
     expect(headers.Authorization).toBeUndefined()
     fetchMock.mockClear()
+    fetchMock.mockResolvedValue(jsonResponse({ choices: [{ message: { content: 'ok' } }] }))
     await chatForProvider(
       'custom',
       { apiKey: 'k', model: 'm', baseUrl: 'https://my-endpoint.example.com/v1' },
