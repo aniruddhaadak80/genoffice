@@ -19,6 +19,7 @@ import {
   IconInlineCode,
   IconLink,
   IconNumbered,
+  IconOutlineView,
   IconPicture,
   IconProperties,
   IconRedo,
@@ -42,6 +43,8 @@ interface Props {
   aiOpen: boolean
   onToggleAi: () => void
   onAiPreset: (instruction: string) => void
+  viewMode: 'print' | 'outline'
+  onViewMode: (mode: 'print' | 'outline') => void
 }
 
 type BlockStyle = 'paragraph' | 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6' | 'quote' | 'codeBlock'
@@ -161,6 +164,8 @@ export function Ribbon({
   aiOpen,
   onToggleAi,
   onAiPreset,
+  viewMode,
+  onViewMode,
 }: Props) {
   const { t } = useI18n()
   const collapse = useRibbonCollapse('mdapp.ribbonCollapsed')
@@ -482,6 +487,28 @@ export function Ribbon({
             </IconBtn>
           </div>
         </div>
+
+        <div className="rb-sep" />
+
+        <div className="ribbon-group">
+          <div className="ribbon-group-items">
+            <button
+              type="button"
+              className={`rb-big view-toggle${viewMode === 'outline' ? ' active' : ''}`}
+              data-tip={t('ribbonOutlineViewTip')}
+              disabled={disabled}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => onViewMode(viewMode === 'outline' ? 'print' : 'outline')}
+            >
+              <span className="rb-big-icon">
+                <IconOutlineView size={26} />
+              </span>
+              <span>{t('ribbonOutlineView')}</span>
+            </button>
+          </div>
+        </div>
+
+        <div className="rb-spacer" />
       </div>
       <RibbonCollapseButton
         state={collapse}

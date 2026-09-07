@@ -162,6 +162,8 @@ export const strings = {
     zoom: '缩放',
     zoomIn: '放大',
     zoomOut: '缩小',
+    ribbonOutlineView: '大纲',
+    ribbonOutlineViewTip: '大纲视图:只显示标题层级,可直接编辑标题',
   },
   en: {
     aiToolReadFm: 'Read document properties',
@@ -331,6 +333,8 @@ export const strings = {
     zoom: 'Zoom',
     zoomIn: 'Zoom in',
     zoomOut: 'Zoom out',
+    ribbonOutlineView: 'Outline',
+    ribbonOutlineViewTip: 'Outline view: show only the heading hierarchy; headings stay editable',
   },
   ja: {
     aiToolReadFm: 'ドキュメントのプロパティを読み取り',
@@ -498,6 +502,8 @@ export const strings = {
     zoom: 'ズーム',
     zoomIn: '拡大',
     zoomOut: '縮小',
+    ribbonOutlineView: 'アウトライン',
+    ribbonOutlineViewTip: 'アウトライン表示:見出しの階層のみを表示し、見出しを直接編集可能',
   },
   ko: {
     aiToolReadFm: '문서 속성 읽기',
@@ -666,6 +672,8 @@ export const strings = {
     zoom: '줌',
     zoomIn: '확대',
     zoomOut: '축소',
+    ribbonOutlineView: '개요',
+    ribbonOutlineViewTip: '개요 보기: 제목 수준만 표시하며 제목을 직접 편집 가능',
   },
   fr: {
     aiToolReadFm: 'Lecture des propriétés du document',
@@ -839,6 +847,9 @@ export const strings = {
     zoom: 'Zoom',
     zoomIn: 'Zoom avant',
     zoomOut: 'Zoom arrière',
+    ribbonOutlineView: 'Plan',
+    ribbonOutlineViewTip:
+      'Vue Plan : afficher uniquement la hiérarchie des titres ; les titres restent modifiables',
   },
   de: {
     aiToolReadFm: 'Dokumenteigenschaften lesen',
@@ -1011,6 +1022,9 @@ export const strings = {
     zoom: 'Zoom',
     zoomIn: 'Vergrößern',
     zoomOut: 'Verkleinern',
+    ribbonOutlineView: 'Gliederung',
+    ribbonOutlineViewTip:
+      'Gliederungsansicht: nur die Überschriftenhierarchie anzeigen; Überschriften bleiben bearbeitbar',
   },
   es: {
     aiToolReadFm: 'Leer propiedades del documento',
@@ -1184,6 +1198,9 @@ export const strings = {
     zoom: 'Zoom',
     zoomIn: 'Acercar',
     zoomOut: 'Alejar',
+    ribbonOutlineView: 'Esquema',
+    ribbonOutlineViewTip:
+      'Vista de esquema: mostrar solo la jerarquía de títulos; los títulos se pueden editar',
   },
   th: {
     aiToolReadFm: 'อ่านคุณสมบัติเอกสาร',
@@ -1350,6 +1367,8 @@ export const strings = {
     zoom: 'ซูม',
     zoomIn: 'ขยาย',
     zoomOut: 'ย่อ',
+    ribbonOutlineView: 'เค้าร่าง',
+    ribbonOutlineViewTip: 'มุมมองเค้าร่าง: แสดงเฉพาะลำดับชั้นหัวเรื่อง และแก้ไขหัวเรื่องได้โดยตรง',
   },
   id: {
     aiToolReadFm: 'Baca properti dokumen',
@@ -1518,6 +1537,9 @@ export const strings = {
     zoom: 'Zum',
     zoomIn: 'Perbesar',
     zoomOut: 'Perkecil',
+    ribbonOutlineView: 'Kerangka',
+    ribbonOutlineViewTip:
+      'Tampilan kerangka: hanya tampilkan hierarki judul; judul tetap dapat diedit',
   },
   ru: {
     aiToolReadFm: 'Чтение свойств документа',
@@ -1687,6 +1709,9 @@ export const strings = {
     zoom: 'Масштаб',
     zoomIn: 'Увеличить',
     zoomOut: 'Уменьшить',
+    ribbonOutlineView: 'Структура',
+    ribbonOutlineViewTip:
+      'Режим структуры: показывать только иерархию заголовков; заголовки можно редактировать',
   },
   ar: {
     aiToolReadFm: 'قراءة خصائص المستند',
@@ -1853,6 +1878,9 @@ export const strings = {
     zoom: 'التكبير',
     zoomIn: 'تكبير',
     zoomOut: 'تصغير',
+    ribbonOutlineView: 'مخطط تفصيلي',
+    ribbonOutlineViewTip:
+      'عرض المخطط التفصيلي: إظهار التسلسل الهرمي للعناوين فقط؛ وتبقى العناوين قابلة للتحرير',
   },
   pt: {
     aiToolReadFm: 'Ler propriedades do documento',
@@ -2024,6 +2052,9 @@ export const strings = {
     zoom: 'Zoom',
     zoomIn: 'Ampliar',
     zoomOut: 'Reduzir',
+    ribbonOutlineView: 'Estrutura de Tópicos',
+    ribbonOutlineViewTip:
+      'Vista de estrutura: mostrar apenas a hierarquia de títulos; os títulos permanecem editáveis',
   },
   it: {
     aiToolReadFm: 'Lettura delle proprietà del documento',
@@ -2195,6 +2226,9 @@ export const strings = {
     zoom: 'Zoom',
     zoomIn: 'Ingrandisci',
     zoomOut: 'Riduci',
+    ribbonOutlineView: 'Struttura',
+    ribbonOutlineViewTip:
+      'Visualizzazione struttura: mostra solo la gerarchia dei titoli; i titoli restano modificabili',
   },
   pl: {
     aiToolReadFm: 'Odczyt właściwości dokumentu',
@@ -2364,6 +2398,9 @@ export const strings = {
     zoom: 'Zoom',
     zoomIn: 'Powiększ',
     zoomOut: 'Pomniejsz',
+    ribbonOutlineView: 'Konspekt',
+    ribbonOutlineViewTip:
+      'Widok konspektu: pokazuj tylko hierarchię nagłówków; nagłówki można edytować',
   },
   nl: {
     aiToolReadFm: 'Documenteigenschappen lezen',
@@ -2534,6 +2571,9 @@ export const strings = {
     zoom: 'Zoom',
     zoomIn: 'Inzoomen',
     zoomOut: 'Uitzoomen',
+    ribbonOutlineView: 'Overzicht',
+    ribbonOutlineViewTip:
+      'Overzichtsweergave: alleen de koppenhiërarchie tonen; koppen blijven bewerkbaar',
   },
   ms: {
     aiToolReadFm: 'Baca sifat dokumen',
@@ -2702,6 +2742,9 @@ export const strings = {
     zoom: 'Zum',
     zoomIn: 'Zum masuk',
     zoomOut: 'Zum keluar',
+    ribbonOutlineView: 'Rangka',
+    ribbonOutlineViewTip:
+      'Paparan rangka: papar hierarki tajuk sahaja; tajuk kekal boleh disunting',
   },
   he: {
     aiToolReadFm: 'קריאת מאפייני המסמך',
@@ -2867,6 +2910,8 @@ export const strings = {
     zoom: 'זום',
     zoomIn: 'הגדלה',
     zoomOut: 'הקטנה',
+    ribbonOutlineView: 'חלוקה לרמות',
+    ribbonOutlineViewTip: 'תצוגת חלוקה לרמות: הצג רק את היררכיית הכותרות; הכותרות ניתנות לעריכה',
   },
   hi: {
     aiToolReadFm: 'दस्तावेज़ गुण पढ़ें',
@@ -3036,6 +3081,9 @@ export const strings = {
     zoom: 'ज़ूम',
     zoomIn: 'ज़ूम इन',
     zoomOut: 'ज़ूम आउट',
+    ribbonOutlineView: 'रूपरेखा',
+    ribbonOutlineViewTip:
+      'रूपरेखा दृश्य: केवल शीर्षकों का पदानुक्रम दिखाएँ; शीर्षक संपादन योग्य रहते हैं',
   },
   'zh-TW': {
     aiToolReadFm: '讀取文件屬性',
@@ -3200,5 +3248,7 @@ export const strings = {
     zoom: '縮放',
     zoomIn: '放大',
     zoomOut: '縮小',
+    ribbonOutlineView: '大綱模式',
+    ribbonOutlineViewTip: '大綱模式：只顯示標題階層，可直接編輯標題',
   },
 } as const

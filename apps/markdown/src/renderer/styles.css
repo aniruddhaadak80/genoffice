@@ -602,6 +602,12 @@ html.genoffice-popover-open .ribbon-tabs {
   color: var(--text-primary);
 }
 
+/* outline view toggle: same open state as the AI entries */
+.rb-big.view-toggle.active {
+  background: var(--active-bg);
+  color: var(--text-primary);
+}
+
 .ai-feature-icon {
   display: grid;
   place-items: center;
@@ -2766,4 +2772,77 @@ div.tiptap-mathematics-render {
 
 .app-toast.success .app-toast-icon {
   color: var(--md-toast-ok);
+}
+
+/* ==================== Outline View ==================== */
+/* When view-outline is active, hide all non-heading content and show only headings */
+
+.view-outline .doc-page > :not(h1):not(h2):not(h3):not(h4):not(h5):not(h6) {
+  display: none;
+}
+
+.view-outline .doc-page {
+  padding: 24px;
+}
+
+.view-outline .doc-page h1,
+.view-outline .doc-page h2,
+.view-outline .doc-page h3,
+.view-outline .doc-page h4,
+.view-outline .doc-page h5,
+.view-outline .doc-page h6 {
+  margin: 0;
+  padding: 8px 0 8px 0;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.view-outline .doc-page h1:hover,
+.view-outline .doc-page h2:hover,
+.view-outline .doc-page h3:hover,
+.view-outline .doc-page h4:hover,
+.view-outline .doc-page h5:hover,
+.view-outline .doc-page h6:hover {
+  background: var(--hover);
+}
+
+.view-outline .doc-page h1 {
+  font-size: 1.5rem;
+  padding-left: 0;
+}
+.view-outline .doc-page h2 {
+  font-size: 1.3rem;
+  padding-left: 16px;
+}
+.view-outline .doc-page h3 {
+  font-size: 1.15rem;
+  padding-left: 32px;
+}
+.view-outline .doc-page h4 {
+  font-size: 1.05rem;
+  padding-left: 48px;
+}
+.view-outline .doc-page h5 {
+  font-size: 1rem;
+  padding-left: 64px;
+}
+.view-outline .doc-page h6 {
+  font-size: 0.95rem;
+  padding-left: 80px;
+}
+
+.view-outline .doc-page h1::before,
+.view-outline .doc-page h2::before,
+.view-outline .doc-page h3::before,
+.view-outline .doc-page h4::before,
+.view-outline .doc-page h5::before,
+.view-outline .doc-page h6::before {
+  content: '▸';
+  display: inline-block;
+  width: 16px;
+  text-align: center;
+  margin-right: 8px;
+  color: var(--text);
+  font-size: 0.8em;
 }

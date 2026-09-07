@@ -30,6 +30,7 @@ import type { ExportFormat, SaveMode } from '../shared/ipc'
 
 type LoadStatus = 'loading' | 'ready' | 'error'
 type SaveState = 'idle' | 'saving' | 'saved' | 'failed'
+type ViewMode = 'print' | 'outline'
 
 const MIN_ZOOM = 50
 const MAX_ZOOM = 200
@@ -128,6 +129,7 @@ export default function App() {
   const queueSeqRef = useRef(0)
   const [autoSave, setAutoSave] = useState(() => localStorage.getItem('mdapp.autoSave') === '1')
   const [zoom, setZoom] = useState(100)
+  const [viewMode, setViewMode] = useState<ViewMode>('print')
 
   const statusRef = useRef<LoadStatus>('loading')
   const dirtyRef = useRef(false)
@@ -585,7 +587,7 @@ export default function App() {
   }
 
   return (
-    <div className="app">
+    <div className={`app view-${viewMode}`}>
       <Ribbon
         editor={editor}
         disabled={status !== 'ready'}
@@ -603,6 +605,8 @@ export default function App() {
           setAiOpen(true)
           setAiPreset((prev) => ({ text, nonce: (prev?.nonce ?? 0) + 1 }))
         }}
+        viewMode={viewMode}
+        onViewMode={(mode: ViewMode) => setViewMode(mode)}
       />
       {status === 'loading' && <div className="center-note">{t('loading')}</div>}
       <div className="app-main" style={status === 'ready' ? undefined : { display: 'none' }}>

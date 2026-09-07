@@ -20,6 +20,7 @@ export {
   IconUndo,
   IconRedo,
   IconCopy,
+  IconOutlineView,
 } from '../../../../docs/src/renderer/components/icons'
 
 interface IconProps {
