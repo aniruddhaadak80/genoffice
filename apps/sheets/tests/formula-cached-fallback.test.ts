@@ -136,8 +136,8 @@ describe('installCachedValueFallbackInterceptor', () => {
     expect(handler({ v: '#NAME?' }, at(0, 0), passthrough)).toMatchObject({ v: 42 })
   })
 
-  it('keeps computed errors on an edited sheet but still falls back for #NAME?', () => {
-    const state = makeState({ '0:0': 42, '0:1': 7 })
+  it('keeps computed errors on an edited sheet but falls back for #NAME? and external ref errors', () => {
+    const state = makeState({ '0:0': 42, '0:1': 7, '0:2': 3.14, '0:3': 'ext ref' })
     state.editJournal.cells.set('sheet-1', new Map([['9:9', { hasValue: true }]]))
     const { handler } = captureInterceptor({ current: state })
     // #DIV/0! may be the true result of the user's new inputs.
@@ -145,6 +145,11 @@ describe('installCachedValueFallbackInterceptor', () => {
     expect(handler(divide, at(0, 0), passthrough)).toBe(divide)
     // #NAME? cannot be computed under any inputs; the cache stays better.
     expect(handler({ v: '#NAME?' }, at(0, 1), passthrough)).toMatchObject({ v: 7 })
+    // External reference errors fall back to cache even on an edited sheet:
+    // the engine cannot resolve the link, so the file's value is the best display.
+    expect(handler({ v: '#REF!' }, at(0, 2), passthrough)).toMatchObject({ v: 3.14 })
+    expect(handler({ v: '#N/A' }, at(0, 3), passthrough)).toMatchObject({ v: 'ext ref' })
+    expect(handler({ v: '#ERROR!' }, at(0, 2), passthrough)).toMatchObject({ v: 3.14 })
   })
 
   it('keeps a genuine arithmetic #VALUE! instead of the stale cache', () => {

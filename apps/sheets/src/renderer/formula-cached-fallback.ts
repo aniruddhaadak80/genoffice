@@ -76,15 +76,29 @@ export function installCachedValueFallbackInterceptor(
       const key = `${location.row}:${location.col}`
       const edits = state.editJournal.cells.get(sheetId)
       // Style-only journal entries (hasValue false) don't change any input.
+      // A user overwrite owns the cell — keep the engine's live result.
       if (edits?.get(key)?.hasValue) return next(cell)
+      let hasValueEdits = false
+      if (edits) {
+        for (const entry of edits.values()) {
+          if (entry.hasValue) {
+            hasValueEdits = true
+            break
+          }
+        }
+      }
+      // Unavailable external links surface as #REF!, #N/A or #ERROR!: the
+      // engine cannot resolve them under any inputs, so like #NAME? they
+      // stay fallback-eligible even when the user edited elsewhere.
+      const isExternalRefError =
+        value === ErrorType.REF || value === ErrorType.NA || value === ErrorType.ERROR
       // Once the sheet has user content edits, a computed error (#DIV/0!,
       // #N/A, ...) may be the true result of the new inputs — keep it.
-      // #NAME? still falls back: the engine cannot evaluate that formula
-      // under any inputs, so the file's value remains the best display.
-      if (value !== ErrorType.NAME && edits) {
-        for (const entry of edits.values()) {
-          if (entry.hasValue) return next(cell)
-        }
+      // #NAME? and external-reference errors still fall back: the engine
+      // cannot evaluate those formulas under any inputs, so the file's
+      // value remains the best display.
+      if (value !== ErrorType.NAME && !isExternalRefError && hasValueEdits) {
+        return next(cell)
       }
       const cached = state.cachedFormulaValues.get(sheetId)?.get(key)
       if (cached === undefined || cached === value) return next(cell)
