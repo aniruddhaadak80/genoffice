@@ -251,6 +251,21 @@ export const AI_PROVIDER_ADAPTERS: Record<AiProviderId, ProviderAdapter> = {
       }
     },
   },
+  codex: {
+    meta: metaOf('codex'),
+    capabilities: { auth: 'api-key', vision: true },
+    // Local Codex CLI runner over its OpenAI-compatible HTTP endpoint. Like
+    // the generic custom endpoint the key stays optional — only the base URL
+    // and model are required (see activeProvider's needsBaseUrl path).
+    resolveEndpoint(config) {
+      if (!config.baseUrl) throw new Error('A Codex CLI endpoint requires a Base URL')
+      return {
+        protocol: 'openai-compatible',
+        baseUrl: config.baseUrl,
+        ...(modelHasFixedSampling(config.model) ? { omitTemperature: true } : {}),
+      }
+    },
+  },
 }
 
 /** Throws on ids not in the registry — settings files are user data and can carry anything. */

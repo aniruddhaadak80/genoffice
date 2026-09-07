@@ -193,6 +193,15 @@ describe('provider registry', () => {
     )
   })
 
+  it('uses the configured base URL for Codex CLI and rejects a missing one', () => {
+    expect(
+      AI_PROVIDER_ADAPTERS.codex.resolveEndpoint(config('gpt-4o', 'http://localhost:1234/v1')),
+    ).toEqual({ protocol: 'openai-compatible', baseUrl: 'http://localhost:1234/v1' })
+    expect(() => AI_PROVIDER_ADAPTERS.codex.resolveEndpoint(config('gpt-4o'))).toThrow(
+      'A Codex CLI endpoint requires a Base URL',
+    )
+  })
+
   it('only genspark authenticates through the gsk login', () => {
     for (const [id, adapter] of Object.entries(AI_PROVIDER_ADAPTERS)) {
       expect(adapter.capabilities.auth).toBe(id === 'genspark' ? 'gsk-login' : 'api-key')

@@ -265,6 +265,16 @@ describe('activeProvider', () => {
     expect(activeProvider(settings)).toBe('custom')
   })
 
+  it('allows keyless Codex CLI endpoints for local runners', () => {
+    const settings = defaultAiSettings()
+    expect(settings.providers.codex.baseUrl).toBe('')
+    settings.provider = 'codex'
+    expect(activeProvider(settings)).toBe('genspark') // no base URL yet
+    settings.providers.codex.apiKey = ''
+    settings.providers.codex.baseUrl = 'http://localhost:1234/v1'
+    expect(activeProvider(settings)).toBe('codex')
+  })
+
   it('falls back to genspark for unknown ids from a hand-edited settings file', () => {
     const settings = defaultAiSettings()
     settings.provider = 'nonsense' as AiProviderId

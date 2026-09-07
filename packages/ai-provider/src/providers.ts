@@ -210,6 +210,17 @@ export const AI_PROVIDERS: AiProviderMeta[] = [
     keyPlaceholder: 'API Key',
   },
   {
+    id: 'codex',
+    label: 'Codex CLI',
+    // Local Codex CLI runner over its OpenAI-compatible HTTP endpoint. Model
+    // ids follow the runner (any model the local Codex setup serves); the key
+    // stays optional for local servers (see activeProvider's needsBaseUrl path).
+    models: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'o1-preview', 'o1-mini'],
+    defaultModel: 'gpt-4o',
+    keyPlaceholder: 'Optional (local)',
+    needsBaseUrl: true,
+  },
+  {
     id: 'custom',
     label: 'Custom',
     models: [],

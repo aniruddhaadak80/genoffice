@@ -16,6 +16,7 @@ export type AiProviderId =
   | 'openrouter'
   | 'opencode-zen'
   | 'opencode-go'
+  | 'codex'
   | 'custom'
 
 /** Genspark account status (gsk login state; the sole auth source for AI features) */
