@@ -52,6 +52,19 @@ describe('printPdf', () => {
     expect(document.querySelector('.pdf-print-root')).toBeNull()
   })
 
+  it('renders at 300 DPI with lossless PNG for crisp text (issue #211)', async () => {
+    const getViewport = vi.fn(({ scale }: { scale: number }) => ({
+      width: 612 * scale,
+      height: 792 * scale,
+    }))
+    const render = vi.fn(() => ({ promise: Promise.resolve() }))
+    const getPage = vi.fn(async () => ({ getViewport, render }))
+    const doc = { numPages: 1, getPage } as unknown as PDFDocumentProxy
+    await printPdf(doc)
+    expect(getViewport).toHaveBeenCalledWith({ scale: 300 / 72 })
+    expect(HTMLCanvasElement.prototype.toDataURL).toHaveBeenCalledWith('image/png')
+  })
+
   it('waits for afterprint before resolving', async () => {
     const { doc } = fakeDoc(1)
     let fireAfterPrint: () => void = () => {}

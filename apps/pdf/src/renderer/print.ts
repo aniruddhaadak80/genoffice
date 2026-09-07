@@ -1,13 +1,15 @@
 import type { PDFDocumentProxy } from 'pdfjs-dist'
 
-const PRINT_SCALE = 150 / 72
+const PRINT_SCALE = 300 / 72
 
 /**
- * Sequentially render pages as JPEG images into a print-only container (canvas discarded
+ * Sequentially render pages as PNG images into a print-only container (canvas discarded
  * immediately to avoid keeping full-doc hi-res bitmaps in memory), then hand off to the
  * system print dialog; clean up after it closes (including cancel).
  * Caller flushes unsaved changes and re-getDocument first — rotations/deleted pages are
  * already in the file.
+ *
+ * Uses 300 DPI with lossless PNG for maximum text clarity (issue #211).
  */
 export async function printPdf(doc: PDFDocumentProxy): Promise<void> {
   const root = document.createElement('div')
@@ -20,7 +22,8 @@ export async function printPdf(doc: PDFDocumentProxy): Promise<void> {
     canvas.height = Math.floor(viewport.height)
     await page.render({ canvas, viewport }).promise
     const img = document.createElement('img')
-    img.src = canvas.toDataURL('image/jpeg', 0.92)
+    // Use lossless PNG at 300 DPI for maximum text quality (issue #211)
+    img.src = canvas.toDataURL('image/png')
     root.appendChild(img)
   }
   canvas.width = 0
