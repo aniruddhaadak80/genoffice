@@ -520,3 +520,40 @@ describe('paragraph direction inference (run w:rtl / RTL script, no w:bidi)', ()
     expect(pmNodeToGeneratedBlock(doc.content![0]).format?.bidi).toBeUndefined()
   })
 })
+
+describe('trailing table paragraph (issue #266)', () => {
+  const tableBlock: Block = {
+    id: 'b0',
+    type: 'table',
+    docxIndex: 0,
+    originalXml: '<w:tbl/>',
+    table: {
+      rows: [[{ paras: ['x'] }]],
+      rowHeightsTwips: [500],
+      rowHeightRules: ['atLeast'],
+    },
+  }
+  const paraBlock: Block = {
+    id: 'b1',
+    type: 'paragraph',
+    docxIndex: 1,
+    originalXml: '<w:p/>',
+    runs: [{ text: 'tail' }],
+  }
+
+  it('appends an unindexed paragraph after a trailing table', () => {
+    const doc = blocksToPmDoc([tableBlock])
+    expect(doc.content!.length).toBe(2)
+    const last = doc.content![1]
+    expect(last.type).toBe('docParagraph')
+    // Unindexed like the empty-doc fallback, so the save patch skips it.
+    expect(last.attrs!.docxIndex).toBeNull()
+  })
+
+  it('leaves docs ending in a paragraph untouched', () => {
+    const doc = blocksToPmDoc([tableBlock, paraBlock])
+    expect(doc.content!.length).toBe(2)
+    expect(doc.content![1].type).toBe('docParagraph')
+    expect(doc.content![1].attrs!.docxIndex).toBe(1)
+  })
+})

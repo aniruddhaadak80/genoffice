@@ -88,6 +88,17 @@ export function blocksToPmDoc(blocks: Block[], sections?: SectionInfo[]): PmNode
       attrs: { docxIndex: null, styleId: null, aiChanged: false },
     })
   }
+  // A trailing table strands the caret: ProseMirror needs a textblock after
+  // it for ArrowDown/click-below to land on. Word itself requires a final
+  // paragraph after a trailing table, so synthesize one (docxIndex null keeps
+  // it out of the save patch, like the empty-doc paragraph above).
+  const last = content[content.length - 1]
+  if (last && last.type === 'docTable') {
+    content.push({
+      type: 'docParagraph',
+      attrs: { docxIndex: null, styleId: null, aiChanged: false },
+    })
+  }
   return { type: 'doc', content }
 }
 
