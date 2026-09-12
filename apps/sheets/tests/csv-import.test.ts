@@ -126,6 +126,13 @@ describe('isNumericCell', () => {
       expect(isNumericCell(value), value).toBe(false)
     }
   })
+
+  it('keeps integers past Excel precision as text so long IDs survive', () => {
+    expect(isNumericCell('123456789012345')).toBe(true)
+    expect(isNumericCell('1234567890123456')).toBe(false)
+    expect(isNumericCell('12345678901234567890')).toBe(false)
+    expect(buildWorksheetXml([['12345678901234567890']])).toContain('t="inlineStr"')
+  })
 })
 
 describe('csvToXlsxBuffer', () => {
