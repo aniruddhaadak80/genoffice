@@ -33,21 +33,28 @@ export function printScaleForAreas(areas: number[]): number {
  * system print dialog; clean up after it closes (including cancel).
  * Caller flushes unsaved changes and re-getDocument first — rotations/deleted pages are
  * already in the file.
+ * @param pages 1-based file pages to render; defaults to the whole document.
+ * The 200 DPI pixel budget is computed over the selected pages only, so a
+ * small range out of a huge document still prints at full target quality.
  */
-export async function printPdf(doc: PDFDocumentProxy): Promise<void> {
+export async function printPdf(doc: PDFDocumentProxy, pages?: number[]): Promise<void> {
   const root = document.createElement('div')
   root.className = 'pdf-print-root'
   const canvas = document.createElement('canvas')
-  const pages: PDFPageProxy[] = []
+  const targets =
+    pages && pages.length > 0
+      ? [...new Set(pages)].filter((n) => n >= 1 && n <= doc.numPages).sort((a, b) => a - b)
+      : Array.from({ length: doc.numPages }, (_x, i) => i + 1)
+  const fetched: PDFPageProxy[] = []
   const areas: number[] = []
-  for (let n = 1; n <= doc.numPages; n++) {
+  for (const n of targets) {
     const page = await doc.getPage(n)
-    pages.push(page)
+    fetched.push(page)
     const unit = page.getViewport({ scale: 1 })
     areas.push(unit.width * unit.height)
   }
   const scale = printScaleForAreas(areas)
-  for (const page of pages) {
+  for (const page of fetched) {
     const viewport = page.getViewport({ scale })
     canvas.width = Math.floor(viewport.width)
     canvas.height = Math.floor(viewport.height)

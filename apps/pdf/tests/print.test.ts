@@ -140,11 +140,11 @@ describe('printPdf render scale', () => {
     return { doc, scales, getPage, render }
   }
 
-  it('renders small documents at 200 DPI (one measure call at scale 1 per page)', async () => {
+  it('renders small documents at 200 DPI (all pages measured before the render pass)', async () => {
     const { doc, scales, getPage } = scalesDoc(2)
     await printPdf(doc)
     expect(getPage).toHaveBeenCalledTimes(2)
-    expect(scales).toEqual([1, 200 / 72, 1, 200 / 72])
+    expect(scales).toEqual([1, 1, 200 / 72, 200 / 72])
   })
 
   it('floors huge documents at the 150 DPI baseline', async () => {
@@ -154,5 +154,14 @@ describe('printPdf render scale', () => {
     for (const s of scales) {
       expect(s === 1 || s === 150 / 72).toBe(true)
     }
+  })
+
+  it('budgets a page subset on its own: two pages out of a huge document print at 200 DPI', async () => {
+    const { doc, scales, getPage } = scalesDoc(200)
+    await printPdf(doc, [7, 3])
+    expect(getPage).toHaveBeenCalledTimes(2)
+    expect(getPage).toHaveBeenNthCalledWith(1, 3)
+    expect(getPage).toHaveBeenNthCalledWith(2, 7)
+    expect(scales).toEqual([1, 1, 200 / 72, 200 / 72])
   })
 })
