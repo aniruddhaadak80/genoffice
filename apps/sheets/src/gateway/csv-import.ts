@@ -162,8 +162,7 @@ export function parseCsv(input: string, delimiter = sniffDelimiter(input)): stri
 /// stay text too, so long IDs are not corrupted on open.
 export function isNumericCell(value: string): boolean {
   if (!/^-?(0|[1-9][0-9]*)(\.[0-9]+)?([eE][+-]?[0-9]+)?$/.test(value)) return false
-  const mantissa = value.replace(/^-/, '').split(/[eE]/)[0]!.replace('.', '').replace(/^0+/, '')
-  if (mantissa.length > 15) return false
+  if (!/[.eE]/.test(value) && value.replace(/^-/, '').length > 15) return false
   return Number.isFinite(Number(value))
 }
 
