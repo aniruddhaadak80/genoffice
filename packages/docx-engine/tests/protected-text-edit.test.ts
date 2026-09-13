@@ -75,4 +75,38 @@ describe('protected visible-text patching', () => {
   it('refuses a formula patch when token count changes', () => {
     expect(patchMathTokens(FORMULA, ['only-one'])).toBe(FORMULA)
   })
+
+  it('handles numeric char refs so distribution stays aligned', async () => {
+    const entry =
+      '<w:p><w:pPr><w:pStyle w:val="TOC1"/></w:pPr>' +
+      '<w:r><w:t>Foo &#8211; Bar</w:t></w:r><w:r><w:tab/></w:r>' +
+      '<w:r><w:t>12</w:t></w:r></w:p>'
+    const patched = patchFieldParagraphXml(entry, { left: 'Foo – Baz', right: '13' })
+    const parsed = await parseDocx(await buildDocx({ bodyXml: patched }))
+    expect(parsed.blocks[0].fieldDisplay?.left).toBe('Foo – Baz')
+    expect(parsed.blocks[0].fieldDisplay?.right).toBe('13')
+  })
+
+  it('pins preserve for NBSP and other whitespace at edges (not just tab/space)', async () => {
+    const entry =
+      '<w:p><w:pPr><w:pStyle w:val="TOC1"/></w:pPr>' +
+      '<w:r><w:t>Title</w:t></w:r><w:r><w:tab/></w:r>' +
+      '<w:r><w:t>7</w:t></w:r></w:p>'
+    const nbsp = '\u00A0Title\u00A0'
+    const patched = patchFieldParagraphXml(entry, { left: nbsp, right: '7' })
+    expect(patched).toContain('xml:space="preserve"')
+    const parsed = await parseDocx(await buildDocx({ bodyXml: patched }))
+    expect(parsed.blocks[0].fieldDisplay?.left).toBe(nbsp)
+  })
+
+  it('patches a self-closing empty run (<w:t/>) instead of no-oping', async () => {
+    const entry =
+      '<w:p><w:pPr><w:pStyle w:val="TOC1"/></w:pPr>' +
+      '<w:r><w:t/></w:r><w:r><w:tab/></w:r>' +
+      '<w:r><w:t>7</w:t></w:r></w:p>'
+    const patched = patchFieldParagraphXml(entry, { left: 'Hello', right: '7' })
+    expect(patched).toContain('<w:t>Hello</w:t>')
+    const parsed = await parseDocx(await buildDocx({ bodyXml: patched }))
+    expect(parsed.blocks[0].fieldDisplay?.left).toBe('Hello')
+  })
 })
