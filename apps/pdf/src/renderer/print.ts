@@ -1,4 +1,4 @@
-import type { PDFDocumentProxy, PDFPageProxy } from 'pdfjs-dist'
+import type { PDFDocumentProxy } from 'pdfjs-dist'
 
 /** Baseline raster density (previous behavior — quality never drops below this). */
 const BASE_DPI = 150
