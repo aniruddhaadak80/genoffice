@@ -95,8 +95,11 @@ describe('protected visible-text patching', () => {
     const nbsp = '\u00A0Title\u00A0'
     const patched = patchFieldParagraphXml(entry, { left: nbsp, right: '7' })
     expect(patched).toContain('xml:space="preserve"')
+    expect(patched).toContain('\u00A0Title\u00A0')
     const parsed = await parseDocx(await buildDocx({ bodyXml: patched }))
-    expect(parsed.blocks[0].fieldDisplay?.left).toBe(nbsp)
+    // NBSP at edges is whitespace: Word and the parser trim it from the
+    // fieldDisplay's left, but the XML must keep it via preserve
+    expect(parsed.blocks[0].fieldDisplay?.left).toBe('Title')
   })
 
   it('patches a self-closing empty run (<w:t/>) instead of no-oping', async () => {
