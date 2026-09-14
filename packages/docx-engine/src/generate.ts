@@ -258,11 +258,15 @@ function decodeXmlText(text: string): string {
     .replace(/&apos;/g, "'")
     .replace(/&#(\d+);/g, (_m, dec: string) => {
       const cp = Number(dec)
-      return Number.isFinite(cp) ? String.fromCodePoint(cp) : _m
+      if (!Number.isFinite(cp) || cp < 0 || cp > 0x10ffff || (cp >= 0xd800 && cp <= 0xdfff))
+        return _m
+      return String.fromCodePoint(cp)
     })
     .replace(/&#x([0-9a-fA-F]+);/g, (_m, hex: string) => {
       const cp = parseInt(hex, 16)
-      return Number.isFinite(cp) ? String.fromCodePoint(cp) : _m
+      if (!Number.isFinite(cp) || cp < 0 || cp > 0x10ffff || (cp >= 0xd800 && cp <= 0xdfff))
+        return _m
+      return String.fromCodePoint(cp)
     })
     .replace(/&amp;/g, '&')
 }
