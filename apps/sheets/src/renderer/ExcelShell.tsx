@@ -1,5 +1,5 @@
 import type { IFunctionInfo } from '@univerjs/engine-formula'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { platformShortcuts } from '@genoffice/i18n'
 import {
   Dropdown,
@@ -3203,11 +3203,37 @@ function MenuSelect({
 }): React.JSX.Element {
   const [open, setOpen] = useState(false)
   const wrapRef = useRef<HTMLDivElement>(null)
+  const closeTimerRef = useRef<number | null>(null)
   // outside press / window blur / shell chrome press — the shared hook
   useDismissablePopover(open, () => setOpen(false), { inside: () => [wrapRef.current] })
   useEscapeClose(open, () => setOpen(false))
+  useEffect(
+    () => () => {
+      if (closeTimerRef.current !== null) window.clearTimeout(closeTimerRef.current)
+    },
+    [],
+  )
+  const cancelClose = useCallback(() => {
+    if (closeTimerRef.current !== null) {
+      window.clearTimeout(closeTimerRef.current)
+      closeTimerRef.current = null
+    }
+  }, [])
+  const scheduleClose = useCallback(() => {
+    if (closeTimerRef.current !== null) window.clearTimeout(closeTimerRef.current)
+    closeTimerRef.current = window.setTimeout(() => setOpen(false), 120)
+  }, [])
+  const handleEnter = useCallback(() => {
+    cancelClose()
+    setOpen(true)
+  }, [cancelClose])
   return (
-    <div ref={wrapRef} className={`menu-select${cover ? ' menu-select-cover' : ''}`}>
+    <div
+      ref={wrapRef}
+      className={`menu-select${cover ? ' menu-select-cover' : ''}`}
+      onMouseEnter={handleEnter}
+      onMouseLeave={scheduleClose}
+    >
       <button
         type="button"
         className={cover ? 'cover-select' : className}
@@ -3216,6 +3242,7 @@ function MenuSelect({
         aria-haspopup="listbox"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
+        onMouseEnter={cancelClose}
       >
         {!cover && (
           <>

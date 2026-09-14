@@ -51,9 +51,16 @@ export function Dropdown<K extends string>({
   const [active, setActive] = useState(0)
   const popRef = useRef<HTMLDivElement>(null)
   const wrapRef = useRef<HTMLSpanElement>(null)
+  const closeTimerRef = useRef<number | null>(null)
   // guarded (capture-phase) dismissal: a press on another dropdown's trigger
   // must close this one even though that trigger stops mousedown propagation
   useDismissablePopover(open, () => setOpen(false), { inside: () => [wrapRef.current] })
+  useEffect(
+    () => () => {
+      if (closeTimerRef.current !== null) window.clearTimeout(closeTimerRef.current)
+    },
+    [],
+  )
   useEffect(() => {
     if (!open) return
     // optional chaining on the call: jsdom elements have no scrollIntoView
@@ -63,9 +70,23 @@ export function Dropdown<K extends string>({
   // must read as itself, not masquerade as the first option
   const current = options.find((o) => o.value === value)
   const openList = () => {
+    if (closeTimerRef.current !== null) {
+      window.clearTimeout(closeTimerRef.current)
+      closeTimerRef.current = null
+    }
     const i = options.findIndex((o) => o.value === value)
     setActive(i < 0 ? 0 : i)
     setOpen(true)
+  }
+  const scheduleClose = () => {
+    if (closeTimerRef.current !== null) window.clearTimeout(closeTimerRef.current)
+    closeTimerRef.current = window.setTimeout(() => setOpen(false), 120)
+  }
+  const cancelClose = () => {
+    if (closeTimerRef.current !== null) {
+      window.clearTimeout(closeTimerRef.current)
+      closeTimerRef.current = null
+    }
   }
   const pick = (o: DropdownOption<K>) => {
     if (o.disabled) return
@@ -95,7 +116,12 @@ export function Dropdown<K extends string>({
     e.stopPropagation()
   }
   return (
-    <span ref={wrapRef} className={`gs-dd${className ? ` ${className}` : ''}`}>
+    <span
+      ref={wrapRef}
+      className={`gs-dd${className ? ` ${className}` : ''}`}
+      onMouseEnter={cancelClose}
+      onMouseLeave={scheduleClose}
+    >
       <button
         type="button"
         className="gs-dd-btn"
@@ -109,6 +135,7 @@ export function Dropdown<K extends string>({
         aria-invalid={ariaInvalid}
         onClick={() => (open ? setOpen(false) : openList())}
         onKeyDown={onKeyDown}
+        onMouseEnter={cancelClose}
         onBlur={(e) => {
           // native selects close on focus loss (Tab); staying inside the wrapper
           // (clicking an option focuses it) must not dismiss
