@@ -169,14 +169,25 @@ export function CutoutDialog({ dataUrl, onApply, onCancel }: Props) {
           }}
         >
           {error ? (
-            <span style={{ color: '#c33', background: '#fff', padding: '4px 10px', borderRadius: 4 }}>{t(error)}</span>
+            <span
+              style={{
+                color: 'var(--danger)',
+                background: 'var(--surface)',
+                padding: '4px 10px',
+                borderRadius: 4,
+              }}
+            >
+              {t(error)}
+            </span>
           ) : (
             <canvas
               ref={canvasRef}
               style={{ maxWidth: '100%', maxHeight: PREVIEW_MAX, display: loaded ? 'block' : 'none' }}
             />
           )}
-          {!loaded && !error && <span style={{ color: '#888' }}>{t('paneCutoutLoading')}</span>}
+          {!loaded && !error && (
+            <span style={{ color: 'var(--text-secondary)' }}>{t('paneCutoutLoading')}</span>
+          )}
         </div>
         <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12 }}>
           <span style={{ whiteSpace: 'nowrap' }}>{t('paneCutoutTolerance')}</span>
@@ -192,7 +203,7 @@ export function CutoutDialog({ dataUrl, onApply, onCancel }: Props) {
           />
           <span style={{ width: 32, textAlign: 'right' }}>{tolerance}</span>
         </label>
-        <div style={{ fontSize: 12, color: '#888', marginTop: 4 }}>
+        <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>
           {t('paneCutoutHint', { pct: removedPct })}
         </div>
         <div className="modal-actions">
