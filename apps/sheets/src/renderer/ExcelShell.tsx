@@ -3223,9 +3223,12 @@ function MenuSelect({
     if (closeTimerRef.current !== null) window.clearTimeout(closeTimerRef.current)
     closeTimerRef.current = window.setTimeout(() => setOpen(false), 120)
   }, [])
+  // Hover must only cancel a pending close (re-entering before the timeout
+  // keeps an open menu open, fixing #337). It must NOT open a closed menu:
+  // hover-open followed by the trigger's click-toggle would close it again,
+  // so click-to-open would never hold (broke 4 sheets e2e specs).
   const handleEnter = useCallback(() => {
     cancelClose()
-    setOpen(true)
   }, [cancelClose])
   return (
     <div
