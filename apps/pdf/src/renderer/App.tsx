@@ -847,6 +847,13 @@ export default function App() {
   /** Visible position → row index */
   const rowOfVis = useCallback((visIdx: number) => rowOfVisIdx(visIdx, spread), [spread])
   const fileName = filePath.split(/[\\/]/).pop() ?? filePath
+  // fixes #363: wire documentInfo.Title to the tab title
+  useEffect(() => {
+    const title = docInfo.title?.trim()
+    document.title = title
+      ? `${title} — ${fileName || 'GenOffice PDF'}`
+      : fileName || 'GenOffice PDF'
+  }, [docInfo.title, fileName])
 
   const rotDelta = useCallback(
     (origIdx: number) => rotationsRef.current.get(origIdx) ?? 0,
