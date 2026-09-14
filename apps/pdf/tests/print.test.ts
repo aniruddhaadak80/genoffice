@@ -176,10 +176,8 @@ describe('printPdf render scale', () => {
       { width: Number.NaN, height: Number.NaN },
       { width: 1e6, height: 1e6 },
     ]
-    let idx = 0
-    const getPage = vi.fn(async () => {
-      const vp = viewports[idx]!
-      idx += 1
+    const getPage = vi.fn(async (n: number) => {
+      const vp = viewports[n - 1]!
       return {
         getViewport: vi.fn(({ scale }: { scale: number }) => ({
           width: vp.width * scale,
@@ -193,8 +191,9 @@ describe('printPdf render scale', () => {
     await printPdf(doc)
     // each page cleaned up twice: once after measure, once after render/skip
     expect(cleanups).toHaveLength(6)
-    // NaN/huge pages are skipped rather than aborting the whole print
+    // NaN pages are skipped and huge pages render at their own reduced scale
+    // rather than aborting the whole print
     const imgs = document.querySelectorAll('img')
-    expect(imgs.length).toBe(1)
+    expect(imgs.length).toBe(2)
   })
 })

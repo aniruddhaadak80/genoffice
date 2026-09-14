@@ -72,18 +72,23 @@ export async function printPdf(doc: PDFDocumentProxy, pages?: number[]): Promise
   for (const n of targets) {
     const page = await doc.getPage(n)
     try {
-      const viewport = page.getViewport({ scale })
-      const w = Math.floor(viewport.width)
-      const h = Math.floor(viewport.height)
-      if (
-        !Number.isFinite(w) ||
-        !Number.isFinite(h) ||
-        w <= 0 ||
-        h <= 0 ||
-        w * h > MAX_PAGE_PIXELS
-      ) {
-        // Skip a single corrupt/huge page rather than aborting the whole print.
+      let viewport = page.getViewport({ scale })
+      let w = Math.floor(viewport.width)
+      let h = Math.floor(viewport.height)
+      if (!Number.isFinite(w) || !Number.isFinite(h) || w <= 0 || h <= 0) {
+        // Skip a single corrupt page rather than aborting the whole print.
         continue
+      }
+      if (w * h > MAX_PAGE_PIXELS) {
+        // A missing page is worse than a softer one: render this page at its
+        // own reduced scale instead of dropping it.
+        const pageScale = scale * Math.sqrt(MAX_PAGE_PIXELS / (w * h))
+        viewport = page.getViewport({ scale: pageScale })
+        w = Math.floor(viewport.width)
+        h = Math.floor(viewport.height)
+        if (!Number.isFinite(w) || !Number.isFinite(h) || w <= 0 || h <= 0) {
+          continue
+        }
       }
       canvas.width = w
       canvas.height = h
