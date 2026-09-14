@@ -133,8 +133,25 @@ export function patchFindModel(proto: FindModelPrototype, spills: SpillLookup): 
       return original.call(this, worksheet, query, range, unitId, dedupeFn)
     }
     const results: unknown[] = []
+    // fixes #220: dedupe must include column so A10, C10, F10, H10 on the same row stay distinct
+    const seen = new Set<string>()
+    const colAwareDedupe = dedupeFn
+      ? (row: number, col: number): boolean => {
+          const key = `${row}:${col}`
+          if (seen.has(key)) return true
+          if (dedupeFn(row, col)) return true
+          seen.add(key)
+          return false
+        }
+      : (row: number, col: number): boolean => {
+          const key = `${row}:${col}`
+          if (seen.has(key)) return true
+          seen.add(key)
+          return false
+        }
     for (const slice of sliceRange(range, runs, byColumn)) {
-      for (const hit of original.call(this, worksheet, query, slice, unitId, dedupeFn).results) {
+      for (const hit of original.call(this, worksheet, query, slice, unitId, colAwareDedupe)
+        .results) {
         results.push(hit)
       }
     }

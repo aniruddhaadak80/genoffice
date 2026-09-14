@@ -123,6 +123,7 @@ export function coveredByWindow(
 }
 
 function matchKey(match: LazyCellMatch): string {
+  // fixes #220: surface every cell on the same row (A10, C10, F10, H10) — key must include column
   return `${match.range.subUnitId}|${match.range.range.startRow}|${match.range.range.startColumn}`
 }
 
