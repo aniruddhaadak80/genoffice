@@ -58,7 +58,7 @@ export function modelHasFixedSampling(model: string): boolean {
  * excluded so the direct Vision Exp model can receive screenshots.
  */
 export function modelLacksVision(model: string): boolean {
-  return /(^|\/)deep-?seek-v4-(?:pro(?:$|-)|flash(?!-vision))/.test(model)
+  return /(^|\/)deep-?seek-v4-(?:pro(?:$|-)|flash(?!-vision))/i.test(model)
 }
 
 /**
