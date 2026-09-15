@@ -25,6 +25,22 @@ const StrictInlineMath = InlineMath.extend({
   },
 })
 
+/**
+ * AI chatbots (Gemini, Claude) emit LaTeX with \(...\) inline and \[...\]
+ * block delimiters, but the editor only tokenizes $...$ / $$...$$. Normalize
+ * pasted text so pasted formulas render instead of staying plain text.
+ * Currency ($5, $10) is untouched: only backslash delimiters convert.
+ */
+export function normalizePastedMath(text: string): string {
+  return text
+    .replace(/\\\[(.+?)\\\]/gs, (_, latex: string) => `\$\$${latex.trim()}\$\$`)
+    .replace(/\\\((.+?)\\\)/gs, (_, latex: string) => {
+      const inner = latex.trim()
+      if (inner === '' || inner.includes('\n')) return _ as string
+      return `$${inner}$`
+    })
+}
+
 /** Math nodes are atoms — clicking one opens the LaTeX edit popover. */
 const MathClickEdit = Extension.create({
   name: 'mathClickEdit',
@@ -34,6 +50,7 @@ const MathClickEdit = Extension.create({
     return [
       new Plugin({
         props: {
+          transformPastedText: (text: string) => normalizePastedMath(text),
           handleClickOn: (view, _pos, node, nodePos, event) => {
             if (node.type.name !== 'blockMath' && node.type.name !== 'inlineMath') return false
             if (!view.editable) return false
