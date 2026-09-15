@@ -18,4 +18,26 @@ describe('normalizePastedMath', () => {
     expect(normalizePastedMath(String.raw`\(\)`)).toBe(String.raw`\(\)`)
     expect(normalizePastedMath('plain text')).toBe('plain text')
   })
+
+  it('leaves Markdown-escaped brackets (citations) untouched', () => {
+    expect(normalizePastedMath(String.raw`see \[1\] and \[2\]`)).toBe(
+      String.raw`see \[1\] and \[2\]`,
+    )
+  })
+
+  it('leaves Markdown-escaped parens untouched', () => {
+    expect(normalizePastedMath(String.raw`\(note\)`)).toBe(String.raw`\(note\)`)
+  })
+
+  it('leaves inline-looking block math mid-line untouched', () => {
+    expect(normalizePastedMath(String.raw`see \[x^2\] here`)).toBe(String.raw`see \[x^2\] here`)
+  })
+
+  it('converts display math alone on its line', () => {
+    expect(
+      normalizePastedMath(String.raw`intro
+\[x^2 + y^2\]
+outro`),
+    ).toBe('intro\n$$x^2 + y^2$$\noutro')
+  })
 })
