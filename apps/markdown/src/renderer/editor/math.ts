@@ -33,7 +33,7 @@ const StrictInlineMath = InlineMath.extend({
  */
 export function normalizePastedMath(text: string): string {
   return text
-    .replace(/\\\[(.+?)\\\]/gs, (_, latex: string) => `\$\$${latex.trim()}\$\$`)
+    .replace(/\\\[(.+?)\\\]/gs, (_, latex: string) => '$$' + latex.trim() + '$$')
     .replace(/\\\((.+?)\\\)/gs, (_, latex: string) => {
       const inner = latex.trim()
       if (inner === '' || inner.includes('\n')) return _ as string
