@@ -81,6 +81,7 @@ const parser = new XMLParser({
       'a:p',
       'a:r',
       'a:br',
+      'a:tab',
       'a:fld',
       'p:sp',
       'p:pic',
@@ -291,6 +292,7 @@ function parseShapeFragment(
   // fields in document order instead of being appended after all plain runs.
   const semanticXml = fragXml
     .replace(/<a:br\b[^>]*\/>|<a:br\b[\s\S]*?<\/a:br>/g, '<a:r><a:t>\n</a:t></a:r>')
+    .replace(/<a:tab\b[^>]*\/>|<a:tab\b[\s\S]*?<\/a:tab>/g, '<a:r><a:t>\t</a:t></a:r>')
     .replace(/<a:fld\b/g, '<a:r')
     .replace(/<\/a:fld>/g, '</a:r>')
   const doc = parser.parse(semanticXml)

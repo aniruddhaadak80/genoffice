@@ -81,4 +81,17 @@ describe('a:fld document-order preservation', () => {
     expect(runs[0]!.text).toBe('')
     expect(runs[0]!.paraMark).toBeUndefined()
   })
+
+  it('a:tab between runs stays in order as a tab stop (r("Col1") + tab + r("Col2"))', () => {
+    const runs = runsOf(
+      textBox(
+        `<a:p>` +
+          `<a:r><a:rPr lang="en-US"/><a:t>Col1</a:t></a:r>` +
+          `<a:tab/>` +
+          `<a:r><a:rPr lang="en-US"/><a:t>Col2</a:t></a:r>` +
+          `</a:p>`,
+      ),
+    )
+    expect(runs.map((r) => r.text).join('')).toBe('Col1\tCol2')
+  })
 })
