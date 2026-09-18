@@ -46,7 +46,7 @@ describe('resolveSpinCount', () => {
 describe('verifyProtectionPassword DoS guard', () => {
   const salt = 'AAAAAAAAAAAAAAAAAAAAAA=='
 
-  it('rejects absurd spinCount without calling Subtle.digest', async () => {
+  it('fails closed on absurd spinCount without hashing or throwing', async () => {
     const digest = vi.spyOn(globalThis.crypto.subtle, 'digest')
     await expect(
       verifyProtectionPassword('pw', {
@@ -55,7 +55,7 @@ describe('verifyProtectionPassword DoS guard', () => {
         spinCount: 99_999_999,
         algorithmSid: 14,
       }),
-    ).rejects.toThrow(/spinCount/)
+    ).resolves.toBe(false)
     expect(digest).not.toHaveBeenCalled()
   })
 
@@ -73,11 +73,11 @@ describe('verifyProtectionPassword DoS guard', () => {
     expect(digest).not.toHaveBeenCalled()
   })
 
-  it('fails fast on missing salt instead of hashing', async () => {
+  it('returns false on missing salt instead of hashing or throwing', async () => {
     const digest = vi.spyOn(globalThis.crypto.subtle, 'digest')
     await expect(
       verifyProtectionPassword('pw', { hash: 'eA==', spinCount: 1000, algorithmSid: 14 }),
-    ).rejects.toThrow(/salt/)
+    ).resolves.toBe(false)
     expect(digest).not.toHaveBeenCalled()
   })
 

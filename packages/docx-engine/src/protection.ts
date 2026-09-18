@@ -12,9 +12,9 @@ import type { DocProtection } from './types'
 export const DEFAULT_SPIN_COUNT = 100000
 // Upper bound for untrusted spinCount values read from document XML.
 // Each iteration costs one Subtle.digest call, so an unbounded value
-// from a hostile file would stall the opener (CPU DoS). The pure helper
-// below clamps to this limit and the verify path rejects anything above
-// it, both before any hashing starts.
+// from a hostile file would stall the opener (CPU DoS). Both the pure
+// helper below and the verify path clamp to this limit before any
+// hashing starts, so there is exactly one policy for untrusted counts.
 export const MAX_SPIN_COUNT = 1000000
 
 /**
@@ -110,20 +110,28 @@ export async function verifyProtectionPassword(
 ): Promise<boolean> {
   if (!protection.hash) return true
   if ((protection.algorithmSid ?? 14) !== 14) return false // only SHA-512 is supported
-  // Fail fast on missing credentials instead of hashing with an empty salt.
+  // Fail closed on missing credentials instead of hashing with an empty
+  // salt. Callers treat false as wrong-password, and neither App.tsx nor
+  // ProtectDialog catches, so this must never throw.
   if (!protection.salt) {
-    throw new Error('invalid protection: missing salt for password hash')
+    return false
   }
+  // One policy for untrusted counts: creation and normalization clamp via
+  // resolveSpinCount, while verify fail-closes without hashing when the
+  // stored count is above MAX_SPIN_COUNT. Hashing a clamped count to the
+  // end would burn up to a million digests just to return false (measured
+  // past the 20s test timeout), and a stored count that high can only come
+  // from a hostile or hand-crafted file. Callers treat false as
+  // wrong-password, and neither App.tsx nor ProtectDialog catches, so this
+  // must never throw.
   const rawSpin = protection.spinCount ?? DEFAULT_SPIN_COUNT
-  // DoS guard: reject absurd iteration counts from untrusted document XML
-  // before starting any Subtle.digest work.
   const numericSpin = typeof rawSpin === 'string' ? Number(String(rawSpin).trim()) : rawSpin
   if (
     typeof numericSpin === 'number' &&
     Number.isFinite(numericSpin) &&
     numericSpin > MAX_SPIN_COUNT
   ) {
-    throw new Error(`invalid spinCount: ${String(rawSpin)} exceeds maximum ${MAX_SPIN_COUNT}`)
+    return false
   }
   const spinCount = resolveSpinCount(rawSpin)
   const salt = fromBase64(protection.salt)
