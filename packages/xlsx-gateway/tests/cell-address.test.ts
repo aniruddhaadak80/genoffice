@@ -9,8 +9,10 @@ import {
 } from '../src/domain/cell-address'
 
 describe('cell-address hardening', () => {
-  it('parses lowercase addresses', () => {
-    expect(parseAddress('a1')).toEqual({ row: 0, column: 0 })
+  it('stays case-strict like the sheets consumer contract', () => {
+    // apps/sheets/tests/cell-address.test.ts pins lowercase rejection;
+    // this package must not accept what the consumer refuses.
+    expect(() => parseAddress('a1')).toThrow('Invalid cell address')
   })
 
   it('parses ranges with surrounding whitespace', () => {

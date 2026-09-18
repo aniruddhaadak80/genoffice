@@ -13,8 +13,9 @@ export interface RangeBounds {
 export function parseAddress(address: string): CellCoordinates {
   // $-anchored A1 notation is equivalent here; some producers store pivot
   // location refs as $C$33 and refreshing such a pivot must not choke.
-  // Trim surrounding whitespace and accept lowercase by normalizing to upper case.
-  const normalized = address.trim().toUpperCase()
+  // Trim surrounding whitespace, but stay case-strict: the sheets consumer
+  // contract pins lowercase rejection (see apps/sheets/tests/cell-address.test.ts).
+  const normalized = address.trim()
   const match = /^\$?([A-Z]+)\$?([1-9][0-9]*)$/.exec(normalized)
   if (!match?.[1] || !match[2]) throw new Error(`Invalid cell address: ${address}`)
   let column = 0
