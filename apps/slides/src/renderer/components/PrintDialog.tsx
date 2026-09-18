@@ -172,7 +172,7 @@ export function PrintDialog({
             {previewHtml ? (
               <iframe
                 ref={frameRef}
-                title="print-preview"
+                title={t('appPrintTitle')}
                 sandbox="allow-same-origin"
                 srcDoc={previewHtml}
                 onLoad={applyZoom}
