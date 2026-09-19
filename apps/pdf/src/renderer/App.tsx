@@ -8002,9 +8002,7 @@ export default function App() {
                                     { id: newId(), pageIndex: origIdx, rect },
                                   ])
                                 }
-                                onTooSmall={() =>
-                                  showNotice('Redaction mark too small — drag a larger area.')
-                                }
+                                onTooSmall={() => showNotice(t('redactHint'))}
                               />
                               {/* Ghost pin for the note being typed into the margin draft card */}
                               {noteDraft?.origIdx === origIdx &&
