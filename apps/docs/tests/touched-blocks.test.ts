@@ -20,7 +20,7 @@ const schema = new Schema({
   },
 })
 
-const para = (text: string) => schema.node('paragraph', null, text ? schema.text(text) : null)
+const para = (text: string) => schema.node('paragraph', null, text ? schema.text(text) : undefined)
 const makeDoc = (texts: string[]) => schema.node('doc', null, texts.map(para))
 
 /** offset of top-level child `index` in `doc` */
