@@ -7995,11 +7995,15 @@ export default function App() {
                                 pageWidth={size.width}
                                 pageHeight={size.height}
                                 marks={redactions.filter((mark) => mark.pageIndex === origIdx)}
+                                markLabel={t('redact')}
                                 onCommit={(rect) =>
                                   setRedactions((prev) => [
                                     ...prev,
                                     { id: newId(), pageIndex: origIdx, rect },
                                   ])
+                                }
+                                onTooSmall={() =>
+                                  showNotice('Redaction mark too small — drag a larger area.')
                                 }
                               />
                               {/* Ghost pin for the note being typed into the margin draft card */}
