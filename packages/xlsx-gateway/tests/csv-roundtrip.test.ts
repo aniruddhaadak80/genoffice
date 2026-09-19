@@ -11,7 +11,7 @@ import {
 
 async function sheetCells(
   buffer: Buffer,
-): Promise<Record<string, { value: unknown; formula?: string }>> {
+): Promise<Readonly<Record<string, { value: unknown; formula?: string | undefined }>>> {
   const imported = await readBasicWorkbook(buffer)
   const sheet = imported.snapshot.sheets[0]
   if (!sheet) throw new Error('Imported workbook has no sheets.')
