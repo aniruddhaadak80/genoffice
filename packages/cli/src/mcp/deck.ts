@@ -289,6 +289,11 @@ function pageFile(dir: string, index: number): string {
 }
 
 function pageInRange(index: number, count: number): Outcome | null {
+  if (!Number.isInteger(index) || index < 0) {
+    return fail('out_of_range', `invalid page index ${String(index)} (expected integer 0..${count - 1})`, {
+      valid_range: [0, count - 1],
+    })
+  }
   if (index < count) return null
   return fail('out_of_range', `the outline has ${count} pages; index ${index} has no entry`, {
     valid_range: [0, count - 1],
