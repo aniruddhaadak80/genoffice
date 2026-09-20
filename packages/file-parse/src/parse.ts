@@ -1,4 +1,4 @@
-import { readFile } from 'node:fs/promises'
+import { readFile, stat } from 'node:fs/promises'
 import { extname } from 'node:path'
 import { docToText } from './doc'
 import { docxToText } from './docx'
@@ -6,6 +6,16 @@ import { pdfToText } from './pdf'
 import { pptToText } from './ppt'
 import { pptxToText } from './pptx'
 import { xlsxToText } from './xlsx'
+
+/** Max attachment bytes read: prevents GB .log from OOMing AI ingest. */
+export const MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024
+/** Max extracted chars kept, with truncation marker. */
+export const MAX_EXTRACTED_CHARS = 200_000
+
+export function truncateExtracted(text: string): string {
+  if (text.length <= MAX_EXTRACTED_CHARS) return text
+  return text.slice(0, MAX_EXTRACTED_CHARS) + '\n… [truncated]'
+}
 
 export type ParsedFileKind = 'text' | 'image' | 'unsupported'
 
@@ -46,23 +56,56 @@ export async function parseFileToText(filePath: string): Promise<ParsedFile> {
   const imageMime = IMAGE_MIMES[ext]
   if (imageMime) return { ok: true, kind: 'image', mime: imageMime }
   try {
+    const size = (await stat(filePath)).size
+    if (size > MAX_ATTACHMENT_BYTES) {
+      return {
+        ok: false,
+        kind: 'text',
+        error: `File too large: ${size} bytes (cap ${MAX_ATTACHMENT_BYTES})`,
+      }
+    }
     if (TEXT_EXTS.has(ext)) {
-      return { ok: true, kind: 'text', text: await readFile(filePath, 'utf-8') }
+      const text = await readFile(filePath, 'utf-8')
+      return { ok: true, kind: 'text', text: truncateExtracted(text) }
     }
     switch (ext) {
       case 'doc':
-        return { ok: true, kind: 'text', text: await docToText(await readFile(filePath)) }
+        return {
+          ok: true,
+          kind: 'text',
+          text: truncateExtracted(await docToText(await readFile(filePath))),
+        }
       case 'docx':
-        return { ok: true, kind: 'text', text: await docxToText(await readFile(filePath)) }
+        return {
+          ok: true,
+          kind: 'text',
+          text: truncateExtracted(await docxToText(await readFile(filePath))),
+        }
       case 'ppt':
-        return { ok: true, kind: 'text', text: await pptToText(await readFile(filePath)) }
+        return {
+          ok: true,
+          kind: 'text',
+          text: truncateExtracted(await pptToText(await readFile(filePath))),
+        }
       case 'pptx':
-        return { ok: true, kind: 'text', text: await pptxToText(await readFile(filePath)) }
+        return {
+          ok: true,
+          kind: 'text',
+          text: truncateExtracted(await pptxToText(await readFile(filePath))),
+        }
       case 'xlsx':
       case 'xlsm':
-        return { ok: true, kind: 'text', text: await xlsxToText(await readFile(filePath)) }
+        return {
+          ok: true,
+          kind: 'text',
+          text: truncateExtracted(await xlsxToText(await readFile(filePath))),
+        }
       case 'pdf':
-        return { ok: true, kind: 'text', text: await pdfToText(await readFile(filePath)) }
+        return {
+          ok: true,
+          kind: 'text',
+          text: truncateExtracted(await pdfToText(await readFile(filePath))),
+        }
     }
   } catch (e) {
     return { ok: false, kind: 'text', error: e instanceof Error ? e.message : String(e) }

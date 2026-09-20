@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { parseFileToText } from '../src/index'
+import { MAX_EXTRACTED_CHARS, truncateExtracted } from '../src/parse'
 import { writeFixture } from './helpers/fixtures'
 
 describe('parseFileToText: plain-text formats', () => {
@@ -33,6 +34,22 @@ describe('parseFileToText: plain-text formats', () => {
     const result = await parseFileToText('/nonexistent/nowhere.txt')
     expect(result.ok).toBe(false)
     expect(result.error).toBeTruthy()
+  })
+
+  it('truncates oversized extracted text with marker', () => {
+    const big = 'x'.repeat(MAX_EXTRACTED_CHARS + 10)
+    const out = truncateExtracted(big)
+    expect(out.length).toBeLessThan(big.length)
+    expect(out).toContain('[truncated]')
+    expect(truncateExtracted('small')).toBe('small')
+  })
+
+  it('truncates large text files on parse', async () => {
+    const big = 'y'.repeat(MAX_EXTRACTED_CHARS + 100)
+    const path = writeFixture('big.txt', big)
+    const result = await parseFileToText(path)
+    expect(result.ok).toBe(true)
+    expect(result.text!).toContain('[truncated]')
   })
 })
 
