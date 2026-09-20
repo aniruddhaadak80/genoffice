@@ -64,7 +64,15 @@ describe('slides save serialization', () => {
     const setEditingCell = vi.fn()
     const context = {
       ...ctx(),
-      slides: [{ nodes: [] } as ActionCtx['slides'][number]],
+      slides: [
+        {
+          widthPx: 960,
+          heightPx: 540,
+          scale: 1,
+          background: { kind: 'solid', color: 'FFFFFF' },
+          nodes: [],
+        } as ActionCtx['slides'][number],
+      ],
       current: 1,
       setSlides,
       setSelectedIds,
