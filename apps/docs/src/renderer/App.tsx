@@ -1,4 +1,5 @@
 import { scriptFontHtml } from './editor/script-fonts'
+import { nextWheelZoom } from './editor/zoom-wheel'
 import { DOC_CSS_COMMITTED_EVENT } from './editor/cjk-punct-shrink'
 import { justifyShrinkPluginKey } from './editor/justify-shrink'
 import {
@@ -1484,7 +1485,7 @@ export function App() {
       const rect = scrollContainerRef.current?.getBoundingClientRect()
       const anchor = rect ? { vx: e.clientX - rect.left, vy: e.clientY - rect.top } : null
       setZoom((z) => {
-        const next = Math.min(200, Math.max(50, z - e.deltaY * 0.6))
+        const next = nextWheelZoom(z, e.deltaY, e.deltaMode)
         if (next !== z) zoomAnchorRef.current = anchor
         return next
       })
