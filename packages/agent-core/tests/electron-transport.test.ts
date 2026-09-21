@@ -68,6 +68,19 @@ describe('createIpcTransport', () => {
     expect(cb.onToolCall).toHaveBeenCalledWith({ id: 'c1', name: 'read', input: {} })
   })
 
+  it('truncates oversized deltas and drops malformed tool calls', () => {
+    const { cb, emit } = setup()
+    emit({ type: 'delta', text: 'x'.repeat(1_000_000) })
+    expect(cb.onDelta).toHaveBeenCalledTimes(1)
+    expect((cb.onDelta.mock.calls[0]![0] as string).length).toBeLessThanOrEqual(262_144)
+    emit({ type: 'tool-call', toolCall: { id: '', name: 'read', input: {} } as never })
+    emit({ type: 'tool-call', toolCall: { id: 'c2', name: 42, input: {} } as never })
+    emit({ type: 'tool-call', toolCall: { id: 'c3', name: 'read', input: 'oops' } as never })
+    expect(cb.onToolCall).not.toHaveBeenCalled()
+    emit({ type: 'tool-call', toolCall: { id: 'c4', name: 'read' } as never })
+    expect(cb.onToolCall).toHaveBeenCalledTimes(1)
+  })
+
   it('forwards reasoning chunks separately from text deltas', () => {
     const { cb, emit } = setup()
     emit({ type: 'reasoning', text: 'thinking…' })

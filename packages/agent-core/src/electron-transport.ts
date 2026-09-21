@@ -45,6 +45,22 @@ export interface IpcStreamStart<S> {
  */
 export const IPC_STREAM_SILENCE_TIMEOUT_MS = 240_000
 
+/** Per-chunk text budget: a malformed main-process delta must not OOM the renderer. */
+export const MAX_STREAM_CHUNK_TEXT = 262_144
+
+/** Malformed tool-calls (missing id/name, non-object input) would poison the tool loop. */
+function validToolCall(value: unknown): value is AgentToolCall {
+  if (!value || typeof value !== 'object') return false
+  const call = value as Partial<AgentToolCall>
+  return (
+    typeof call.id === 'string' &&
+    call.id !== '' &&
+    typeof call.name === 'string' &&
+    call.name !== '' &&
+    (call.input === undefined || (typeof call.input === 'object' && call.input !== null))
+  )
+}
+
 export interface IpcTransportOptions<S> {
   /** subscribe to stream chunks; returns the unsubscribe function */
   onStream(listener: (chunk: IpcStreamChunk) => void): () => void
@@ -101,13 +117,18 @@ export function createIpcTransport<S>(options: IpcTransportOptions<S>): AgentTra
           armSilence()
         } else if (chunk.type === 'delta') {
           armSilence()
-          cb.onDelta(chunk.text ?? '')
+          // Main-process chunks are a trust boundary: a malformed giant delta
+          // must not OOM the renderer transcript.
+          const text = typeof chunk.text === 'string' ? chunk.text : ''
+          cb.onDelta(text.slice(0, MAX_STREAM_CHUNK_TEXT))
         } else if (chunk.type === 'reasoning') {
           armSilence()
-          if (chunk.text) cb.onReasoning?.(chunk.text)
+          if (typeof chunk.text === 'string' && chunk.text) {
+            cb.onReasoning?.(chunk.text.slice(0, MAX_STREAM_CHUNK_TEXT))
+          }
         } else if (chunk.type === 'tool-call') {
           armSilence()
-          if (chunk.toolCall) cb.onToolCall(chunk.toolCall)
+          if (validToolCall(chunk.toolCall)) cb.onToolCall(chunk.toolCall)
         } else if (chunk.type === 'done') {
           settle()
           if (chunk.stopReason) cb.onStopReason?.(chunk.stopReason)
