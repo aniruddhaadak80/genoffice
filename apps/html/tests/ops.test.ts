@@ -295,3 +295,28 @@ describe('preview instrumentation', () => {
     )
   })
 })
+
+describe('compileOps batch budgets', () => {
+  it('rejects oversized batches and fields with bad_args', () => {
+    const big = run(
+      Array.from({ length: 51 }, () => ({ op: 'remove', sid: 1 }) as HtmlOp),
+    )
+    expect(big.compiled.errors.some((e) => e.kind === 'bad_args')).toBe(true)
+    expect(big.compiled.patches).toEqual([])
+
+    const huge = run([{ op: 'set_text', sid: sidOf(DOC, 'p'), text: 'x'.repeat(200001) } as HtmlOp])
+    expect(huge.compiled.errors.some((e) => e.kind === 'bad_args')).toBe(true)
+
+    const fanout = run(
+      [{ op: 'str_replace', old: 'i', new: 'o', replace_all: true } as HtmlOp],
+      `<p>${'i'.repeat(2000)}</p>`,
+    )
+    expect(fanout.compiled.errors.some((e) => e.kind === 'bad_args')).toBe(true)
+  })
+
+  it('still compiles small batches cleanly', () => {
+    const { compiled, next } = run([{ op: 'str_replace', old: 'two', new: 'TWO' } as HtmlOp])
+    expect(compiled.errors).toEqual([])
+    expect(next).toContain('TWO')
+  })
+})

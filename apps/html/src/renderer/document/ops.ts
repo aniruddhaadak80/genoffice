@@ -191,11 +191,26 @@ function matchFailureMessage(text: string, f: MatchFailure, old: string): string
 }
 
 /** Compile a batch against one text + map; never applies anything. */
+/** Batch budget: AI op batches are untrusted input (mirrors slides-tools .max(50)). */
+export const MAX_COMPILE_OPS = 50
+/** Per-field string budget for old/new/html/text payloads. */
+export const MAX_OP_FIELD_CHARS = 200_000
+/** replace_all hit budget per op. */
+export const MAX_REPLACE_ALL_HITS = 1000
+
+function fieldTooLarge(value: unknown): boolean {
+  return typeof value === 'string' && value.length > MAX_OP_FIELD_CHARS
+}
+
 export function compileOps(text: string, map: ParseMap, ops: readonly HtmlOp[]): CompiledOps {
   const patches: Array<Patch & { index: number }> = []
   const errors: OpError[] = []
   const fail = (index: number, kind: OpErrorKind, message: string) =>
     errors.push({ index, kind, message })
+  if (!Array.isArray(ops) || ops.length > MAX_COMPILE_OPS) {
+    fail(-1, 'bad_args', `at most ${MAX_COMPILE_OPS} ops per batch`)
+    return { patches, errors }
+  }
   const element = (index: number, sid: unknown) => {
     const e = typeof sid === 'number' ? map.bySid.get(sid) : undefined
     if (!e)
@@ -216,6 +231,8 @@ export function compileOps(text: string, map: ParseMap, ops: readonly HtmlOp[]):
         if (op.old === '')
           return fail(index, 'bad_args', 'old must not be empty; use insert_html to add content')
         if (op.old === op.new) return fail(index, 'noop', 'old and new are identical')
+        if (fieldTooLarge(op.old) || fieldTooLarge(op.new))
+          return fail(index, 'bad_args', `old/new must be at most ${MAX_OP_FIELD_CHARS} chars`)
         let within: [number, number] | undefined
         if (op.sid !== undefined) {
           const e = element(index, op.sid)
@@ -230,6 +247,15 @@ export function compileOps(text: string, map: ParseMap, ops: readonly HtmlOp[]):
           while (i >= 0 && i + op.old.length <= end) {
             patches.push({ from: i, to: i + op.old.length, text: op.new, index })
             count++
+            // Unbounded fan-out (old:"a" over a huge doc) would freeze the
+            // renderer: cap hits per op instead.
+            if (count > MAX_REPLACE_ALL_HITS) {
+              return fail(
+                index,
+                'bad_args',
+                `replace_all matched more than ${MAX_REPLACE_ALL_HITS} times; narrow old or drop replace_all`,
+              )
+            }
             i = text.indexOf(op.old, i + op.old.length)
           }
           if (count === 0) {
@@ -251,6 +277,8 @@ export function compileOps(text: string, map: ParseMap, ops: readonly HtmlOp[]):
         if (!e) return
         if (typeof op.html !== 'string')
           return fail(index, 'bad_args', 'replace_element needs html')
+        if (fieldTooLarge(op.html))
+          return fail(index, 'bad_args', `html must be at most ${MAX_OP_FIELD_CHARS} chars`)
         patches.push({ from: e.range[0], to: e.range[1], text: op.html, index })
         return
       }
@@ -259,10 +287,13 @@ export function compileOps(text: string, map: ParseMap, ops: readonly HtmlOp[]):
         const e = element(index, op.sid)
         if (!e) return
         if (VOID_TAGS.has(e.tag)) return fail(index, 'void_element', `<${e.tag}> has no content`)
-        const value =
+        const raw =
           op.op === 'set_text'
-            ? escapeText(String((op as { text: string }).text ?? ''))
+            ? String((op as { text: string }).text ?? '')
             : String((op as { html: string }).html ?? '')
+        if (fieldTooLarge(raw))
+          return fail(index, 'bad_args', `value must be at most ${MAX_OP_FIELD_CHARS} chars`)
+        const value = op.op === 'set_text' ? escapeText(raw) : raw
         patches.push({ from: e.inner[0], to: e.inner[1], text: value, index })
         return
       }
@@ -270,6 +301,8 @@ export function compileOps(text: string, map: ParseMap, ops: readonly HtmlOp[]):
         const e = element(index, op.sid)
         if (!e) return
         if (typeof op.html !== 'string') return fail(index, 'bad_args', 'insert_html needs html')
+        if (fieldTooLarge(op.html))
+          return fail(index, 'bad_args', `html must be at most ${MAX_OP_FIELD_CHARS} chars`)
         const at =
           op.position === 'before'
             ? e.range[0]
@@ -349,6 +382,8 @@ export function compileOps(text: string, map: ParseMap, ops: readonly HtmlOp[]):
           return
         }
         const value = String(op.value)
+        if (fieldTooLarge(value))
+          return fail(index, 'bad_args', `value must be at most ${MAX_OP_FIELD_CHARS} chars`)
         if (found && found.quote) {
           patches.push({
             from: e.startTag[0] + found.valueFrom,
@@ -388,6 +423,8 @@ export function compileOps(text: string, map: ParseMap, ops: readonly HtmlOp[]):
           else decls.push([prop, String(val)])
         }
         const serialized = serializeStyle(decls)
+        if (fieldTooLarge(serialized))
+          return fail(index, 'bad_args', `styles must be at most ${MAX_OP_FIELD_CHARS} chars`)
         if (found && found.quote) {
           if (!serialized)
             patches.push({
@@ -452,7 +489,10 @@ export function compileOps(text: string, map: ParseMap, ops: readonly HtmlOp[]):
         if (!e) return
         const node = Number.isInteger(op.index) ? e.textNodes[op.index] : undefined
         if (!node) return fail(index, 'bad_args', `text node ${String(op.index)} does not exist`)
-        patches.push({ from: node[0], to: node[1], text: escapeText(String(op.text ?? '')), index })
+        const nodeText = String(op.text ?? '')
+        if (fieldTooLarge(nodeText))
+          return fail(index, 'bad_args', `text must be at most ${MAX_OP_FIELD_CHARS} chars`)
+        patches.push({ from: node[0], to: node[1], text: escapeText(nodeText), index })
         return
       }
       case 'wrap_text': {
