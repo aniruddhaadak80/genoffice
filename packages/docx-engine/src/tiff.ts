@@ -59,22 +59,31 @@ function decodeTiff(
   const ifds = UTIF.decode(buf)
   if (!ifds.length) return null
   // multi-page/multi-resolution TIFFs: pick the largest page within budget.
-  // Header dims are checked BEFORE decodeImage so a hostile IFD cannot force
-  // a gigapixel pixel allocation.
+  // UTIF only fills .width/.height during decodeImage (which allocates the
+  // pixels), so read the raw header tags (t256/t257) for the budget check
+  // and decodeImage solely the chosen page.
+  const headerDims = (ifd: Record<string, unknown>): { width: unknown; height: unknown } => ({
+    width: Array.isArray(ifd.t256) ? ifd.t256[0] : (ifd as { width?: unknown }).width,
+    height: Array.isArray(ifd.t257) ? ifd.t257[0] : (ifd as { height?: unknown }).height,
+  })
   let page = ifds[0]
-  if (!tiffDimsOk(page.width, page.height)) return null
+  let pageDims = headerDims(page)
+  if (!tiffDimsOk(pageDims.width, pageDims.height)) return null
   for (const ifd of ifds) {
-    if (!tiffDimsOk(ifd.width, ifd.height)) continue
+    const dims = headerDims(ifd)
+    if (!tiffDimsOk(dims.width, dims.height)) continue
     if (
-      (ifd.width as number) * (ifd.height as number) >
-      (page.width as number) * (page.height as number)
+      (dims.width as number) * (dims.height as number) >
+      (pageDims.width as number) * (pageDims.height as number)
     ) {
       page = ifd
+      pageDims = dims
     }
   }
   UTIF.decodeImage(buf, page)
   const width = page.width as number
   const height = page.height as number
+  if (!tiffDimsOk(width, height)) return null
   const rgba = UTIF.toRGBA8(page)
   return {
     width,
