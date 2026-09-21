@@ -317,6 +317,10 @@ function validateField(type: FieldType, v: unknown): string | null {
 
 export function validateOps(raw: unknown): { ops: MdOp[] } | { error: string } {
   if (!Array.isArray(raw) || raw.length === 0) return { error: 'ops must be a non-empty array' }
+  // AI op batches are untrusted: bound the batch and every string payload so
+  // a hostile batch cannot freeze the editor or fill memory.
+  if (raw.length > MAX_OPS_PER_BATCH)
+    return { error: `at most ${MAX_OPS_PER_BATCH} ops per batch` }
   const ops: MdOp[] = []
   for (let i = 0; i < raw.length; i++) {
     const item = raw[i] as Record<string, unknown> | null
@@ -334,6 +338,8 @@ export function validateOps(raw: unknown): { ops: MdOp[] } | { error: string } {
       }
       const err = validateField(fs.type, v)
       if (err) return { error: `ops[${i}] ${name}: ${field} ${err}` }
+      if (typeof v === 'string' && v.length > MAX_OP_STRING_CHARS)
+        return { error: `ops[${i}] ${name}: ${field} exceeds ${MAX_OP_STRING_CHARS} chars` }
     }
     for (const field of Object.keys(item)) {
       if (field !== 'op' && !(field in spec.fields))
@@ -343,9 +349,46 @@ export function validateOps(raw: unknown): { ops: MdOp[] } | { error: string } {
       if (item.type === 'heading' && !(isInt(item.level) && item.level >= 1 && item.level <= 6))
         return { error: `ops[${i}] setBlockType: heading needs level 1-6` }
     }
+    if (name === 'setLink') {
+      const href = item.href as string | null
+      if (typeof href === 'string' && !isSafeLinkHref(href))
+        return { error: `ops[${i}] setLink: href scheme not allowed` }
+    }
+    if (name === 'insertImage') {
+      const src = item.src as string
+      if (typeof src === 'string' && !isSafeImageSrc(src))
+        return { error: `ops[${i}] insertImage: src scheme not allowed` }
+    }
     ops.push(item as unknown as MdOp)
   }
   return { ops }
+}
+
+/** Largest batch accepted in one validateOps call. */
+export const MAX_OPS_PER_BATCH = 50
+/** Largest string payload accepted in any op field. */
+export const MAX_OP_STRING_CHARS = 200_000
+
+const SAFE_LINK_RE = /^(https?:\/\/|mailto:|tel:|#[^]*|\/[^/]|[^:/?#\s][^:]*$)/i
+
+/**
+ * Link href allowlist: http(s)/mailto/tel, same-page anchors, root-relative
+ * and scheme-less relative URLs. javascript:/data:/vbscript:/file: targets
+ * would persist as stored XSS through the serialize round-trip.
+ */
+export function isSafeLinkHref(href: string): boolean {
+  const trimmed = href.trim()
+  if (trimmed === '') return false
+  if (/^(javascript|data|vbscript|file):/i.test(trimmed)) return false
+  return SAFE_LINK_RE.test(trimmed)
+}
+
+/** Image src allowlist: same as links plus data:image raster payloads. */
+export function isSafeImageSrc(src: string): boolean {
+  const trimmed = src.trim()
+  if (trimmed === '') return false
+  if (/^data:image\/(png|jpe?g|gif|webp|bmp);/i.test(trimmed)) return true
+  return isSafeLinkHref(trimmed)
 }
 
 /** true when any op addresses blocks by index (the AI staleness guard applies) */

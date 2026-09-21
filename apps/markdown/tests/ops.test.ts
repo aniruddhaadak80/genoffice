@@ -59,6 +59,34 @@ describe('validateOps', () => {
       error: expect.stringContaining('after must be'),
     })
   })
+
+  it('bounds batches and payloads and allowlists link/image schemes', () => {
+    const link = (href: string | null) => ({ op: 'setLink', target: 'selection', href }) as never
+    expect('ops' in validateOps([link('https://x.test/')])).toBe(true)
+    expect('ops' in validateOps([link('page.md')])).toBe(true)
+    expect('ops' in validateOps([link(null)])).toBe(true)
+    expect(validateOps([link('javascript:alert(1)')])).toMatchObject({
+      error: expect.stringContaining('scheme not allowed'),
+    })
+    expect(validateOps([link('data:text/html,<b>x</b>')])).toMatchObject({
+      error: expect.stringContaining('scheme not allowed'),
+    })
+    const img = (src: string) => ({ op: 'insertImage', after: -1, src }) as never
+    expect('ops' in validateOps([img('shots/a.png')])).toBe(true)
+    expect(validateOps([img('javascript:alert(1)')])).toMatchObject({
+      error: expect.stringContaining('scheme not allowed'),
+    })
+    expect(
+      validateOps(
+        Array.from({ length: 51 }, () => ({ op: 'deleteBlocks', target: 'selection' }) as never),
+      ),
+    ).toMatchObject({ error: expect.stringContaining('at most 50') })
+    expect(
+      validateOps([
+        { op: 'insertContent', after: -1, markdown: 'x'.repeat(200001) } as never,
+      ]),
+    ).toMatchObject({ error: expect.stringContaining('exceeds 200000') })
+  })
 })
 
 describe('structural ops on index targets', () => {
