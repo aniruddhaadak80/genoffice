@@ -16,11 +16,19 @@ export interface FlashFillExample {
 /// Greedy scan of the first example: at each position prefer the longest
 /// matching source field, otherwise consume one literal character. The
 /// template must reproduce every example to count.
+/** Inference budget: LLM/content-driven inputs are untrusted. */
+export const MAX_FLASH_FILL_EXAMPLES = 50
+export const MAX_FLASH_FILL_OUTPUT_CHARS = 10_000
+export const MAX_FLASH_FILL_FIELDS = 100
+
 export function inferFlashFillTemplate(
   examples: readonly FlashFillExample[],
 ): FlashFillTemplate | null {
   const first = examples[0]
   if (!first || first.output.length === 0) return null
+  if (examples.length > MAX_FLASH_FILL_EXAMPLES) return null
+  if (first.output.length > MAX_FLASH_FILL_OUTPUT_CHARS) return null
+  if (first.source.length > MAX_FLASH_FILL_FIELDS) return null
   const template: FlashFillTemplate = []
   let cursor = 0
   let literal = ''
