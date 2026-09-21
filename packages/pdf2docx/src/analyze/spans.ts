@@ -111,9 +111,18 @@ export function buildSpans(words: readonly Word[]): Span[] {
     if (open.anchor.strike) span.strike = true
     if (open.anchor.invisible) span.invisible = true
     // squeezed text (AI docs: w:w scale + negative w:spacing): restore both,
-    // or every rebuilt line wraps earlier than the original and pages overflow
+    // or every rebuilt line wraps earlier than the original and pages overflow.
+    // Hostile PDF metrics can be non-finite: Infinity passes `> 0`, so require
+    // finiteness and a sane 0.5..2 range before storing.
     const scale = median(open.scales)
-    if (scale > 0 && Math.abs(scale - 1) >= CHAR_SCALE_TOL) span.charScale = scale
+    if (
+      Number.isFinite(scale) &&
+      scale >= 0.5 &&
+      scale <= 2 &&
+      Math.abs(scale - 1) >= CHAR_SCALE_TOL
+    ) {
+      span.charScale = scale
+    }
     if (open.trackings.length >= 2) {
       const tracking = median(open.trackings)
       // negative tracking with healthy word spaces = inflated /Widths, not
@@ -135,7 +144,12 @@ export function buildSpans(words: readonly Word[]): Span[] {
           spaceGap >= SPACE_INK_HEALTHY_EMS * em ||
           (extreme && (healthyAdvance || spaceGap - overhang >= SPACE_INK_HEALTHY_EMS * em))
       }
-      if (!metricsArtifact && Math.abs(tracking) >= CHAR_SPACING_MIN_PT) {
+      if (
+        !metricsArtifact &&
+        Number.isFinite(tracking) &&
+        Math.abs(tracking) >= CHAR_SPACING_MIN_PT &&
+        Math.abs(tracking) <= 720
+      ) {
         span.charSpacingPt = tracking
       }
     }

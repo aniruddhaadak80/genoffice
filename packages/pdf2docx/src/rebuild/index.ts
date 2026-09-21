@@ -298,10 +298,10 @@ function runFromSpan(span: Span): Run {
   // invisible source text (PDF Tr 3/7, Word's hidden formatting marks like
   // section-break labels): w:vanish keeps it present but unseen, as in the source (P20)
   if (span.invisible) compression.push('<w:vanish/>')
-  if (span.charSpacingPt !== undefined) {
+  if (span.charSpacingPt !== undefined && Number.isFinite(span.charSpacingPt)) {
     compression.push(`<w:spacing w:val="${Math.round(span.charSpacingPt * 20)}"/>`)
   }
-  if (span.charScale !== undefined) {
+  if (span.charScale !== undefined && Number.isFinite(span.charScale)) {
     compression.push(`<w:w w:val="${Math.round(span.charScale * 100)}"/>`)
   }
   if (compression.length > 0) run.rawRPr = `<w:rPr>${compression.join('')}</w:rPr>`
