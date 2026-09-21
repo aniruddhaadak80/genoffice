@@ -157,6 +157,7 @@ import {
   snapshotDocPassword,
 } from './docx-encryption'
 import { isExternallyModified, type DiskFileState } from './external-change'
+import { validMergedPdfParts } from './merged-pdf-guard'
 import { printScaleOption, validPrintDim, validPrintScale } from './print-args'
 import { initDocsAutoUpdater } from './updater'
 import { registerZoteroIpc, teardownZoteroIpc } from './zotero-ipc'
@@ -4152,6 +4153,11 @@ export function registerDocsIpc(): void {
   ipcMain.handle(
     'docs:save-merged-pdf',
     async (event, defaultName: string, base64Parts: string[], outPath?: string) => {
+      // Renderer-supplied fragment list: require a bounded array before
+      // pdf-lib touches it, so a hostile payload cannot OOM the main process.
+      if (typeof defaultName !== 'string' || !validMergedPdfParts(base64Parts)) {
+        return { ok: false, error: tm('errFileTooLarge') }
+      }
       let filePath = outPath ?? null
       if (filePath && !canPdfWrite(event.sender.id, filePath)) {
         return { ok: false, error: 'export target is not an authorized path' }
