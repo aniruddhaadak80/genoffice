@@ -570,14 +570,17 @@ describe('cssLineHeight', () => {
   })
 
   it('never emits non-finite CSS from corrupt values', () => {
-    for (const args of [
+    const cases: Array<
+      ['exact' | 'atLeast' | 'auto', number | undefined, number | undefined]
+    > = [
       ['exact', Infinity, undefined],
       ['exact', NaN, undefined],
       ['atLeast', Infinity, undefined],
       ['auto', undefined, Infinity],
       ['auto', Infinity, undefined],
       ['auto', 276, NaN],
-    ] as const) {
+    ]
+    for (const args of cases) {
       const out = cssLineHeight(...args)
       expect(out === null || !/Infinity|NaN/.test(out)).toBe(true)
     }
