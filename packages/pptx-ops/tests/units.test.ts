@@ -5,7 +5,7 @@
  * validation, so every op keeps seeing integers.
  */
 import { describe, it, expect } from 'vitest'
-import { normalizeLengthUnits, parseLength } from '../src/ops/units'
+import { normalizeLengthUnits, parseLength, MAX_UNIT_EMU } from '../src/ops/units'
 
 describe('parseLength conversions', () => {
   it('maps one inch expressed in every unit to 914400 EMU', () => {
@@ -45,6 +45,14 @@ describe('parseLength conversions', () => {
     expect(parseLength('abc')).toBeUndefined()
     expect(parseLength('1kg')).toBeUndefined()
     expect(parseLength('1 in ch')).toBeUndefined()
+  })
+
+  it('clamps overflowing unit strings to the valid EMU range', () => {
+    expect(parseLength('9999999999in')).toBe(MAX_UNIT_EMU)
+    expect(parseLength('-9999999999in')).toBe(-MAX_UNIT_EMU)
+    const huge = parseLength(`${'9'.repeat(400)}in`)
+    expect(huge === undefined || Math.abs(huge) <= MAX_UNIT_EMU).toBe(true)
+    expect(parseLength('1in')).toBe(914400)
   })
 })
 

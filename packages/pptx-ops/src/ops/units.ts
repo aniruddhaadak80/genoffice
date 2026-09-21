@@ -28,10 +28,17 @@ function isLengthKey(key: string, parent?: string): boolean {
 }
 
 /** "2.54cm" → 2286000; undefined when the string is not a length. */
+/** Largest EMU magnitude a unit string can produce (~55in): user-supplied op
+ *  strings bypass the numeric `!(x > 0)` guards (Infinity > 0 is true), so
+ *  clamp here before the value reaches xfrm. */
+export const MAX_UNIT_EMU = 50_000_000
+
 export function parseLength(value: string): number | undefined {
   const m = LENGTH.exec(value)
   if (!m) return undefined
-  return Math.round(Number(m[1]) * EMU_PER[m[2]!.toLowerCase()]!)
+  const emu = Math.round(Number(m[1]) * EMU_PER[m[2]!.toLowerCase()]!)
+  if (!Number.isFinite(emu)) return undefined
+  return Math.min(Math.max(emu, -MAX_UNIT_EMU), MAX_UNIT_EMU)
 }
 
 export function normalizeLengthUnits(value: unknown, key?: string, parent?: string): unknown {
