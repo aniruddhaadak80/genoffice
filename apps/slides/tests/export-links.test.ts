@@ -143,7 +143,6 @@ describe('decodeLinkTarget scheme allowlist', () => {
     expect(decodeLinkTarget('slide:2')).toEqual({ kind: 'slide', slideIndex: 2 })
   })
 })
-})
 
 describe('collectExportPdfLinks', () => {
   it('produces per-page fraction rects with resolved hrefs', () => {
