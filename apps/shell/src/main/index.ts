@@ -3663,7 +3663,7 @@ function registerHomeIpc(): void {
     (_event, dir: unknown, newName: unknown): RenameResult => {
       if (!insideRoot(dir) || isRoot(dir) || typeof newName !== 'string')
         return { ok: false, error: tm('errBadArgs') }
-      const filesBefore = collectTreeFiles(dir)
+      const filesBefore = collectTreeFiles(dir).files
       const result = renameFolder(dir, newName, folderErrors())
       if (result.ok && result.path && result.path !== dir) {
         afterFolderMoved(dir, result.path, filesBefore)
@@ -3691,7 +3691,7 @@ function registerHomeIpc(): void {
       }
       // files may come from anywhere (the Recent list); folders only from inside the tree
       const sources = list.filter((p) => !isDir(p) || isInsideRoot(defaultSaveDir(), p))
-      const dirFiles = new Map(sources.filter(isDir).map((p) => [p, collectTreeFiles(p)]))
+      const dirFiles = new Map(sources.filter(isDir).map((p) => [p, collectTreeFiles(p).files]))
       // 'replace' must not destroy data: the displaced target goes to the trash,
       // and everything keyed on its path (recents, stars, chat history) leaves
       // with it so the incoming file does not inherit another document's record
@@ -3699,7 +3699,7 @@ function registerHomeIpc(): void {
       const result = movePathsInto(sources, targetDir, conflictPolicy, folderErrors(), {
         replaceExisting: (path) => {
           const parked = join(dirname(path), `.genoffice-replaced-${Date.now()}-${basename(path)}`)
-          const files = isDir(path) ? collectTreeFiles(path) : [path]
+          const files = isDir(path) ? collectTreeFiles(path).files : [path]
           renameSync(path, parked)
           return {
             commit: () => {
@@ -3730,7 +3730,7 @@ function registerHomeIpc(): void {
 
   ipcMain.handle(HOME_CHANNELS.deleteFolder, async (_event, dir: unknown) => {
     if (!insideRoot(dir) || isRoot(dir)) return
-    const files = collectTreeFiles(dir)
+    const files = collectTreeFiles(dir).files
     try {
       await shell.trashItem(dir)
     } catch {

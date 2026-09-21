@@ -155,7 +155,7 @@ describe('movePathsInto', () => {
       { from: file, to: join(root, 'dest', 'report.docx') },
       { from: join(root, 'src'), to: join(root, 'dest', 'src') },
     ])
-    expect(collectTreeFiles(join(root, 'dest'))).toEqual(
+    expect(collectTreeFiles(join(root, 'dest')).files).toEqual(
       expect.arrayContaining([
         join(root, 'dest', 'report.docx'),
         join(root, 'dest', 'src', 'deep.md'),
@@ -270,6 +270,22 @@ describe('helpers', () => {
     touch('a (2).md')
     expect(uniqueNameIn(root, 'a.md')).toBe('a (3).md')
     expect(uniqueNameIn(root, 'b.md')).toBe('b.md')
+  })
+
+  it('collectTreeFiles truncates giant trees instead of blocking main', () => {
+    for (let i = 0; i < 60; i++) touch(`bulk-${i}.md`)
+    let deep = root
+    for (let i = 0; i < 15; i++) {
+      deep = join(deep, `lvl${i}`)
+      mkdirSync(deep, { recursive: true })
+    }
+    writeFileSync(join(deep, 'bottom.md'), 'x')
+    const start = Date.now()
+    const { files, truncated } = collectTreeFiles(root)
+    expect(Date.now() - start).toBeLessThan(10000)
+    expect(files.length).toBeLessThanOrEqual(5000)
+    expect(truncated).toBe(true)
+    expect(files).toContain(join(root, 'bulk-0.md'))
   })
 
   it('describeRoot creates a missing root and reports it usable', () => {

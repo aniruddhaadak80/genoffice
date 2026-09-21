@@ -144,9 +144,24 @@ export function listFolder(dir: string, starredPaths: ReadonlySet<string>): Fold
 }
 
 /** every supported file under `dir`, recursively (visible folders only) */
-export function collectTreeFiles(dir: string): string[] {
+/** Walk budget: depth and file count caps keep giant trees from blocking main. */
+export const MAX_TREE_FILES = 5000
+export const MAX_TREE_DEPTH = 12
+
+export interface TreeFiles {
+  files: string[]
+  /** true when the walk stopped early at a budget cap */
+  truncated: boolean
+}
+
+export function collectTreeFiles(dir: string): TreeFiles {
   const out: string[] = []
-  const walk = (d: string) => {
+  let truncated = false
+  const walk = (d: string, depth: number) => {
+    if (out.length >= MAX_TREE_FILES || depth > MAX_TREE_DEPTH) {
+      truncated = true
+      return
+    }
     let dirents: import('node:fs').Dirent[]
     try {
       dirents = readdirSync(d, { withFileTypes: true })
@@ -154,16 +169,20 @@ export function collectTreeFiles(dir: string): string[] {
       return
     }
     for (const ent of dirents) {
+      if (out.length >= MAX_TREE_FILES) {
+        truncated = true
+        return
+      }
       const path = join(d, ent.name)
       if (ent.isDirectory()) {
-        if (!isHiddenEntry(d, ent.name, true)) walk(path)
+        if (!isHiddenEntry(d, ent.name, true)) walk(path, depth + 1)
       } else if (ent.isFile() && isSupportedTreeFile(ent.name)) {
         out.push(path)
       }
     }
   }
-  walk(dir)
-  return out
+  walk(dir, 0)
+  return { files: out, truncated }
 }
 
 export interface FolderErrors {
@@ -189,14 +208,18 @@ export function createFolder(parent: string, name: string, errors: FolderErrors)
 }
 
 /** `name.ext` → `name (2).ext`, `name (3).ext`… — first free name inside dir */
+/** Suffix attempts before falling back to a timestamped name (never loop forever). */
+const MAX_UNIQUE_SUFFIX = 10000
+
 export function uniqueNameIn(dir: string, name: string): string {
   if (!existsSync(join(dir, name))) return name
   const ext = extname(name)
   const base = name.slice(0, name.length - ext.length)
-  for (let i = 2; ; i++) {
+  for (let i = 2; i <= MAX_UNIQUE_SUFFIX; i++) {
     const candidate = `${base} (${i})${ext}`
     if (!existsSync(join(dir, candidate))) return candidate
   }
+  return `${base} (${Date.now()})${ext}`
 }
 
 /** rename, falling back to copy + delete when the target is on another volume */
