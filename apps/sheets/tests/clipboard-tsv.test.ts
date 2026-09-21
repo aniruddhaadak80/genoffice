@@ -1,7 +1,7 @@
 import { CellValueType } from '@univerjs/core'
 import { describe, expect, it } from 'vitest'
 
-import { clipboardField, plainTextFromCells } from '../src/renderer/clipboard-tsv'
+import { clipboardField, copyBounds, plainTextFromCells } from '../src/renderer/clipboard-tsv'
 
 describe('clipboard TSV serialization', () => {
   it('booleans copy as TRUE/FALSE, not 1/0', () => {
@@ -38,5 +38,13 @@ describe('clipboard TSV serialization', () => {
     const cells: Record<string, { v: string }> = { '0:0': { v: 'a' }, '0:2': { v: 'c' } }
     const plain = plainTextFromCells([0, 1], [0, 1, 2], (row, column) => cells[`${row}:${column}`])
     expect(plain).toBe('a\t\tc\n\t\t')
+  })
+
+  it('copyBounds rejects degenerate ranges instead of yielding Infinity', () => {
+    expect(copyBounds([0, 2], [1, 3])).toEqual({ startRow: 0, endRow: 2, startColumn: 1, endColumn: 3 })
+    expect(copyBounds([], [1])).toBeNull()
+    expect(copyBounds([0], [])).toBeNull()
+    expect(copyBounds([NaN], [1])).toBeNull()
+    expect(copyBounds([0], [Infinity])).toBeNull()
   })
 })

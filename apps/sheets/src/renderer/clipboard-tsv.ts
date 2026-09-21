@@ -61,6 +61,29 @@ interface CopyContent {
   discreteRange: { rows: number[]; cols: number[] }
 }
 
+export interface CopyBounds {
+  startRow: number
+  endRow: number
+  startColumn: number
+  endColumn: number
+}
+
+/**
+ * Degenerate copies can carry empty row/col lists (Math.min/max over [] is
+ * ±Infinity) or non-finite entries: return null so the caller keeps Univer's
+ * original content instead of poisoning the merged-cells geometry call.
+ */
+export function copyBounds(rows: number[], cols: number[]): CopyBounds | null {
+  if (rows.length === 0 || cols.length === 0) return null
+  const bounds = {
+    startRow: Math.min(...rows),
+    endRow: Math.max(...rows),
+    startColumn: Math.min(...cols),
+    endColumn: Math.max(...cols),
+  }
+  return Object.values(bounds).every((v) => Number.isFinite(v)) ? bounds : null
+}
+
 export function installTsvClipboardFix(runtime: UniverRuntime): { dispose(): void } {
   const injector = runtime.univer.__getInjector()
   const instanceService = injector.get(IUniverInstanceService)
@@ -85,12 +108,8 @@ export function installTsvClipboardFix(runtime: UniverRuntime): { dispose(): voi
         ?.getSheetBySheetId(worksheetId)
       if (!worksheet) return content
       const { rows, cols } = content.discreteRange
-      const bounds = {
-        startRow: Math.min(...rows),
-        endRow: Math.max(...rows),
-        startColumn: Math.min(...cols),
-        endColumn: Math.max(...cols),
-      }
+      const bounds = copyBounds(rows, cols)
+      if (!bounds) return content
       const matrix = worksheet.getMatrixWithMergedCells(
         bounds.startRow,
         bounds.startColumn,
