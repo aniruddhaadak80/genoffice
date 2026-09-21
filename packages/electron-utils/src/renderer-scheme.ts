@@ -52,7 +52,9 @@ export function rendererUrl(
   }
   const entries = Object.entries(query ?? {})
   if (entries.length > MAX_RENDERER_QUERY_ENTRIES) {
-    throw new Error(`Too many renderer query params (${entries.length}, cap ${MAX_RENDERER_QUERY_ENTRIES})`)
+    throw new Error(
+      `Too many renderer query params (${entries.length}, cap ${MAX_RENDERER_QUERY_ENTRIES})`,
+    )
   }
   for (const [key, value] of entries) {
     if (key.length > 256 || value.length > MAX_RENDERER_QUERY_CHARS) {
