@@ -3222,10 +3222,7 @@ export function registerProjectIpc(): void {
       if (args.tools && (!Array.isArray(args.tools) || args.tools.length > 50)) {
         throw new Error('Invalid chat tools: must be an array up to 50 entries')
       }
-      if (
-        args.attachments &&
-        (!Array.isArray(args.attachments) || args.attachments.length > 20)
-      ) {
+      if (args.attachments && (!Array.isArray(args.attachments) || args.attachments.length > 20)) {
         throw new Error('Invalid chat attachments: must be an array up to 20 entries')
       }
       const store = getProjectStore()
