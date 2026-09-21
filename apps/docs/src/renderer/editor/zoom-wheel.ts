@@ -20,6 +20,9 @@ export function wheelDeltaPx(deltaY: number, deltaMode: number, viewportH = 800)
 
 /** Next zoom after one wheel tick, clamped to bounds with a per-tick step cap. */
 export function nextWheelZoom(zoom: number, deltaY: number, deltaMode = 0): number {
-  const step = Math.max(-ZOOM_MAX_TICK, Math.min(ZOOM_MAX_TICK, -wheelDeltaPx(deltaY, deltaMode) * ZOOM_PER_DELTA_PX))
+  const step = Math.max(
+    -ZOOM_MAX_TICK,
+    Math.min(ZOOM_MAX_TICK, -wheelDeltaPx(deltaY, deltaMode) * ZOOM_PER_DELTA_PX),
+  )
   return Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, zoom + step))
 }

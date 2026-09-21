@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { nextWheelZoom, wheelDeltaPx, ZOOM_MAX, ZOOM_MAX_TICK, ZOOM_MIN } from '../src/renderer/editor/zoom-wheel'
+import {
+  nextWheelZoom,
+  wheelDeltaPx,
+  ZOOM_MAX,
+  ZOOM_MAX_TICK,
+  ZOOM_MIN,
+} from '../src/renderer/editor/zoom-wheel'
 
 describe('wheel zoom steps', () => {
   it('zooms smoothly for pixel deltas', () => {
