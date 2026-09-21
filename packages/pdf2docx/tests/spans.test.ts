@@ -80,8 +80,9 @@ describe('span building', () => {
     }
     const [span] = spansOf(chars)
     expect(span!.charScale).toBeUndefined()
-    expect(span!.charSpacingPt).toBeUndefined()
   })
+
+  it('drops negative tracking when word spaces render at normal width (P14 B: inflated /Widths)', () => {
     // PowerPoint-export pattern: every glyph's declared advance (loose box) is
     // ~0.18em wider than the TJ-laid advance, so pairwise "tracking" reads a
     // large negative constant — but the spaces are normal-width, so the text
@@ -101,11 +102,9 @@ describe('span building', () => {
       x += 7.5 // actual advance: 2.5pt narrower than nominal
     }
     const [span] = spansOf(chars)
-    expect(span!.charScale).toBeUndefined()
+    expect(span!.text).toBe('Why Dual')
     expect(span!.charSpacingPt).toBeUndefined()
   })
-
-  it('drops negative tracking when word spaces render at normal width (P14 B: inflated /Widths)', () => {
 
   it('drops extreme negative tracking when italic overhang shaves the space gap (P15 A)', () => {
     // HTML-export deck pattern: /Widths inflated ~0.24em per glyph AND an
