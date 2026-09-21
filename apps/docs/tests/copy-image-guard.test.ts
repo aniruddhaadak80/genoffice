@@ -23,7 +23,9 @@ describe('copy-image guards', () => {
   it('clamps display-size overrides to finite values', () => {
     expect(copyImageDisplaySize(JSON.stringify({ imageWidthPx: 200 }))).toEqual({ width: 200 })
     expect(copyImageDisplaySize(JSON.stringify({ imageWidthPx: Infinity }))).toEqual({})
-    expect(copyImageDisplaySize(JSON.stringify({ imageHeightPx: 1e12 }))).toEqual({ height: 100000 })
+    expect(copyImageDisplaySize(JSON.stringify({ imageHeightPx: 1e12 }))).toEqual({
+      height: 100000,
+    })
     expect(copyImageDisplaySize('not json')).toEqual({})
     expect(copyImageDisplaySize('x'.repeat(3000))).toEqual({})
   })
