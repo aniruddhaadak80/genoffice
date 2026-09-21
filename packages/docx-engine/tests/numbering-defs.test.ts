@@ -790,7 +790,14 @@ describe('markerTabAdvance with custom tab stops', () => {
 describe('hostile numbering values', () => {
   it('bounds huge and non-finite values instead of hanging', () => {
     const start = Date.now()
-    for (const fmt of ['upperRoman', 'lowerRoman', 'upperLetter', 'lowerLetter', 'upperGreek', 'decimal']) {
+    for (const fmt of [
+      'upperRoman',
+      'lowerRoman',
+      'upperLetter',
+      'lowerLetter',
+      'upperGreek',
+      'decimal',
+    ]) {
       for (const v of [1e9, Infinity, -Infinity, NaN]) {
         const out = formatNumber(v, fmt)
         expect(typeof out).toBe('string')
