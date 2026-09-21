@@ -51,8 +51,16 @@ describe('imageSize', () => {
   })
 
   it('skips length-less RST markers instead of misparsing', () => {
-    expect(imageSize(jpegWithDims(40, 30, true))).toEqual({ width: 40, height: 30, mime: 'image/jpeg' })
-    expect(imageSize(jpegWithDims(40, 30, false))).toEqual({ width: 40, height: 30, mime: 'image/jpeg' })
+    expect(imageSize(jpegWithDims(40, 30, true))).toEqual({
+      width: 40,
+      height: 30,
+      mime: 'image/jpeg',
+    })
+    expect(imageSize(jpegWithDims(40, 30, false))).toEqual({
+      width: 40,
+      height: 30,
+      mime: 'image/jpeg',
+    })
   })
 
   it('rejects zero JPEG frame dims', () => {
