@@ -12,6 +12,12 @@ import type { LazyWorkbookState, UniverRuntime } from './univer-state'
 /// Rows fetched per getDisplayValues call, bounding the facade's allocation.
 const EXPORT_ROW_BLOCK = 4096
 
+/** Excel grid bounds for dimension sanitization. */
+const MAX_GRID_ROWS = 1048576
+const MAX_GRID_COLUMNS = 16384
+/** Cell budget checked before the first getRange call. */
+const MAX_EXPORT_CELLS = 10_000_000
+
 /** The App refs/state the CSV export needs; built fresh per call. */
 export interface CsvExportContext {
   univerRef: { readonly current: UniverRuntime | null }
@@ -72,8 +78,15 @@ export function serializeActiveSheetCsv(
   sheet: CsvWorksheet,
   state: LazyWorkbookState | null,
 ): string | 'too-large' {
-  const rowCount = Math.max(sheet.getLastRow(), 0) + 1
-  const columnCount = Math.max(sheet.getLastColumn(), 0) + 1
+  // A corrupt workbook can report absurd last-row/column values: sanitize to
+  // finite grid bounds and check the cell budget before issuing getRange
+  // blocks, so export fails fast instead of allocating gigabyte buffers.
+  const lastRow = sheet.getLastRow()
+  const lastColumn = sheet.getLastColumn()
+  if (!Number.isFinite(lastRow) || !Number.isFinite(lastColumn)) return 'too-large'
+  const rowCount = Math.min(Math.max(Math.floor(lastRow), 0) + 1, MAX_GRID_ROWS)
+  const columnCount = Math.min(Math.max(Math.floor(lastColumn), 0) + 1, MAX_GRID_COLUMNS)
+  if (rowCount * columnCount > MAX_EXPORT_CELLS) return 'too-large'
   const parts: string[] = []
   let length = 0
   const tooLarge = withoutFormulaView(formulaViewSheets(state), sheet.getSheetId(), () => {

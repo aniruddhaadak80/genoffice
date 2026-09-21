@@ -92,6 +92,26 @@ describe('serializeActiveSheetCsv', () => {
       'name,note,\r\n"a,b","say ""hi""",extra\r\nsolo,,\r\n',
     )
   })
+
+  it('fails fast on hostile grid dims without calling getRange', () => {
+    for (const [lastRow, lastColumn] of [
+      [9e9, 1],
+      [NaN, 1],
+      [1, Infinity],
+      [1048575, 16383],
+    ]) {
+      const getRange = () => {
+        throw new Error('getRange must not be called')
+      }
+      const sheet = {
+        ...fakeCsvSheet([['a']]),
+        getLastRow: () => lastRow,
+        getLastColumn: () => lastColumn,
+        getRange,
+      }
+      expect(serializeActiveSheetCsv(sheet as never, null)).toBe('too-large')
+    }
+  })
 })
 
 describe('withoutFormulaView', () => {
