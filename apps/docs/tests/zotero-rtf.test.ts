@@ -86,8 +86,8 @@ describe('Zotero RTF conversion', () => {
     expect(zoteroRtfToText('{\\rtf1\\ansi\\u99999999?kept}')).toBe('?kept')
     // \uc99999 clamps to 10 fallback chars: 'A' + '?tail text' skipped, ' here' survives
     expect(zoteroRtfToText('{\\rtf1\\ansi\\uc99999\\u65?tail text here}')).toBe('A here')
-    // valid controls still work
-    expect(zoteroRtfToText('{\\rtf1\\ansi\\uc1\\u20013?}')).toBe('–')
+    // valid controls still work (\u20013 = U+4E2D)
+    expect(zoteroRtfToText('{\\rtf1\\ansi\\uc1\\u20013?}')).toBe('中')
   })
 })
 
