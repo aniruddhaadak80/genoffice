@@ -60,6 +60,9 @@ export async function solveGoalSeek(
     throw new Error(t('appGoalSeekByCellNotNumber'))
   }
   const original = typeof originalRaw === 'number' ? originalRaw : 0
+  // A non-finite target can never converge: reject before the first grid
+  // write instead of journaling up to 100 guesses and reporting reached: NaN.
+  if (!Number.isFinite(input.toValue)) throw new Error(t('appGoalSeekTargetNotNumber'))
   const restore = (): Promise<void> =>
     mutateAndAwaitRecalc(runtime, () =>
       originalRaw == null ? changingRange.setValue({ v: null }) : changingRange.setValue(original),
