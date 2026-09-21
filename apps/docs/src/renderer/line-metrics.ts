@@ -1462,7 +1462,8 @@ export function cssLineHeight(
   const FACTOR = 'var(--doc-line-factor,1.2)'
   // Corrupt w:line values arrive here as Infinity/NaN: Infinity is truthy and
   // would emit "Infinitypt", so require finiteness on every numeric path.
-  const twips = typeof lineRawTwips === 'number' && Number.isFinite(lineRawTwips) ? lineRawTwips : undefined
+  const twips =
+    typeof lineRawTwips === 'number' && Number.isFinite(lineRawTwips) ? lineRawTwips : undefined
   if (lineRule === 'exact' && twips) return `${(twips / 20).toFixed(1)}pt`
   if (lineRule === 'atLeast' && twips != null) {
     // atLeast: face value, but never below the grid-snapped single height
