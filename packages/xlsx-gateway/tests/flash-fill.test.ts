@@ -1,8 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import {
-  applyFlashFillTemplate,
-  inferFlashFillTemplate,
-} from '../src/domain/flash-fill'
+import { applyFlashFillTemplate, inferFlashFillTemplate } from '../src/domain/flash-fill'
 
 describe('inferFlashFillTemplate budgets', () => {
   it('infers a normal concatenation template', () => {
@@ -16,18 +13,14 @@ describe('inferFlashFillTemplate budgets', () => {
 
   it('returns null fast past the input budgets', () => {
     const start = Date.now()
-    expect(
-      inferFlashFillTemplate([{ source: ['ab'], output: 'x'.repeat(1_000_000) }]),
-    ).toBeNull()
+    expect(inferFlashFillTemplate([{ source: ['ab'], output: 'x'.repeat(1_000_000) }])).toBeNull()
     expect(
       inferFlashFillTemplate(
         Array.from({ length: 10_000 }, () => ({ source: ['ab'], output: 'ab' })),
       ),
     ).toBeNull()
     expect(
-      inferFlashFillTemplate([
-        { source: Array.from({ length: 500 }, () => 'ab'), output: 'ab' },
-      ]),
+      inferFlashFillTemplate([{ source: Array.from({ length: 500 }, () => 'ab'), output: 'ab' }]),
     ).toBeNull()
     expect(Date.now() - start).toBeLessThan(10000)
   })
