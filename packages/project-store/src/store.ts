@@ -594,7 +594,9 @@ export class ProjectStore {
     const trimmed = name.trim()
     if (!trimmed) throw new Error('Project name cannot be empty')
     if (trimmed.length > MAX_PROJECT_NAME_CHARS) {
-      throw new Error(`Project name too long: ${trimmed.length} chars (max ${MAX_PROJECT_NAME_CHARS})`)
+      throw new Error(
+        `Project name too long: ${trimmed.length} chars (max ${MAX_PROJECT_NAME_CHARS})`,
+      )
     }
     const now = nowIso()
     // Generate a stable yet unique id
@@ -627,7 +629,9 @@ export class ProjectStore {
     const trimmed = name.trim()
     if (!trimmed) throw new Error('Project name cannot be empty')
     if (trimmed.length > MAX_PROJECT_NAME_CHARS) {
-      throw new Error(`Project name too long: ${trimmed.length} chars (max ${MAX_PROJECT_NAME_CHARS})`)
+      throw new Error(
+        `Project name too long: ${trimmed.length} chars (max ${MAX_PROJECT_NAME_CHARS})`,
+      )
     }
     const now = nowIso()
     const proj = this.readProject(id)
