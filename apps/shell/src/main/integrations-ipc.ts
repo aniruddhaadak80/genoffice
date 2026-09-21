@@ -37,6 +37,9 @@ export interface IntegrationsDeps {
 }
 
 /** Settings → Integrations: probe, install, uninstall, zip. No write happens without a click in that pane. */
+/** Renderer clipboard payload budget for the copyText channel. */
+export const MAX_COPY_TEXT_LENGTH = 100_000
+
 export function registerIntegrationsIpc(deps: IntegrationsDeps): void {
   const bundled = (): BundledSkill => bundledSkillFrom(readFileSync(deps.skillPath))
   const ledger = (): SkillLedger => ledgerFromSettings(readAppSettings(deps.settingsPath()))
@@ -116,7 +119,11 @@ export function registerIntegrationsIpc(deps: IntegrationsDeps): void {
   )
 
   ipcMain.handle(INTEGRATIONS_CHANNELS.copyText, (_e, text: string): void => {
-    if (typeof text === 'string') clipboard.writeText(text)
+    // Renderer-controlled clipboard payload: cap it before the synchronous
+    // main-process write (a huge paste freezes the shell).
+    if (typeof text !== 'string') throw new Error('copyText expects a string')
+    if (text.length > MAX_COPY_TEXT_LENGTH) throw new Error('copyText payload too large')
+    clipboard.writeText(text)
   })
 }
 
