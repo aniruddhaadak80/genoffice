@@ -298,9 +298,7 @@ describe('preview instrumentation', () => {
 
 describe('compileOps batch budgets', () => {
   it('rejects oversized batches and fields with bad_args', () => {
-    const big = run(
-      Array.from({ length: 51 }, () => ({ op: 'remove', sid: 1 }) as HtmlOp),
-    )
+    const big = run(Array.from({ length: 51 }, () => ({ op: 'remove', sid: 1 }) as HtmlOp))
     expect(big.compiled.errors.some((e) => e.kind === 'bad_args')).toBe(true)
     expect(big.compiled.patches).toEqual([])
 
