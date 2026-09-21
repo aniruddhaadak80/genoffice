@@ -12,6 +12,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { RenderNode, RenderSlide, ShapeRenderNode } from '@genoffice/pptx-render'
 import type { AnimationItem, LinkTargetOp, ShapeKey, TransitionKind } from '../../shared/ipc'
+import { safeExternalUrl } from '../../shared/run-link'
 import { AnimatedSlideStage, useAnimPlayer } from './AnimatedSlide'
 import { useI18n } from '../i18n/locale'
 import { MorphStage } from './MorphStage'
@@ -330,8 +331,10 @@ export function SlideShowView({
             return
         }
       }
-      // Electron routes window.open to the system browser (setWindowOpenHandler denies in-app windows)
-      window.open(target.url, '_blank', 'noreferrer')
+      // Electron routes window.open to the system browser (setWindowOpenHandler denies in-app windows).
+      // File-authored URLs are scheme-allowlisted: javascript:/file: links never reach the browser.
+      const safe = safeExternalUrl(target.url)
+      if (safe) window.open(safe, '_blank', 'noreferrer')
     },
     [order, goTo, pos],
   )

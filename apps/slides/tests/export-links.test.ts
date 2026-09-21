@@ -126,6 +126,23 @@ describe('exportLinkHref', () => {
     expect(exportLinkHref({ kind: 'action', action: 'endshow' }, 0, pages, 2)).toBeNull()
     expect(exportLinkHref({ kind: 'action', action: 'lastslideviewed' }, 0, pages, 2)).toBeNull()
   })
+
+  it('drops dangerous URL schemes from export hrefs', () => {
+    expect(exportLinkHref(url('javascript:alert(1)'), 0, pages, 2)).toBeNull()
+    expect(exportLinkHref(url('file:///etc/passwd'), 0, pages, 2)).toBeNull()
+    expect(exportLinkHref(url('mailto:a@b.test'), 0, pages, 2)).toBe('mailto:a@b.test')
+  })
+})
+
+describe('decodeLinkTarget scheme allowlist', () => {
+  it('drops dangerous schemes and keeps safe links', async () => {
+    const { decodeLinkTarget } = await import('../src/shared/run-link')
+    expect(decodeLinkTarget('javascript:alert(1)')).toBeNull()
+    expect(decodeLinkTarget('file:///etc/passwd')).toBeNull()
+    expect(decodeLinkTarget('https://x.test/')).toEqual({ kind: 'url', url: 'https://x.test/' })
+    expect(decodeLinkTarget('slide:2')).toEqual({ kind: 'slide', slideIndex: 2 })
+  })
+})
 })
 
 describe('collectExportPdfLinks', () => {

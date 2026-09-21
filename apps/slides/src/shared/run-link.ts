@@ -22,5 +22,22 @@ export function decodeLinkTarget(s: string | null | undefined): LinkTargetOp | n
       ? { kind: 'action', action: a[1] as NamedAction }
       : null
   }
-  return { kind: 'url', url: s }
+  // File-authored URLs reach the browser/PDF export: only http(s)/mailto
+  // survive; javascript:/file:/vbscript: links decode to null (dropped).
+  return safeExternalUrl(s) === null ? null : { kind: 'url', url: s }
+}
+
+/**
+ * Allowlist for external link schemes. Returns the URL when it is a safe
+ * http(s)/mailto link, else null. Guards every layer that follows or
+ * exports a file-authored URL (decode, slideshow follow, PDF export hrefs).
+ */
+export function safeExternalUrl(url: string): string | null {
+  let scheme: string
+  try {
+    scheme = new URL(url).protocol.toLowerCase()
+  } catch {
+    return null
+  }
+  return scheme === 'http:' || scheme === 'https:' || scheme === 'mailto:' ? url : null
 }
