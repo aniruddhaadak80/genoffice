@@ -6,7 +6,9 @@ const handlers = new Map<string, (...args: never[]) => unknown>()
 vi.mock('electron', () => ({
   app: { getPath: () => tmpdir() },
   dialog: {},
-  ipcMain: { handle: (channel: string, fn: (...args: never[]) => unknown) => handlers.set(channel, fn) },
+  ipcMain: {
+    handle: (channel: string, fn: (...args: never[]) => unknown) => handlers.set(channel, fn),
+  },
   BrowserWindow: class {},
   webContents: {},
 }))
@@ -22,7 +24,11 @@ function pastedImageHandler() {
   registerAttachmentIpc()
   const fn = handlers.get('slides:files-add-pasted-image')
   if (!fn) throw new Error('pasted-image handler not registered')
-  return fn as (e: unknown, data: unknown, ext: unknown) => { accepted: unknown[]; rejected: string[] }
+  return fn as (
+    e: unknown,
+    data: unknown,
+    ext: unknown,
+  ) => { accepted: unknown[]; rejected: string[] }
 }
 
 describe('pasted-image byte cap', () => {
