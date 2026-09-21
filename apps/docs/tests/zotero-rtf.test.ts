@@ -80,6 +80,15 @@ describe('Zotero RTF conversion', () => {
       { text: ' plain', sizeHalfPoints: 20 },
     ])
   })
+
+  it('bounds uN/ucN params instead of wrapping or swallowing text', () => {
+    // \u99999999 is malformed (not int16): ignored, so only the literal fallback remains
+    expect(zoteroRtfToText('{\\rtf1\\ansi\\u99999999?kept}')).toBe('?kept')
+    // \uc99999 clamps to 10 fallback chars: 'A' + '?tail text' skipped, ' here' survives
+    expect(zoteroRtfToText('{\\rtf1\\ansi\\uc99999\\u65?tail text here}')).toBe('A here')
+    // valid controls still work
+    expect(zoteroRtfToText('{\\rtf1\\ansi\\uc1\\u20013?}')).toBe('–')
+  })
 })
 
 describe('Zotero field code compatibility', () => {

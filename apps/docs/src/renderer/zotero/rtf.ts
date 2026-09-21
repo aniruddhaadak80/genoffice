@@ -63,6 +63,9 @@ const SYMBOLS: Record<string, string> = {
   tab: '\t',
 }
 
+/** Largest plausible \uc fallback-skip count. */
+const MAX_RTF_UC = 10
+
 interface RtfState {
   skip: boolean
   uc: number
@@ -240,10 +243,16 @@ export function parseZoteroRtf(input: string): ZoteroRtfDocument {
       continue
     }
     if (lower === 'uc' && parameter !== null) {
-      state.uc = Math.max(0, parameter)
+      // A giant \uc would skip that many fallback chars and swallow real
+      // text: clamp to the spec-plausible 0..10 range.
+      state.uc = Math.min(Math.max(0, parameter), MAX_RTF_UC)
       continue
     }
     if (lower === 'u' && parameter !== null && !state.skip) {
+      // \uN is a signed 16-bit code unit: out-of-range values are malformed
+      // (fromCharCode would wrap mod 65536 into the wrong glyph), so ignore
+      // the control word instead of emitting mojibake.
+      if (!Number.isInteger(parameter) || parameter < -32768 || parameter > 32767) continue
       append(String.fromCharCode(parameter < 0 ? parameter + 65536 : parameter))
       skipFallback = state.uc
       continue
