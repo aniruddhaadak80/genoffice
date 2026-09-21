@@ -10,10 +10,7 @@ export const MAX_EXPORT_TWIPS = 31680
 
 export function validExportTwips(v: unknown): v is number {
   return (
-    typeof v === 'number' &&
-    Number.isFinite(v) &&
-    v >= MIN_EXPORT_TWIPS &&
-    v <= MAX_EXPORT_TWIPS
+    typeof v === 'number' && Number.isFinite(v) && v >= MIN_EXPORT_TWIPS && v <= MAX_EXPORT_TWIPS
   )
 }
 
