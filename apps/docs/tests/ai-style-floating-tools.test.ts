@@ -530,4 +530,20 @@ describe('pictureNode', () => {
       textBoxNode({ text: 'x', width: 10, height: 10, x: 0, y: 0, anchor: 'margin' }),
     ).toHaveProperty('error')
   })
+
+  it('rejects non-finite or absurd natural dimensions', () => {
+    for (const dims of [
+      { naturalWidth: NaN, naturalHeight: 300 },
+      { naturalWidth: 400, naturalHeight: Infinity },
+      { naturalWidth: 0, naturalHeight: 300 },
+      { naturalWidth: -5, naturalHeight: 300 },
+      { naturalWidth: 1e9, naturalHeight: 300 },
+    ]) {
+      expect(pictureNode({ ...base, ...dims })).toHaveProperty('error')
+    }
+    const ok = pictureNode({ ...base, naturalWidth: 960, naturalHeight: 480 })
+    if ('error' in ok) throw new Error(ok.error)
+    expect(Number.isFinite(ok.widthPx)).toBe(true)
+    expect(Number.isFinite(ok.heightPx)).toBe(true)
+  })
 })

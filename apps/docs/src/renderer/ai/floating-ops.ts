@@ -25,6 +25,10 @@ export type { Watermark }
 
 const HEX = /^#?([0-9a-f]{6})$/i
 const LENGTH_DESC = '"2.54cm", "1in", "72pt", "96px" or a bare number of points'
+/** Largest accepted source bitmap dimension; larger inputs are rejected. */
+const MAX_PICTURE_NATURAL_PX = 20000
+/** Largest emitted display dimension. */
+const MAX_PICTURE_OUTPUT_PX = 10000
 
 export const SET_WATERMARK_TOOL: AgentToolDef = {
   name: 'set_watermark',
@@ -225,6 +229,18 @@ export interface PictureInput {
 export function pictureNode(
   input: PictureInput,
 ): { node: JSONContent; widthPx: number; heightPx: number } | { error: string } {
+  // AI-supplied naturals: NaN/zero would poison every ratio below
+  // (Math.max(1, NaN) is NaN), and gigapixel sources would OOM the canvas.
+  if (
+    !Number.isFinite(input.naturalWidth) ||
+    !Number.isFinite(input.naturalHeight) ||
+    input.naturalWidth <= 0 ||
+    input.naturalHeight <= 0 ||
+    input.naturalWidth > MAX_PICTURE_NATURAL_PX ||
+    input.naturalHeight > MAX_PICTURE_NATURAL_PX
+  ) {
+    return { error: 'naturalWidth and naturalHeight must be finite positive pixel sizes' }
+  }
   const wEmu = input.width === undefined ? undefined : parseEmu(input.width, 'pt')
   const hEmu = input.height === undefined ? undefined : parseEmu(input.height, 'pt')
   if ((input.width !== undefined && !wEmu) || (input.height !== undefined && !hEmu))
@@ -248,6 +264,12 @@ export function pictureNode(
   }
   widthPx = Math.max(1, widthPx)
   heightPx = Math.max(1, heightPx)
+  // Belt-and-braces: no NaN/Infinity dimension may reach the doc JSON.
+  if (!Number.isFinite(widthPx) || !Number.isFinite(heightPx)) {
+    return { error: 'computed image dimensions are not finite' }
+  }
+  widthPx = Math.min(widthPx, MAX_PICTURE_OUTPUT_PX)
+  heightPx = Math.min(heightPx, MAX_PICTURE_OUTPUT_PX)
   const genImage: NewImage = {
     base64: input.base64,
     mime: input.mime,
