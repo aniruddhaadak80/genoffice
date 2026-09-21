@@ -233,7 +233,6 @@ import type {
 } from '../shared/ipc'
 import { planSlideDuplicates, planSlideMoves } from '../shared/slide-selection'
 import { buildPrintDocumentHtml } from '../shared/print-html'
-import { safeExternalUrl } from '../shared/run-link'
 
 import { tm } from './i18n-main'
 import { tiffToPng } from './tiff-decode'
@@ -3928,7 +3927,13 @@ export function registerSlidesIpc(): void {
     if (!session) return null
     // Renderer-typed URLs are allowlisted before they enter the deck: a
     // javascript:/file: target must never be saved into the package.
-    if (op.target?.kind === 'url' && safeExternalUrl(op.target.url) === null) return null
+    // The suite-wide openExternal gate (http/https) plus mailto for deck links.
+    if (
+      op.target?.kind === 'url' &&
+      safeExternalUrl(op.target.url, { allowedProtocols: ['http:', 'https:', 'mailto:'] }) === null
+    ) {
+      return null
+    }
     const r = sessionTxn(session, {
       ops: [{ op: 'setLink', target: { slide: op.slideIndex, el: op.sourceId }, link: op.target }],
     })
