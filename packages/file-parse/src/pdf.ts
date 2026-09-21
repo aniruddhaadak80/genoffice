@@ -134,6 +134,13 @@ function installDomMatrixPolyfill(): void {
   g.DOMMatrix = DOMMatrixPolyfill
 }
 
+/**
+ * Raw chars extracted before downstream truncation (parse.ts caps output far
+ * below this): stopping page iteration here keeps output byte-identical while
+ * a 10k-page PDF no longer pays full pdfjs text-content cost.
+ */
+export const MAX_PDF_RAW_CHARS = 1_000_000
+
 /** extract text from a pdf with pdfjs-dist (pure JS, no native deps), one section per page */
 export async function pdfToText(bytes: Uint8Array): Promise<string> {
   installDomMatrixPolyfill()
@@ -156,6 +163,7 @@ export async function pdfToText(bytes: Uint8Array): Promise<string> {
   const doc = await loadingTask.promise
   try {
     const pages: string[] = []
+    let rawChars = 0
     for (let i = 1; i <= doc.numPages; i++) {
       const page = await doc.getPage(i)
       const content = await page.getTextContent()
@@ -168,6 +176,9 @@ export async function pdfToText(bytes: Uint8Array): Promise<string> {
       }
       pages.push(text.trim())
       page.cleanup()
+      rawChars += text.length
+      // Downstream truncation makes further pages unobservable in output.
+      if (rawChars > MAX_PDF_RAW_CHARS) break
     }
     return pages.join('\n\n')
   } finally {
