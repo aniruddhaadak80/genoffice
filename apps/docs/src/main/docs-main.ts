@@ -157,6 +157,7 @@ import {
   snapshotDocPassword,
 } from './docx-encryption'
 import { isExternallyModified, type DiskFileState } from './external-change'
+import { validExportScale, validExportTwips } from './export-pdf-guard'
 import { printScaleOption, validPrintDim, validPrintScale } from './print-args'
 import { initDocsAutoUpdater } from './updater'
 import { registerZoteroIpc, teardownZoteroIpc } from './zotero-ipc'
@@ -3991,6 +3992,16 @@ export function registerDocsIpc(): void {
     ) => {
       // renderer-supplied outPath is only honored when a save dialog authorized it before
       let filePath = outPath ?? null
+      // Corrupt section geometry reaches this handler as NaN/Infinity: reject
+      // before printToPDF instead of crashing the export.
+      if (
+        typeof defaultName !== 'string' ||
+        !validExportTwips(pageWidthTwips) ||
+        !validExportTwips(pageHeightTwips) ||
+        !validExportScale(scale)
+      ) {
+        return { ok: false, error: tm('errFileTooLarge') }
+      }
       if (filePath && !canPdfWrite(event.sender.id, filePath)) {
         return { ok: false, error: 'export target is not an authorized path' }
       }
