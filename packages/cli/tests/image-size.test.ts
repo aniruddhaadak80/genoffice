@@ -15,13 +15,25 @@ function pngWithDims(width: number, height: number): Uint8Array {
 
 /** Minimal JPEG: SOI, APP0, RST0, SOF0 (w x h), EOI. */
 function jpegWithDims(width: number, height: number, rstFirst = false): Uint8Array {
-  const app0 = [0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00, 0x01, 0x01, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00]
+  const app0 = [
+    0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00, 0x01, 0x01, 0x00, 0x00, 0x01, 0x00, 0x01,
+    0x00, 0x00,
+  ]
   const rst0 = [0xff, 0xd0]
   const sof0 = [
-    0xff, 0xc0, 0x00, 0x0b, 0x08,
-    (height >> 8) & 0xff, height & 0xff,
-    (width >> 8) & 0xff, width & 0xff,
-    0x01, 0x01, 0x11, 0x00,
+    0xff,
+    0xc0,
+    0x00,
+    0x0b,
+    0x08,
+    (height >> 8) & 0xff,
+    height & 0xff,
+    (width >> 8) & 0xff,
+    width & 0xff,
+    0x01,
+    0x01,
+    0x11,
+    0x00,
   ]
   const bytes = [0xff, 0xd8, ...app0, ...(rstFirst ? rst0 : []), ...sof0, 0xff, 0xd9]
   return new Uint8Array(bytes)
@@ -39,12 +51,12 @@ describe('imageSize', () => {
   })
 
   it('skips length-less RST markers instead of misparsing', () => {
-    expect(jpegWithDims(40, 30, true)).toEqual({ width: 40, height: 30, mime: 'image/jpeg' })
-    expect(jpegWithDims(40, 30, false)).toEqual({ width: 40, height: 30, mime: 'image/jpeg' })
+    expect(imageSize(jpegWithDims(40, 30, true))).toEqual({ width: 40, height: 30, mime: 'image/jpeg' })
+    expect(imageSize(jpegWithDims(40, 30, false))).toEqual({ width: 40, height: 30, mime: 'image/jpeg' })
   })
 
   it('rejects zero JPEG frame dims', () => {
-    expect(jpegWithDims(0, 30)).toBeNull()
+    expect(imageSize(jpegWithDims(0, 30))).toBeNull()
   })
 
   it('returns null for non-images', () => {
