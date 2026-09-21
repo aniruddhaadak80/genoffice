@@ -165,6 +165,13 @@ function tableParagraphs(cell: JSONContent): TableParagraph[] {
   return paras.length > 0 ? paras : [{ runs: [] }]
 }
 
+/** ProseMirror colspan attrs are document-controlled: clamp to finite 1..12. */
+function colSpanOf(value: unknown): number {
+  const n = Number(value)
+  if (!Number.isFinite(n)) return 1
+  return Math.min(Math.max(1, Math.floor(n)), 12)
+}
+
 function mapTable(node: JSONContent): TableModel {
   const rows: TableCell[][] = []
   for (const row of node.content ?? []) {
@@ -177,7 +184,9 @@ function mapTable(node: JSONContent): TableModel {
       cells.push({
         paras: rich.map((p) => p.runs.map((r) => r.text).join('')),
         richParas: rich,
-        ...(Number(cell.attrs?.colspan) > 1 ? { colSpan: Number(cell.attrs?.colspan) } : {}),
+        // ProseMirror attrs are document-controlled: Infinity passes a `> 1`
+        // check, so clamp to a finite 2..12 before it reaches w:gridSpan.
+        ...(colSpanOf(cell.attrs?.colspan) > 1 ? { colSpan: colSpanOf(cell.attrs?.colspan) } : {}),
         ...(isHeader ? { bold: true, fill: TABLE_HEADER_FILL } : {}),
       })
     }

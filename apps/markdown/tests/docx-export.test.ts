@@ -194,3 +194,31 @@ describe('legacy HTML content degrades to plain runs in docx export', () => {
     expect(parsed.blocks.every((b) => b.format?.align !== 'center')).toBe(true)
   })
 })
+
+describe('hostile table colspan attrs', () => {
+  it('clamps non-finite colspan to a valid gridSpan on round-trip', async () => {
+    const cell = (colspan: unknown) => ({
+      type: 'tableCell',
+      attrs: { colspan },
+      content: [{ type: 'paragraph', content: [{ type: 'text', text: 'a' }] }],
+    })
+    const doc = {
+      type: 'doc',
+      content: [
+        { type: 'table', content: [{ type: 'tableRow', content: [cell(Infinity), cell(100)] }] },
+      ],
+    }
+    const bytes = await exportDocxBytes(doc as never, noImages)
+    const parsed = await parseDocx(bytes)
+    const table = parsed.blocks.find((b) => b.type === 'table' || (b as { table?: unknown }).table)
+    expect(table).toBeDefined()
+    // tables map to raw table XML: the hostile attrs must not reach w:gridSpan
+    const mapping = await mapDocToSaveBlocks(doc as never, noImages)
+    const xml = mapping.blocks
+      .map((b) => (b.kind === 'xml' ? b.xml : ''))
+      .join('')
+    expect(xml).toContain('<w:tbl>')
+    expect(xml).not.toContain('Infinity')
+    expect(xml).not.toMatch(/w:val="(\d{3,})"/)
+  })
+})
