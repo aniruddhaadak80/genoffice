@@ -35,4 +35,12 @@ describe('parsePrintRange', () => {
     expect(parsePrintRange('6', 5)).toBeNull()
     expect(parsePrintRange('1-9', 5)).toBeNull()
   })
+
+  it('rejects giant expansions instead of freezing the dialog', () => {
+    const start = Date.now()
+    expect(parsePrintRange('1-1000000', 2000000)).toBeNull()
+    expect(parsePrintRange('1-4999,4999-9999', 2000000)).toBeNull()
+    expect(Date.now() - start).toBeLessThan(5000)
+    expect(parsePrintRange('1-3', 10)).toEqual([0, 1, 2])
+  })
 })

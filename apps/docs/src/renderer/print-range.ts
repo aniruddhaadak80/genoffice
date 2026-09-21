@@ -16,7 +16,13 @@ export function parsePrintRange(text: string, max: number): number[] | null {
     const a = Number(m[1] ?? m[3])
     const b = Number(m[2] ?? m[3])
     if (a < 1 || b > max || a > b) return null
+    // A pasted 1-1000000 range would push a million entries and freeze the
+    // dialog: reject spans and totals past the page-selection budget.
+    if (b - a > MAX_PRINT_RANGE_SPAN || out.size + (b - a + 1) > MAX_PRINT_RANGE_SPAN) return null
     for (let i = a; i <= b; i++) out.add(i - 1)
   }
   return [...out].sort((x, y) => x - y)
 }
+
+/** Largest page selection a print range may expand to. */
+export const MAX_PRINT_RANGE_SPAN = 5000
