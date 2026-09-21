@@ -4121,7 +4121,11 @@ export function registerDocsIpc(): void {
     async (event, pageWidthTwips: number, pageHeightTwips: number, scale?: number) => {
       // Renderer-supplied page geometry reaches Chromium printToPDF verbatim:
       // reject non-finite/out-of-range sizes (0.5in..50in) and scales (0.1..5).
-      if (!validPrintDim(pageWidthTwips) || !validPrintDim(pageHeightTwips) || !validPrintScale(scale)) {
+      if (
+        !validPrintDim(pageWidthTwips) ||
+        !validPrintDim(pageHeightTwips) ||
+        !validPrintScale(scale)
+      ) {
         return { ok: false, error: 'invalid page size or scale' }
       }
       try {
