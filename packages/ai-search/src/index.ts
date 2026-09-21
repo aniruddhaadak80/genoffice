@@ -139,9 +139,7 @@ async function tavilyWebSearch(
  * backend cost/loops and a megabyte query cannot flood request bodies.
  */
 function normalizeSearchArgs(query: string, maxResults: number): { query: string; max: number } {
-  const max = Number.isFinite(maxResults)
-    ? Math.min(Math.max(1, Math.floor(maxResults)), 20)
-    : 6
+  const max = Number.isFinite(maxResults) ? Math.min(Math.max(1, Math.floor(maxResults)), 20) : 6
   return { query: typeof query === 'string' ? query.slice(0, 500) : '', max }
 }
 
@@ -164,14 +162,8 @@ export async function webSearch(
   }
   const keyed =
     o.prefer === 'tavily'
-      ? [
-          () => tavilyWebSearch(o.tavilyKey, q, max),
-          () => serperWebSearch(o.serperKey, q, max),
-        ]
-      : [
-          () => serperWebSearch(o.serperKey, q, max),
-          () => tavilyWebSearch(o.tavilyKey, q, max),
-        ]
+      ? [() => tavilyWebSearch(o.tavilyKey, q, max), () => serperWebSearch(o.serperKey, q, max)]
+      : [() => serperWebSearch(o.serperKey, q, max), () => tavilyWebSearch(o.tavilyKey, q, max)]
   for (const attempt of keyed) {
     const r = await attempt()
     if (r) return r
