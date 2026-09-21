@@ -74,10 +74,16 @@ function createHeadlessXlsxTool(deps: SheetsToolDeps): McpToolDefinition {
     inputSchema: {
       title: z.string().max(200).describe('workbook title, used as the file name'),
       data: z
-        .array(z.array(z.union([z.string().max(32_000), z.number(), z.boolean(), z.null()])).max(500))
+        .array(
+          z.array(z.union([z.string().max(32_000), z.number(), z.boolean(), z.null()])).max(500),
+        )
         .max(2000)
         .describe('rows of cell values; row 0 becomes spreadsheet row 1'),
-      sheetName: z.string().max(200).optional().describe('name of the single sheet; default Sheet1'),
+      sheetName: z
+        .string()
+        .max(200)
+        .optional()
+        .describe('name of the single sheet; default Sheet1'),
       path: z
         .string()
         .max(1024)

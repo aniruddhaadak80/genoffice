@@ -311,7 +311,10 @@ function createDocxContentTools(deps: DocToolDeps, host: SessionHost): McpToolDe
       inputSchema: {
         startBlockIndex: z.number().int().describe('first block index to replace (inclusive)'),
         endBlockIndex: z.number().int().describe('last block index to replace (inclusive)'),
-        html: z.string().max(200_000).describe('restricted HTML fragment the range is replaced with'),
+        html: z
+          .string()
+          .max(200_000)
+          .describe('restricted HTML fragment the range is replaced with'),
         document: documentField,
       },
       handler: async (args) => {
