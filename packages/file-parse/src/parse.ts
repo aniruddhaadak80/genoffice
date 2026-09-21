@@ -11,10 +11,11 @@ import { xlsxToText } from './xlsx'
 export const MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024
 /** Max extracted chars kept, with truncation marker. */
 export const MAX_EXTRACTED_CHARS = 200_000
+const TRUNCATION_MARKER = '\n… [truncated]'
 
 export function truncateExtracted(text: string): string {
   if (text.length <= MAX_EXTRACTED_CHARS) return text
-  return text.slice(0, MAX_EXTRACTED_CHARS) + '\n… [truncated]'
+  return text.slice(0, MAX_EXTRACTED_CHARS - TRUNCATION_MARKER.length) + TRUNCATION_MARKER
 }
 
 export type ParsedFileKind = 'text' | 'image' | 'unsupported'
