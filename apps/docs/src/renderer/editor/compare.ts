@@ -23,10 +23,41 @@ export function blockTexts(blocks: Block[]): string[] {
     })
 }
 
+/** LCS cell budget: (n+1)*(m+1) past this uses the linear fallback. */
+const MAX_LCS_CELLS = 4_000_000
+
+/**
+ * Linear multiset-join diff for very large documents: paragraphs present in
+ * both are 'same', the rest are 'removed'/'added'. Order-insensitive, but
+ * O(n+m) time and memory instead of O(n*m).
+ */
+function compareParagraphsLarge(left: string[], right: string[]): CompareEntry[] {
+  const rightCounts = new Map<string, number>()
+  for (const text of right) rightCounts.set(text, (rightCounts.get(text) ?? 0) + 1)
+  const out: CompareEntry[] = []
+  for (const text of left) {
+    const remaining = rightCounts.get(text) ?? 0
+    if (remaining > 0) {
+      rightCounts.set(text, remaining - 1)
+      out.push({ kind: 'same', left: text, right: text })
+    } else {
+      out.push({ kind: 'removed', left: text })
+    }
+  }
+  for (const [text, remaining] of rightCounts) {
+    for (let k = 0; k < remaining; k++) out.push({ kind: 'added', right: text })
+  }
+  return out
+}
+
 /** LCS-based paragraph diff; a removal directly followed by an addition merges into 'changed' */
 export function compareParagraphs(left: string[], right: string[]): CompareEntry[] {
   const n = left.length
   const m = right.length
+  // The LCS matrix is quadratic: comparing two 20k-paragraph documents would
+  // allocate ~400M cells. Past the budget, fall back to a linear multiset
+  // join (order-insensitive but bounded and fast).
+  if ((n + 1) * (m + 1) > MAX_LCS_CELLS) return compareParagraphsLarge(left, right)
   // lcs[i][j] = LCS length of left[i:], right[j:]
   const lcs: number[][] = Array.from({ length: n + 1 }, () => new Array<number>(m + 1).fill(0))
   for (let i = n - 1; i >= 0; i--) {

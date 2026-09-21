@@ -31,4 +31,17 @@ describe('compareParagraphs', () => {
     expect(compareParagraphs([], ['x'])[0].kind).toBe('added')
     expect(compareParagraphs(['x'], [])[0].kind).toBe('removed')
   })
+
+  it('falls back to a linear diff past the LCS cell budget', () => {
+    const left = Array.from({ length: 3000 }, (_, i) => `left-${i}`)
+    const right = Array.from({ length: 3000 }, (_, i) => `right-${i}`)
+    const start = Date.now()
+    const entries = compareParagraphs(left, right)
+    expect(Date.now() - start).toBeLessThan(10000)
+    expect(entries.filter((e) => e.kind === 'removed')).toHaveLength(3000)
+    expect(entries.filter((e) => e.kind === 'added')).toHaveLength(3000)
+    // shared paragraphs still match in the fallback path
+    const shared = compareParagraphs([...left, 'keep'], [...right, 'keep'])
+    expect(shared.filter((e) => e.kind === 'same')).toHaveLength(1)
+  })
 })
