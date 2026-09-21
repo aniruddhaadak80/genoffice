@@ -78,14 +78,16 @@ export function serializeActiveSheetCsv(
   sheet: CsvWorksheet,
   state: LazyWorkbookState | null,
 ): string | 'too-large' {
-  // A corrupt workbook can report absurd last-row/column values: sanitize to
-  // finite grid bounds and check the cell budget before issuing getRange
-  // blocks, so export fails fast instead of allocating gigabyte buffers.
+  // A corrupt workbook can report absurd last-row/column values: anything
+  // non-finite or past the Excel grid is corrupt (fail fast), and even
+  // in-grid dims face a cell budget before the first getRange block, so
+  // export cannot allocate gigabyte buffers.
   const lastRow = sheet.getLastRow()
   const lastColumn = sheet.getLastColumn()
   if (!Number.isFinite(lastRow) || !Number.isFinite(lastColumn)) return 'too-large'
-  const rowCount = Math.min(Math.max(Math.floor(lastRow), 0) + 1, MAX_GRID_ROWS)
-  const columnCount = Math.min(Math.max(Math.floor(lastColumn), 0) + 1, MAX_GRID_COLUMNS)
+  if (lastRow >= MAX_GRID_ROWS || lastColumn >= MAX_GRID_COLUMNS) return 'too-large'
+  const rowCount = Math.max(Math.floor(lastRow), 0) + 1
+  const columnCount = Math.max(Math.floor(lastColumn), 0) + 1
   if (rowCount * columnCount > MAX_EXPORT_CELLS) return 'too-large'
   const parts: string[] = []
   let length = 0
