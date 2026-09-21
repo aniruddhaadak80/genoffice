@@ -319,8 +319,7 @@ export function validateOps(raw: unknown): { ops: MdOp[] } | { error: string } {
   if (!Array.isArray(raw) || raw.length === 0) return { error: 'ops must be a non-empty array' }
   // AI op batches are untrusted: bound the batch and every string payload so
   // a hostile batch cannot freeze the editor or fill memory.
-  if (raw.length > MAX_OPS_PER_BATCH)
-    return { error: `at most ${MAX_OPS_PER_BATCH} ops per batch` }
+  if (raw.length > MAX_OPS_PER_BATCH) return { error: `at most ${MAX_OPS_PER_BATCH} ops per batch` }
   const ops: MdOp[] = []
   for (let i = 0; i < raw.length; i++) {
     const item = raw[i] as Record<string, unknown> | null

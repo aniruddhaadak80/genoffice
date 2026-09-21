@@ -82,9 +82,7 @@ describe('validateOps', () => {
       ),
     ).toMatchObject({ error: expect.stringContaining('at most 50') })
     expect(
-      validateOps([
-        { op: 'insertContent', after: -1, markdown: 'x'.repeat(200001) } as never,
-      ]),
+      validateOps([{ op: 'insertContent', after: -1, markdown: 'x'.repeat(200001) } as never]),
     ).toMatchObject({ error: expect.stringContaining('exceeds 200000') })
   })
 })
