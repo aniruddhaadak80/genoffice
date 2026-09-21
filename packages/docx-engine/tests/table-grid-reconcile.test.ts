@@ -383,7 +383,7 @@ describe('tblW-auto layout grid flag', () => {
         .blocks[0].table!
     const legacy = await of(14)
     expect(legacy.colWidthsTwips).toEqual([1200, 3400, 1600, 2226])
-    expect(legacy.layoutGrid).toBeUndefined()
+    expect(legacy.layoutGrid).toBe(true)
     const modern = await of(15)
     expect(modern.colWidthsTwips).toEqual([1300, 3600, 1700, 2400])
     expect(modern.layoutGrid).toBeUndefined()
@@ -394,7 +394,12 @@ describe('hostile colSpan values', () => {
   it('clamps non-finite and huge spans instead of throwing or emitting invalid OOXML', async () => {
     const start = Date.now()
     const xml = generateTableModelXml({
-      rows: [[{ paras: ['a'], colSpan: Infinity }, { paras: ['b'], colSpan: 1e9 }]],
+      rows: [
+        [
+          { paras: ['a'], colSpan: Infinity },
+          { paras: ['b'], colSpan: 1e9 },
+        ],
+      ],
     })
     expect(Date.now() - start).toBeLessThan(5000)
     expect(xml).not.toContain('Infinity')
@@ -403,5 +408,4 @@ describe('hostile colSpan values', () => {
     const doc = await parseDocx(await buildDocx({ bodyXml: xml }))
     expect(doc.blocks[0].table).toBeDefined()
   })
-})
 })

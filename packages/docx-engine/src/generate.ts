@@ -1831,7 +1831,9 @@ function cellBordersXml(borders: NonNullable<TableCell['borders']>): string {
  *  w:val="Infinity" and blow up the grid build (Array.from({length: Infinity})
  *  throws). Clamp to 1..64 at every emit site. */
 function cellSpan(cell: TableCell): number {
-  const span = cell.colSpan ?? 1
+  // colSpan arrives from parsed files/ops models as a number, but XML attr
+  // plumbing can leave a numeric string behind: coerce before validating.
+  const span = Number(cell.colSpan ?? 1)
   if (!Number.isFinite(span)) return 1
   return Math.min(Math.max(1, Math.floor(span)), 64)
 }
