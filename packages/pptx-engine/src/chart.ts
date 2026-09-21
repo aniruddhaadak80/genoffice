@@ -971,9 +971,9 @@ function readPoints(cache: any): Array<string | null> {
   const count = cache?.['c:ptCount']?.['@_val']
   const parsed = count != null ? parseInt(count, 10) : pts.length
   const n = Number.isFinite(parsed) ? Math.min(Math.max(0, parsed), MAX_CHART_POINTS) : pts.length
-  const out: Array<string | null> = new Array(Math.max(n, Math.min(pts.length, MAX_CHART_POINTS))).fill(
-    null,
-  )
+  const out: Array<string | null> = new Array(
+    Math.max(n, Math.min(pts.length, MAX_CHART_POINTS)),
+  ).fill(null)
   for (const pt of pts) {
     const idx = parseInt(pt['@_idx'], 10) || 0
     // A sparse hostile idx would grow the array without bound: ignore
