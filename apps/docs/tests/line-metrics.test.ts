@@ -568,6 +568,21 @@ describe('cssLineHeight', () => {
   it('no line spacing settings at all → null (inherit)', () => {
     expect(cssLineHeight(undefined, undefined, undefined)).toBeNull()
   })
+
+  it('never emits non-finite CSS from corrupt values', () => {
+    for (const args of [
+      ['exact', Infinity, undefined],
+      ['exact', NaN, undefined],
+      ['atLeast', Infinity, undefined],
+      ['auto', undefined, Infinity],
+      ['auto', Infinity, undefined],
+      ['auto', 276, NaN],
+    ] as const) {
+      const out = cssLineHeight(...args)
+      expect(out === null || !/Infinity|NaN/.test(out)).toBe(true)
+    }
+    expect(cssLineHeight('exact', 320, undefined)).toBe('16.0pt')
+  })
 })
 
 /** canvas stub for isFontAvailable: listed families measure differently from the generic fallbacks */

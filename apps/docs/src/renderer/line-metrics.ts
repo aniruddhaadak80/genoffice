@@ -1460,14 +1460,18 @@ export function cssLineHeight(
   lineSpacing: number | undefined,
 ): string | null {
   const FACTOR = 'var(--doc-line-factor,1.2)'
-  if (lineRule === 'exact' && lineRawTwips) return `${(lineRawTwips / 20).toFixed(1)}pt`
-  if (lineRule === 'atLeast' && lineRawTwips != null) {
+  // Corrupt w:line values arrive here as Infinity/NaN: Infinity is truthy and
+  // would emit "Infinitypt", so require finiteness on every numeric path.
+  const twips = typeof lineRawTwips === 'number' && Number.isFinite(lineRawTwips) ? lineRawTwips : undefined
+  if (lineRule === 'exact' && twips) return `${(twips / 20).toFixed(1)}pt`
+  if (lineRule === 'atLeast' && twips != null) {
     // atLeast: face value, but never below the grid-snapped single height
     // (Word probe 2026-08-22); line="0" atLeast is natural height off the grid
-    if (lineRawTwips === 0) return `calc(${FACTOR} * 1em)`
-    return `max(${(lineRawTwips / 20).toFixed(1)}pt, var(--doc-line-grid, calc(${FACTOR} * 1em)))`
+    if (twips === 0) return `calc(${FACTOR} * 1em)`
+    return `max(${(twips / 20).toFixed(1)}pt, var(--doc-line-grid, calc(${FACTOR} * 1em)))`
   }
-  const m = lineSpacing ?? (lineRule === 'auto' && lineRawTwips ? lineRawTwips / 240 : undefined)
+  const rawSpacing = lineSpacing ?? (lineRule === 'auto' && twips ? twips / 240 : undefined)
+  const m = typeof rawSpacing === 'number' && Number.isFinite(rawSpacing) ? rawSpacing : undefined
   // typed-grid docs resolve --doc-line-max (mult x pitch, floored at the
   // snapped single; --doc-line-mult on the same element carries m); elsewhere
   // the unitless factor scales per run like before
@@ -1482,7 +1486,8 @@ export function cssAutoLineMult(
   lineSpacing: number | undefined,
 ): number | undefined {
   if (lineRule === 'exact' || lineRule === 'atLeast') return undefined
-  return lineSpacing ?? (lineRule === 'auto' && lineRawTwips ? lineRawTwips / 240 : undefined)
+  const raw = lineSpacing ?? (lineRule === 'auto' && lineRawTwips ? lineRawTwips / 240 : undefined)
+  return typeof raw === 'number' && Number.isFinite(raw) ? raw : undefined
 }
 
 /**
