@@ -145,11 +145,15 @@ function createHeadlessDocxTool(deps: DocToolDeps): McpToolDefinition {
       'restricted-HTML fragment (format:"html"), converted by the same docx engine the app and ' +
       'the genoffice CLI use. Returns the absolute path of the written file.',
     inputSchema: {
-      title: z.string().describe('document title, used as the file name'),
-      content: z.string().describe('Markdown source (default) or a restricted-HTML fragment'),
+      title: z.string().max(200).describe('document title, used as the file name'),
+      content: z
+        .string()
+        .max(200_000)
+        .describe('Markdown source (default) or a restricted-HTML fragment'),
       format: z.enum(['markdown', 'html']).optional().describe('content format; default markdown'),
       path: z
         .string()
+        .max(1024)
         .optional()
         .describe('absolute output path; default is a new file in the default save folder'),
       overwrite: z
@@ -192,7 +196,7 @@ export function createDocumentTools(deps: DocToolDeps, host: SessionHost): McpTo
       name: 'read_docx',
       description: 'Read a Word .docx file and return its visible text (one paragraph per line).',
       inputSchema: {
-        path: z.string().describe('absolute path to a .docx file'),
+        path: z.string().max(1024).describe('absolute path to a .docx file'),
       },
       handler: async (args) => {
         const filePath = String(args.path ?? '')
@@ -209,7 +213,7 @@ export function createDocumentTools(deps: DocToolDeps, host: SessionHost): McpTo
       name: 'open_in_genoffice',
       description: 'Open an existing file in the running GenOffice app, focusing its tab.',
       inputSchema: {
-        path: z.string().describe('absolute path to the file to open'),
+        path: z.string().max(1024).describe('absolute path to the file to open'),
       },
       handler: async (args) => {
         const filePath = String(args.path ?? '')
@@ -286,7 +290,7 @@ function createDocxContentTools(deps: DocToolDeps, host: SessionHost): McpToolDe
         'Insert content into the visible document as HTML (headings, paragraphs, bold/italic, lists, ' +
         'tables, links). Appends at the end unless afterBlockIndex is given.',
       inputSchema: {
-        html: z.string().describe('restricted HTML fragment to insert'),
+        html: z.string().max(200_000).describe('restricted HTML fragment to insert'),
         afterBlockIndex: z
           .number()
           .int()
@@ -307,7 +311,7 @@ function createDocxContentTools(deps: DocToolDeps, host: SessionHost): McpToolDe
       inputSchema: {
         startBlockIndex: z.number().int().describe('first block index to replace (inclusive)'),
         endBlockIndex: z.number().int().describe('last block index to replace (inclusive)'),
-        html: z.string().describe('restricted HTML fragment the range is replaced with'),
+        html: z.string().max(200_000).describe('restricted HTML fragment the range is replaced with'),
         document: documentField,
       },
       handler: async (args) => {
@@ -322,7 +326,7 @@ function createDocxContentTools(deps: DocToolDeps, host: SessionHost): McpToolDe
         'find/replace, list/indent, etc.). `ops` is the same batch format the built-in AI editor accepts; ' +
         'the whole batch is atomic. Use read_document for block indexes.',
       inputSchema: {
-        ops: z.array(z.any()).describe('array of op objects'),
+        ops: z.array(z.any()).max(50).describe('array of op objects (at most 50 per call)'),
         dryRun: z
           .boolean()
           .optional()

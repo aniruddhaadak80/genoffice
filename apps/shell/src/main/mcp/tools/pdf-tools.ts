@@ -51,9 +51,10 @@ export function createPdfTools(): McpToolDefinition[] {
         'reading order. Scanned pages have no text layer and come back with empty text and ' +
         'hasTextLayer:false. Large documents are capped; use `pages` for a bounded read.',
       inputSchema: {
-        path: z.string().describe('absolute path to a .pdf file'),
+        path: z.string().max(1024).describe('absolute path to a .pdf file'),
         pages: z
           .string()
+          .max(256)
           .optional()
           .describe('1-based pages to read, e.g. "3" or "1-5,8"; default is the whole document'),
       },

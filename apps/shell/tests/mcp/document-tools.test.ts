@@ -164,6 +164,26 @@ describe('M3 docx tools', () => {
     expect(text(result.content)).toContain('markdown rejected')
   })
 
+  it('rejects oversized inputs before the CLI spawns', async () => {
+    const callsBefore = cli.calls.length
+    const bigTitle = await client!.callTool({
+      name: 'create_docx',
+      arguments: { title: 'x'.repeat(500), content: 'hi' },
+    })
+    expect(bigTitle.isError).toBe(true)
+    const bigContent = await client!.callTool({
+      name: 'create_docx',
+      arguments: { title: 'x', content: 'y'.repeat(300_000) },
+    })
+    expect(bigContent.isError).toBe(true)
+    const bigBatch = await client!.callTool({
+      name: 'apply_ops',
+      arguments: { ops: Array.from({ length: 51 }, () => ({ op: 'noop' })) },
+    })
+    expect(bigBatch.isError).toBe(true)
+    expect(cli.calls.length).toBe(callsBefore)
+  })
+
   it('read_docx returns the CLI-read text', async () => {
     await writeFile(join(dir, 'doc.docx'), 'placeholder')
     cli.setReadItems([

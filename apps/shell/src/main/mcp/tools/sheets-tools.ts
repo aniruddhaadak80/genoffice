@@ -72,13 +72,15 @@ function createHeadlessXlsxTool(deps: SheetsToolDeps): McpToolDefinition {
       'formula (the genoffice CLI evaluates it and stores the cached value). Returns the absolute ' +
       'path of the written file.',
     inputSchema: {
-      title: z.string().describe('workbook title, used as the file name'),
+      title: z.string().max(200).describe('workbook title, used as the file name'),
       data: z
-        .array(z.array(z.union([z.string(), z.number(), z.boolean(), z.null()])))
+        .array(z.array(z.union([z.string().max(32_000), z.number(), z.boolean(), z.null()])).max(500))
+        .max(2000)
         .describe('rows of cell values; row 0 becomes spreadsheet row 1'),
-      sheetName: z.string().optional().describe('name of the single sheet; default Sheet1'),
+      sheetName: z.string().max(200).optional().describe('name of the single sheet; default Sheet1'),
       path: z
         .string()
+        .max(1024)
         .optional()
         .describe('absolute output path; default is a new file in the default save folder'),
       overwrite: z
@@ -180,17 +182,20 @@ function createGridContentTools(deps: SheetsToolDeps, host: SessionHost): McpToo
         'stable across sessions) or by the sheetId the overview reports.',
       inputSchema: {
         addresses: z
-          .array(z.string())
+          .array(z.string().max(64))
+          .max(100)
           .optional()
           .describe(
             'A1 addresses to read (values + formulas, at most 100 per call); omit to get the workbook overview only',
           ),
         sheet: z
           .string()
+          .max(200)
           .optional()
           .describe('worksheet name to read from; default is the active sheet'),
         sheetId: z
           .string()
+          .max(200)
           .optional()
           .describe(
             'worksheet id (from a previous overview) as an alternative to `sheet`; a name is preferred',
