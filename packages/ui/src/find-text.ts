@@ -16,6 +16,10 @@ export function foldCase(s: string): string {
 }
 
 /** start offsets of every non-overlapping occurrence of `query` in `text` */
+/** Cap on collected offsets: a single-character query over a large document
+ *  would otherwise return millions of offsets (renderer OOM/freeze). */
+export const MAX_FIND_RESULTS = 2000
+
 export function findInText(text: string, query: string, opts: FindOptions): number[] {
   const found: number[] = []
   if (!query) return found
@@ -27,6 +31,7 @@ export function findInText(text: string, query: string, opts: FindOptions): numb
       !opts.wholeWord || (!isWordChar(text[i - 1]) && !isWordChar(text[i + query.length]))
     if (isWhole) {
       found.push(i)
+      if (found.length >= MAX_FIND_RESULTS) break
       i += query.length
     } else {
       i += 1
