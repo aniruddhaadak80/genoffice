@@ -16,7 +16,7 @@ describe('readOpsInput size cap', () => {
     writeFileSync(file, 'x'.repeat(MAX_OPS_BYTES + 1))
     let err: unknown
     try {
-      readOpsInput({ _: [], ops: file } as never, ctx(dir))
+      readOpsInput({ positionals: [], flags: { ops: file } }, ctx(dir))
     } catch (e) {
       err = e
     }
@@ -27,7 +27,7 @@ describe('readOpsInput size cap', () => {
     const dir = mkdtempSync(join(tmpdir(), 'genoffice-ops-'))
     const file = join(dir, 'small.json')
     writeFileSync(file, '{"ops":[]}')
-    const r = readOpsInput({ _: [], ops: file } as never, ctx(dir))
+    const r = readOpsInput({ positionals: [], flags: { ops: file } }, ctx(dir))
     expect(r.text).toBe('{"ops":[]}')
     expect(r.source).toBe(file)
   })
