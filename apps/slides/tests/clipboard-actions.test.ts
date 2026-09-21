@@ -1,7 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { CopyElementsOp, DeleteElementsOp } from '../src/shared/ipc'
 import type { ActionCtx } from '../src/renderer/action-context'
-import { copySelected, cutSelected, deleteSelected, pasteParagraphs } from '../src/renderer/clipboard-actions'
+import {
+  copySelected,
+  cutSelected,
+  deleteSelected,
+  pasteParagraphs,
+} from '../src/renderer/clipboard-actions'
 import { renderSelectionToPngBase64 } from '../src/renderer/selection-image'
 
 vi.mock('../src/renderer/selection-image', () => ({ renderSelectionToPngBase64: vi.fn() }))
@@ -72,7 +77,6 @@ describe('copy selected slide elements', () => {
   })
 })
 
-<<<<<<< HEAD
 describe('delete selected slide elements', () => {
   function deleteSetup(selectedIds: string[]) {
     const api = {
