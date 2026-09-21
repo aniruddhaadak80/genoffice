@@ -71,7 +71,6 @@ describe('flattenSvgPath', () => {
     )
   })
 })
-})
 
 describe('ring helpers', () => {
   it('ellipseRing stays on the ellipse', () => {
