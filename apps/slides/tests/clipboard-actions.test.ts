@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { CopyElementsOp, DeleteElementsOp } from '../src/shared/ipc'
 import type { ActionCtx } from '../src/renderer/action-context'
-import { copySelected, cutSelected, deleteSelected } from '../src/renderer/clipboard-actions'
+import { copySelected, cutSelected, deleteSelected, pasteParagraphs } from '../src/renderer/clipboard-actions'
 import { renderSelectionToPngBase64 } from '../src/renderer/selection-image'
 
 vi.mock('../src/renderer/selection-image', () => ({ renderSelectionToPngBase64: vi.fn() }))
@@ -72,6 +72,7 @@ describe('copy selected slide elements', () => {
   })
 })
 
+<<<<<<< HEAD
 describe('delete selected slide elements', () => {
   function deleteSetup(selectedIds: string[]) {
     const api = {
@@ -125,5 +126,23 @@ describe('delete selected slide elements', () => {
     })
     expect(api.deleteElements).toHaveBeenCalledTimes(1)
     expect(ctx.setStatus).toHaveBeenCalledWith('appStatusCut')
+  })
+})
+
+describe('pasteParagraphs', () => {
+  it('maps lines to single-run paragraphs unchanged', () => {
+    expect(pasteParagraphs('a\nb\r\nc')).toEqual([
+      { runs: [{ text: 'a' }] },
+      { runs: [{ text: 'b' }] },
+      { runs: [{ text: 'c' }] },
+    ])
+  })
+
+  it('caps hostile clipboard text instead of expanding it unbounded', () => {
+    const start = Date.now()
+    const out = pasteParagraphs(`${'x'.repeat(100000)}\n`.repeat(5000))
+    expect(Date.now() - start).toBeLessThan(5000)
+    expect(out.length).toBeLessThanOrEqual(2000)
+    expect(out.flatMap((p) => p.runs.map((r) => r.text)).join('').length).toBeLessThanOrEqual(48000)
   })
 })
