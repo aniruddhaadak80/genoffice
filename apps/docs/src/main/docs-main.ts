@@ -157,6 +157,7 @@ import {
   snapshotDocPassword,
 } from './docx-encryption'
 import { isExternallyModified, type DiskFileState } from './external-change'
+import { copyImageDisplaySize, validCopyImageDataUrl } from './copy-image-guard'
 import { printScaleOption, validPrintDim, validPrintScale } from './print-args'
 import { initDocsAutoUpdater } from './updater'
 import { registerZoteroIpc, teardownZoteroIpc } from './zotero-ipc'
@@ -3912,7 +3913,10 @@ export function registerDocsIpc(): void {
   ipcMain.handle(
     'docs:copy-image-to-clipboard',
     async (_event, dataUrl: unknown, meta: unknown): Promise<boolean> => {
-      if (typeof dataUrl !== 'string') return false
+      // Renderer-supplied bitmap: validate before base64 decode + nativeImage
+      // (a huge data URL would OOM the main process). Non-data URLs are
+      // lazy-media ids resolved below.
+      if (!validCopyImageDataUrl(dataUrl)) return false
       let bytes: Buffer
       let htmlSrc = dataUrl
       if (dataUrl.startsWith('data:image/')) {
@@ -3935,11 +3939,9 @@ export function registerDocsIpc(): void {
       let metaAttr = ''
       if (typeof meta === 'string' && meta.length <= 2048) {
         try {
-          const parsed = JSON.parse(meta) as Record<string, unknown>
-          if (typeof parsed.imageWidthPx === 'number' && parsed.imageWidthPx > 0)
-            width = Math.round(parsed.imageWidthPx)
-          if (typeof parsed.imageHeightPx === 'number' && parsed.imageHeightPx > 0)
-            height = Math.round(parsed.imageHeightPx)
+          const parsed = copyImageDisplaySize(meta)
+          if (parsed.width !== undefined) width = parsed.width
+          if (parsed.height !== undefined) height = parsed.height
           const escaped = meta.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;')
           metaAttr = ` data-image-meta="${escaped}"`
         } catch {
