@@ -262,9 +262,7 @@ export function validateRedactionRegions(value: unknown): RedactionRegion[] {
   if (!Array.isArray(value) || value.length === 0)
     throw new Error('at least one redaction rectangle is required')
   if (value.length > MAX_REDACTION_REGIONS) {
-    throw new Error(
-      `too many redaction rectangles (${value.length}, cap ${MAX_REDACTION_REGIONS})`,
-    )
+    throw new Error(`too many redaction rectangles (${value.length}, cap ${MAX_REDACTION_REGIONS})`)
   }
   return value.map((region, index) => {
     const label = opLabel(index)
