@@ -76,14 +76,22 @@ export function decodeInkPayload(payload: string): InkStroke | null {
     for (const pair of data.points) {
       if (!Array.isArray(pair) || pair.length !== 2) return null
       const [x, y] = pair
-      if (typeof x !== 'number' || typeof y !== 'number' || !Number.isFinite(x) || !Number.isFinite(y)) {
+      if (
+        typeof x !== 'number' ||
+        typeof y !== 'number' ||
+        !Number.isFinite(x) ||
+        !Number.isFinite(y)
+      ) {
         return null
       }
       points.push({ x, y })
     }
     return {
       tool: data.tool === 'highlighter' ? 'highlighter' : 'pen',
-      color: typeof data.color === 'string' && /^[0-9a-fA-F]{6}$/.test(data.color) ? data.color : '000000',
+      color:
+        typeof data.color === 'string' && /^[0-9a-fA-F]{6}$/.test(data.color)
+          ? data.color
+          : '000000',
       width:
         typeof data.width === 'number' && Number.isFinite(data.width) && data.width > 0
           ? Math.min(data.width, MAX_INK_WIDTH)

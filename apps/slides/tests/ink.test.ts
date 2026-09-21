@@ -138,7 +138,9 @@ describe('ink stroke → save → reopen (engine path = slides:add-ink handler)'
     expect(decodeInkPayload(hostile({ points: [[0, NaN]] }))).toBeNull()
     expect(decodeInkPayload(hostile({ points: [[Infinity, 0]] }))).toBeNull()
     expect(decodeInkPayload(hostile({ points: 'oops' }))).toBeNull()
-    expect(decodeInkPayload(hostile({ points: Array.from({ length: 20001 }, () => [0, 0]) }))).toBeNull()
+    expect(
+      decodeInkPayload(hostile({ points: Array.from({ length: 20001 }, () => [0, 0]) })),
+    ).toBeNull()
     expect(decodeInkPayload(hostile({ width: Infinity }))?.width).toBe(2)
     expect(decodeInkPayload(hostile({ width: 1e9 }))?.width).toBe(200)
     expect(decodeInkPayload(hostile({ color: 'red;evil' }))?.color).toBe('000000')
