@@ -31,13 +31,16 @@ function stubDom() {
     }
   }
   vi.stubGlobal('document', { createElement: canvasStub })
-  vi.stubGlobal('ImageData', class {
-    constructor(
-      public data: unknown,
-      public w: number,
-      public h: number,
-    ) {}
-  })
+  vi.stubGlobal(
+    'ImageData',
+    class {
+      constructor(
+        public data: unknown,
+        public w: number,
+        public h: number,
+      ) {}
+    },
+  )
 }
 
 afterEach(() => {
