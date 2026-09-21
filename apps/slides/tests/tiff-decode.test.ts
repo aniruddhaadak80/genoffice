@@ -32,4 +32,29 @@ describe('tiffToPng', () => {
   it('returns null on garbage bytes instead of throwing', () => {
     expect(tiffToPng(new Uint8Array([1, 2, 3, 4, 5]))).toBeNull()
   })
+
+  it('rejects giant IFD dimensions without allocating pixels', () => {
+    // Minimal little-endian TIFF whose header claims 100000x100000 px:
+    // must return null fast instead of attempting a 40GB RGBA buffer.
+    const buf = new ArrayBuffer(8 + 2 + 2 * 12 + 4)
+    const view = new DataView(buf)
+    view.setUint8(0, 0x49) // 'II'
+    view.setUint8(1, 0x49)
+    view.setUint16(2, 42, true)
+    view.setUint32(4, 8, true) // IFD offset
+    view.setUint16(8, 2, true) // 2 entries
+    const entry = (i: number, tag: number, value: number) => {
+      const off = 10 + i * 12
+      view.setUint16(off, tag, true)
+      view.setUint16(off + 2, 4, true) // LONG
+      view.setUint32(off + 4, 1, true)
+      view.setUint32(off + 8, value, true)
+    }
+    entry(0, 256, 100000) // ImageWidth
+    entry(1, 257, 100000) // ImageLength
+    view.setUint32(10 + 2 * 12, 0, true) // next IFD
+    const start = Date.now()
+    expect(tiffToPng(new Uint8Array(buf))).toBeNull()
+    expect(Date.now() - start).toBeLessThan(10000)
+  })
 })
