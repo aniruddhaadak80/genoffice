@@ -12,6 +12,28 @@ import {
 import { genofficeUserDataDir } from './gui'
 import { CliError, EXIT, type ErrorReason } from './result'
 
+/** control.json is IPC-adjacent user data: pid must be a positive integer,
+ *  endpoint/token bounded strings — otherwise a crafted file enables socket
+ *  abuse or megabyte request bodies. */
+function validEndpoint(raw: Partial<ControlEndpoint>): raw is ControlEndpoint {
+  return (
+    typeof raw.pid === 'number' &&
+    Number.isSafeInteger(raw.pid) &&
+    raw.pid > 0 &&
+    typeof raw.endpoint === 'string' &&
+    raw.endpoint.length > 0 &&
+    raw.endpoint.length <= 4096 &&
+    typeof raw.token === 'string' &&
+    raw.token.length <= 4096
+  )
+}
+
+/** Poll/socket timeouts must be finite: NaN never expires (infinite poll). */
+function normalizeTimeoutMs(timeoutMs: number, fallback: number): number {
+  if (!Number.isFinite(timeoutMs)) return fallback
+  return Math.min(Math.max(0, Math.floor(timeoutMs)), 120_000)
+}
+
 /** The running shell's control endpoint, or null when no live shell published one. */
 export function controlEndpoint(env: NodeJS.ProcessEnv): ControlEndpoint | null {
   const dirs = env.GENOFFICE_USER_DATA
@@ -22,14 +44,9 @@ export function controlEndpoint(env: NodeJS.ProcessEnv): ControlEndpoint | null 
     if (!existsSync(file)) continue
     try {
       const raw = JSON.parse(readFileSync(file, 'utf8')) as Partial<ControlEndpoint>
-      if (
-        typeof raw.pid !== 'number' ||
-        typeof raw.endpoint !== 'string' ||
-        typeof raw.token !== 'string'
-      )
-        continue
+      if (!validEndpoint(raw)) continue
       if (!processAlive(raw.pid)) continue
-      return raw as ControlEndpoint
+      return raw
     } catch {
       continue
     }
@@ -50,7 +67,7 @@ export async function waitForControlEndpoint(
   env: NodeJS.ProcessEnv,
   timeoutMs: number,
 ): Promise<ControlEndpoint | null> {
-  const deadline = Date.now() + timeoutMs
+  const deadline = Date.now() + normalizeTimeoutMs(timeoutMs, 30_000)
   for (;;) {
     const found = controlEndpoint(env)
     if (found || Date.now() > deadline) return found
@@ -64,6 +81,7 @@ export function controlRequest(
   request: ControlRequest,
   timeoutMs = 30_000,
 ): Promise<Record<string, unknown>> {
+  const timeout = normalizeTimeoutMs(timeoutMs, 30_000)
   return new Promise((resolve, reject) => {
     const socket = connect(endpoint.endpoint)
     let buffer = ''
@@ -84,7 +102,7 @@ export function controlRequest(
         ),
       )
     socket.setEncoding('utf8')
-    socket.setTimeout(timeoutMs, () => unavailable('timed out'))
+    socket.setTimeout(timeout, () => unavailable('timed out'))
     socket.on('error', (err) => unavailable(err.message))
     socket.on('connect', () => {
       socket.write(JSON.stringify({ token: endpoint.token, request }) + '\n')

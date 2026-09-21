@@ -103,6 +103,23 @@ describe('control endpoint', () => {
     })
   })
 
+  it('rejects crafted pid/endpoint/token shapes', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'genoffice-ctl-'))
+    const env = { GENOFFICE_USER_DATA: dir }
+    const bad = [
+      { protocol: 1, pid: NaN, endpoint: '/x', token: 't' },
+      { protocol: 1, pid: 1.5, endpoint: '/x', token: 't' },
+      { protocol: 1, pid: -7, endpoint: '/x', token: 't' },
+      { protocol: 1, pid: process.pid, endpoint: '', token: 't' },
+      { protocol: 1, pid: process.pid, endpoint: '/x', token: 't'.repeat(5000) },
+      { protocol: 1, pid: process.pid, endpoint: `/x${'y'.repeat(5000)}`, token: 't' },
+    ]
+    for (const candidate of bad) {
+      writeFileSync(join(dir, 'control.json'), JSON.stringify(candidate))
+      expect(controlEndpoint(env)).toBeNull()
+    }
+  })
+
   it('fails with app_unavailable when nobody listens', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'genoffice-ctl-'))
     await expect(
