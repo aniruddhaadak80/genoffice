@@ -585,7 +585,8 @@ function visualOverlayHtml(
   columnLeftPt: readonly number[],
   rowTopPt: ReadonlyMap<number, number>,
 ): string {
-  const left = (columnLeftPt[visual.fromColumn - startColumn] ?? 0) + finitePt(visual.offsetXPx, 0) * 0.75
+  const left =
+    (columnLeftPt[visual.fromColumn - startColumn] ?? 0) + finitePt(visual.offsetXPx, 0) * 0.75
   const top = (rowTopPt.get(visual.fromRow) ?? 0) + finitePt(visual.offsetYPx, 0) * 0.75
   const widthPx = finitePt(visual.widthPx, 1)
   const heightPx = finitePt(visual.heightPx, 1)
