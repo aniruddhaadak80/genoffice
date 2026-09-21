@@ -41,7 +41,12 @@ describe('clipboard TSV serialization', () => {
   })
 
   it('copyBounds rejects degenerate ranges instead of yielding Infinity', () => {
-    expect(copyBounds([0, 2], [1, 3])).toEqual({ startRow: 0, endRow: 2, startColumn: 1, endColumn: 3 })
+    expect(copyBounds([0, 2], [1, 3])).toEqual({
+      startRow: 0,
+      endRow: 2,
+      startColumn: 1,
+      endColumn: 3,
+    })
     expect(copyBounds([], [1])).toBeNull()
     expect(copyBounds([0], [])).toBeNull()
     expect(copyBounds([NaN], [1])).toBeNull()
