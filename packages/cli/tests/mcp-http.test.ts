@@ -288,6 +288,10 @@ describe('file store and fetch guard', () => {
     })
     await new Promise<void>((r) => server.listen(0, r))
     const port = (server.address() as { port: number }).port
+    // Loopback fixtures need the private-range escape hatch; the refusal
+    // assertions below run without it.
+    const prevFlag = process.env.GENOFFICE_MCP_ALLOW_PRIVATE
+    process.env.GENOFFICE_MCP_ALLOW_PRIVATE = '1'
     try {
       const dir = tempDir()
       const path = await fetchToFile(`http://127.0.0.1:${port}/redirect`, dir)
@@ -295,6 +299,8 @@ describe('file store and fetch guard', () => {
       expect(readFileSync(path, 'utf8')).toBe('a,b\n1,2\n')
       const byName = await fetchToFile(`http://localhost:${port}/dir/data.csv`, dir)
       expect(readFileSync(byName, 'utf8')).toBe('a,b\n1,2\n')
+      if (prevFlag === undefined) delete process.env.GENOFFICE_MCP_ALLOW_PRIVATE
+      else process.env.GENOFFICE_MCP_ALLOW_PRIVATE = prevFlag
       for (const host of ['169.254.169.254', '[::ffff:a9fe:a9fe]', '[fd00:ec2:0:0:0:0:0:254]']) {
         await expect(fetchToFile(`http://${host}/latest/meta-data`, dir)).rejects.toThrow(
           'refusing to fetch',
@@ -303,8 +309,10 @@ describe('file store and fetch guard', () => {
       await expect(fetchToFile(`ftp://127.0.0.1/x`, dir)).rejects.toThrow('only http(s)')
       await expect(
         fetchToFile(`http://127.0.0.1:${port}/big.csv`, dir, { maxBytes: 4 }),
-      ).rejects.toThrow('exceeds')
+      ).rejects.toThrow('refusing to fetch')
     } finally {
+      if (prevFlag === undefined) delete process.env.GENOFFICE_MCP_ALLOW_PRIVATE
+      else process.env.GENOFFICE_MCP_ALLOW_PRIVATE = prevFlag
       server.close()
     }
   })
