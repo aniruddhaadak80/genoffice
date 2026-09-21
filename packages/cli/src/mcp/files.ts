@@ -199,12 +199,16 @@ async function pinnedAddresses(url: URL): Promise<Pinned[]> {
   }
   const host = url.hostname.replace(/^\[|\]$/g, '')
   if (host === 'metadata.google.internal') throw new Error(`refusing to fetch ${url.href}`)
-  const lower = host.toLowerCase().replace(/\.+$/, '')
-  if (
-    lower === 'localhost' ||
-    BLOCKED_HOST_SUFFIXES.some((s) => lower === s.slice(1) || lower.endsWith(s))
-  ) {
-    throw new Error(`refusing to fetch ${url.href}`)
+  // Internal hostnames are refused unless the private-range escape hatch is
+  // set (loopback test fixtures resolve via localhost).
+  if (!allowPrivateRanges()) {
+    const lower = host.toLowerCase().replace(/\.+$/, '')
+    if (
+      lower === 'localhost' ||
+      BLOCKED_HOST_SUFFIXES.some((s) => lower === s.slice(1) || lower.endsWith(s))
+    ) {
+      throw new Error(`refusing to fetch ${url.href}`)
+    }
   }
   const literal = isIP(host)
   const found = literal
