@@ -245,9 +245,7 @@ describe('hostile table colspan attrs', () => {
     expect(table).toBeDefined()
     // tables map to raw table XML: the hostile attrs must not reach w:gridSpan
     const mapping = await mapDocToSaveBlocks(doc as never, noImages)
-    const xml = mapping.blocks
-      .map((b) => (b.kind === 'xml' ? b.xml : ''))
-      .join('')
+    const xml = mapping.blocks.map((b) => (b.kind === 'xml' ? b.xml : '')).join('')
     expect(xml).toContain('<w:tbl>')
     expect(xml).not.toContain('Infinity')
     expect(xml).not.toMatch(/w:val="(\d{3,})"/)
