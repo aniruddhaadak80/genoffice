@@ -208,6 +208,22 @@ describe('parseChartXml', () => {
     expect(m.series[0]!.values).toEqual([3, 4, 5, 2])
   })
 
+  it('caps hostile ptCount and ignores sparse out-of-range idx', () => {
+    const HOSTILE = `<c:chartSpace xmlns:c="c" xmlns:a="a"><c:chart><c:plotArea>
+<c:barChart><c:barDir val="col"/>
+<c:ser><c:idx val="0"/>
+  <c:cat><c:strRef><c:f>x</c:f><c:strCache><c:ptCount val="1000000000"/><c:pt idx="0"><c:v>A</c:v></c:pt><c:pt idx="999999999"><c:v>Z</c:v></c:pt></c:strCache></c:strRef></c:cat>
+  <c:val><c:numRef><c:f>y</c:f><c:numCache><c:ptCount val="2"/><c:pt idx="0"><c:v>1</c:v></c:pt><c:pt idx="1"><c:v>2</c:v></c:pt></c:numCache></c:numRef></c:val>
+</c:ser></c:barChart>
+</c:plotArea></c:chart></c:chartSpace>`
+    const start = Date.now()
+    const m = parseChartXml(HOSTILE)!
+    expect(Date.now() - start).toBeLessThan(10000)
+    expect(m.categories?.length).toBeLessThanOrEqual(10000)
+    expect(m.categories?.[0]).toBe('A')
+    expect(m.series[0]!.values).toEqual([1, 2])
+  })
+
   it('parses bar+line combo: both plots kept, series tagged with plotKind', () => {
     const COMBO = `<c:chartSpace xmlns:c="c" xmlns:a="a"><c:chart><c:plotArea><c:layout/>
 <c:barChart><c:barDir val="col"/><c:grouping val="clustered"/>
