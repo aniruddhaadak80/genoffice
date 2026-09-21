@@ -230,6 +230,23 @@ describe('addTable explicit grid options (genpptx parity)', () => {
     const el: any = opened.deck.slides[0]!.elements.find((e) => e.id === r.elementId)
     expect(el.anchor.originalXml).toContain('<a:gridCol w="1000000"/>'.repeat(3))
   })
+
+  it('clamps hostile dims and spans instead of throwing or emitting NaN', async () => {
+    const opened = await openPptx(fx('01_standard_business.pptx'))
+    const start = Date.now()
+    const r = addTable(opened, 0, {
+      rows: NaN,
+      cols: Infinity,
+      offset: { x: 0, y: 0, cx: 3000000, cy: 1000000 },
+      cellProps: [[{ gridSpan: Infinity }]],
+    })!
+    expect(Date.now() - start).toBeLessThan(10000)
+    const xml = (opened.deck.slides[0]!.elements.find((e) => e.id === r.elementId) as any).anchor
+      .originalXml as string
+    expect(xml).not.toContain('NaN')
+    expect(xml).not.toContain('Infinity')
+    expect(xml.match(/<a:tr /g)?.length).toBeLessThanOrEqual(50)
+  })
 })
 
 describe('shape outline color', () => {
