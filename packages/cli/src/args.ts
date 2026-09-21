@@ -6,7 +6,10 @@ export interface ParsedArgs {
 /**
  * `--key value`, `--key=value`, `--flag`, `-h`; a lone `--` ends flag parsing.
  * Names in `booleans` never take a value, so `genoffice --json info a.docx` keeps
- * `info` as the command.
+ * `info` as the command. Throws on empty flag names (`--=x`); short-flag
+ * tokens like `-h` never count as a `--key` value, so `--out -h` leaves
+ * `-h` for help handling instead of swallowing it. (Bare `-` still counts:
+ * it means stdin.)
  */
 export function parseArgs(
   argv: readonly string[],
@@ -30,12 +33,16 @@ export function parseArgs(
     }
     const eq = arg.indexOf('=')
     if (eq !== -1) {
-      flags[arg.slice(2, eq)] = arg.slice(eq + 1)
+      const name = arg.slice(2, eq)
+      if (!name) throw new Error(`invalid flag "${arg}": flag names must not be empty`)
+      flags[name] = arg.slice(eq + 1)
       continue
     }
     const key = arg.slice(2)
+    if (!key) throw new Error(`invalid flag "${arg}": flag names must not be empty`)
     const next = argv[i + 1]
-    if (!booleans.has(key) && next !== undefined && !next.startsWith('--')) {
+    const nextIsFlag = next !== undefined && (next.startsWith('--') || /^-[a-zA-Z?]/.test(next))
+    if (!booleans.has(key) && next !== undefined && !nextIsFlag) {
       flags[key] = next
       i++
     } else {

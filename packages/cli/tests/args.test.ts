@@ -23,4 +23,14 @@ describe('parseArgs', () => {
     expect(r.flags).toEqual({ json: true })
     expect(r.positionals).toEqual(['open', '--weird-name.docx'])
   })
+
+  it('rejects empty flag names and never swallows short flags as values', () => {
+    expect(() => parseArgs(['--=x'])).toThrow('must not be empty')
+    expect(() => parseArgs(['--='])).toThrow('must not be empty')
+    const r = parseArgs(['--out', '-h'])
+    expect(r.flags).toEqual({ out: true, help: true })
+    expect(r.positionals).toEqual([])
+    // bare stdin dash still counts as a value
+    expect(parseArgs(['--ops', '-']).flags).toEqual({ ops: '-' })
+  })
 })
