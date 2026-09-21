@@ -146,7 +146,9 @@ describe('decodeCsvBuffer', () => {
 
 describe('parseCsv row/col caps', () => {
   it('rejects too many columns', () => {
-    const wide = Array(MAX_CSV_COLS + 2).fill('a').join(',')
+    const wide = Array(MAX_CSV_COLS + 2)
+      .fill('a')
+      .join(',')
     expect(() => parseCsv(wide, ',')).toThrow(/too many columns/)
   })
 
