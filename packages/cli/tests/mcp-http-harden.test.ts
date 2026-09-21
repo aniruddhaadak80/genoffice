@@ -93,6 +93,8 @@ describe('mcp http hardening', () => {
   })
 
   it('falls back instead of throwing for a %ZZ remote name', async () => {
+    const prevFlag = process.env.GENOFFICE_MCP_ALLOW_PRIVATE
+    process.env.GENOFFICE_MCP_ALLOW_PRIVATE = '1'
     const server: Server = createServer((req, res) => {
       if (req.url === '/redirect-bad-name') {
         res.writeHead(200, {
@@ -115,11 +117,15 @@ describe('mcp http hardening', () => {
       const fromPath = await fetchToFile(`http://127.0.0.1:${port}/%ZZ`, dir)
       expect(basename(fromPath)).toBe('_ZZ.txt')
     } finally {
+      if (prevFlag === undefined) delete process.env.GENOFFICE_MCP_ALLOW_PRIVATE
+      else process.env.GENOFFICE_MCP_ALLOW_PRIVATE = prevFlag
       server.close()
     }
   })
 
   it('keeps redirects http(s)-only', async () => {
+    const prevFlag = process.env.GENOFFICE_MCP_ALLOW_PRIVATE
+    process.env.GENOFFICE_MCP_ALLOW_PRIVATE = '1'
     const server: Server = createServer((req, res) => {
       res.writeHead(302, { location: 'ftp://127.0.0.1/evil.bin' })
       res.end()
@@ -131,7 +137,27 @@ describe('mcp http hardening', () => {
         'only http(s)',
       )
     } finally {
+      if (prevFlag === undefined) delete process.env.GENOFFICE_MCP_ALLOW_PRIVATE
+      else process.env.GENOFFICE_MCP_ALLOW_PRIVATE = prevFlag
       server.close()
+    }
+  })
+
+  it('refuses loopback, private, metadata and internal hostnames without the flag', async () => {
+    delete process.env.GENOFFICE_MCP_ALLOW_PRIVATE
+    const dir = tempDir()
+    for (const url of [
+      'http://127.0.0.1/x.bin',
+      'http://10.0.0.5/x.bin',
+      'http://192.168.1.1/x.bin',
+      'http://[::ffff:127.0.0.1]/x.bin',
+      'http://[::1]/x.bin',
+      'http://169.254.169.254/latest/meta-data/',
+      'http://localhost:8080/x.bin',
+      'http://printer.local/x.bin',
+      'http://metadata.internal/x.bin',
+    ]) {
+      await expect(fetchToFile(url, dir)).rejects.toThrow('refusing to fetch')
     }
   })
 

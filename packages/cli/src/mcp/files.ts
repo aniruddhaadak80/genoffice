@@ -148,10 +148,44 @@ export function isHttpUrl(value: unknown): value is string {
 }
 
 /** Cloud instance-metadata endpoints: the one address range a server fetching on a client's behalf must never reach. BlockList canonicalises, so IPv4-mapped and expanded IPv6 spellings match too. */
+/**
+ * Non-public ranges a server fetching on a client's behalf must never reach:
+ * loopback/private/CGNAT/link-local (cloud metadata)/multicast/reserved in
+ * both families, mirroring the electron fetchWithSsrfGuard blocklist.
+ */
 const BLOCKED = new BlockList()
+BLOCKED.addSubnet('0.0.0.0', 8, 'ipv4')
+BLOCKED.addSubnet('10.0.0.0', 8, 'ipv4')
+BLOCKED.addSubnet('100.64.0.0', 10, 'ipv4')
+BLOCKED.addSubnet('127.0.0.0', 8, 'ipv4')
 BLOCKED.addSubnet('169.254.0.0', 16, 'ipv4')
+BLOCKED.addSubnet('172.16.0.0', 12, 'ipv4')
+BLOCKED.addSubnet('192.0.0.0', 24, 'ipv4')
+BLOCKED.addSubnet('192.168.0.0', 16, 'ipv4')
+BLOCKED.addSubnet('198.18.0.0', 15, 'ipv4')
+BLOCKED.addSubnet('224.0.0.0', 4, 'ipv4')
+BLOCKED.addSubnet('240.0.0.0', 4, 'ipv4')
+BLOCKED.addAddress('::', 'ipv6')
+BLOCKED.addAddress('::1', 'ipv6')
+BLOCKED.addSubnet('::', 96, 'ipv6')
+BLOCKED.addSubnet('64:ff9b::', 96, 'ipv6')
+BLOCKED.addSubnet('fc00::', 7, 'ipv6')
 BLOCKED.addSubnet('fe80::', 10, 'ipv6')
+BLOCKED.addSubnet('ff00::', 8, 'ipv6')
 BLOCKED.addAddress('fd00:ec2::254', 'ipv6')
+
+/** Hostname suffixes that never denote a public host. */
+const BLOCKED_HOST_SUFFIXES = ['.localhost', '.local', '.internal']
+
+/**
+ * Test/local-dev escape hatch: when set, loopback and private ranges fetch
+ * normally (the MCP hardening tests serve fixtures from 127.0.0.1). Anyone
+ * able to set this already controls the server environment, so it is not a
+ * privilege boundary — production deployments must leave it unset.
+ */
+function allowPrivateRanges(): boolean {
+  return process.env.GENOFFICE_MCP_ALLOW_PRIVATE === '1'
+}
 
 interface Pinned {
   address: string
@@ -165,14 +199,23 @@ async function pinnedAddresses(url: URL): Promise<Pinned[]> {
   }
   const host = url.hostname.replace(/^\[|\]$/g, '')
   if (host === 'metadata.google.internal') throw new Error(`refusing to fetch ${url.href}`)
+  const lower = host.toLowerCase().replace(/\.+$/, '')
+  if (
+    lower === 'localhost' ||
+    BLOCKED_HOST_SUFFIXES.some((s) => lower === s.slice(1) || lower.endsWith(s))
+  ) {
+    throw new Error(`refusing to fetch ${url.href}`)
+  }
   const literal = isIP(host)
   const found = literal
     ? [{ address: host, family: literal }]
     : await lookup(host, { all: true, verbatim: true })
   if (found.length === 0) throw new Error(`cannot resolve ${host}`)
-  for (const a of found) {
-    if (BLOCKED.check(a.address, a.family === 6 ? 'ipv6' : 'ipv4')) {
-      throw new Error(`refusing to fetch ${url.href}`)
+  if (!allowPrivateRanges()) {
+    for (const a of found) {
+      if (BLOCKED.check(a.address, a.family === 6 ? 'ipv6' : 'ipv4')) {
+        throw new Error(`refusing to fetch ${url.href}`)
+      }
     }
   }
   return found.map((a) => ({ address: a.address, family: a.family === 6 ? 6 : 4 }))
