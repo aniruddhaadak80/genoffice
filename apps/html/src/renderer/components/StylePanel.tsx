@@ -28,13 +28,14 @@ interface Props {
 
 type NumberField = 'fontSize' | 'width' | 'height' | 'borderRadius' | 'padding'
 
-const PX_FIELDS: Record<NumberField, { prop: string; label: StringKey; min: number; max: number }> = {
-  fontSize: { prop: 'font-size', label: 'fontSize', min: 1, max: 500 },
-  width: { prop: 'width', label: 'width', min: 0, max: 5000 },
-  height: { prop: 'height', label: 'height', min: 0, max: 5000 },
-  borderRadius: { prop: 'border-radius', label: 'radius', min: 0, max: 2500 },
-  padding: { prop: 'padding', label: 'padding', min: 0, max: 2500 },
-}
+const PX_FIELDS: Record<NumberField, { prop: string; label: StringKey; min: number; max: number }> =
+  {
+    fontSize: { prop: 'font-size', label: 'fontSize', min: 1, max: 500 },
+    width: { prop: 'width', label: 'width', min: 0, max: 5000 },
+    height: { prop: 'height', label: 'height', min: 0, max: 5000 },
+    borderRadius: { prop: 'border-radius', label: 'radius', min: 0, max: 2500 },
+    padding: { prop: 'padding', label: 'padding', min: 0, max: 2500 },
+  }
 
 function PxInput({
   field,

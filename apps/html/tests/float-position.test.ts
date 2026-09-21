@@ -35,14 +35,17 @@ describe('floatPosition', () => {
 
   it('returns finite in-bounds positions for hostile inputs', () => {
     const hostile = { x: NaN, y: Infinity, width: 50, height: -Infinity }
-    const pos = floatPosition(hostile as never, {
-      zoom: NaN,
-      offsetX: Infinity,
-      offsetY: -Infinity,
-      stageWidth: NaN,
-      barWidth: Infinity,
-      barHeight: NaN,
-    } as never)
+    const pos = floatPosition(
+      hostile as never,
+      {
+        zoom: NaN,
+        offsetX: Infinity,
+        offsetY: -Infinity,
+        stageWidth: NaN,
+        barWidth: Infinity,
+        barHeight: NaN,
+      } as never,
+    )
     expect(Number.isFinite(pos.left)).toBe(true)
     expect(Number.isFinite(pos.top)).toBe(true)
     expect(pos.left).toBeGreaterThanOrEqual(4)
