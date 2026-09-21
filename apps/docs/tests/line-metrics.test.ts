@@ -570,9 +570,7 @@ describe('cssLineHeight', () => {
   })
 
   it('never emits non-finite CSS from corrupt values', () => {
-    const cases: Array<
-      ['exact' | 'atLeast' | 'auto', number | undefined, number | undefined]
-    > = [
+    const cases: Array<['exact' | 'atLeast' | 'auto', number | undefined, number | undefined]> = [
       ['exact', Infinity, undefined],
       ['exact', NaN, undefined],
       ['atLeast', Infinity, undefined],
