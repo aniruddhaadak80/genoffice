@@ -96,6 +96,18 @@ describe('validateHeadlessPaths', () => {
     )
     expect(result).toMatchObject({ ok: false, code: 1, message: expect.stringContaining('/gone') })
   })
+
+  it('refuses an output identical to the input instead of clobbering it', () => {
+    const fs = fsWith(['/docs/a.docx', '/docs'])
+    const result = validateHeadlessPaths(request('/docs/a.docx', '/docs/a.docx', 'pdf'), fs)
+    expect(result).toMatchObject({ ok: false, code: 1, message: expect.stringContaining('differ') })
+  })
+
+  it('refuses an output extension that disagrees with the target format', () => {
+    const fs = fsWith(['/docs/a.docx', '/out'])
+    const result = validateHeadlessPaths(request('/docs/a.docx', '/out/a.docx', 'pdf'), fs)
+    expect(result).toMatchObject({ ok: false, code: 1, message: expect.stringContaining('.docx') })
+  })
 })
 
 describe('runHeadlessExport', () => {

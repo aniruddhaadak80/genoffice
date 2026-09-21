@@ -9,7 +9,7 @@
  * File menu uses, so GUI and CLI output cannot drift.
  */
 import { existsSync, statSync } from 'node:fs'
-import { dirname, resolve } from 'node:path'
+import { dirname, extname, resolve } from 'node:path'
 
 import {
   HEADLESS_EXIT,
@@ -74,6 +74,26 @@ export function validateHeadlessPaths(
       ok: false,
       code: HEADLESS_EXIT.badArgs,
       message: `output directory does not exist: ${dirname(outPath)}`,
+    }
+  }
+  // An export must never clobber its own source: refuse identical resolved
+  // paths before any window or exporter runs (checked before the extension
+  // so a same-path request always reports the clobber, not the mismatch).
+  if (outPath === input) {
+    return {
+      ok: false,
+      code: HEADLESS_EXIT.badArgs,
+      message: `output path must differ from the input file: ${input}`,
+    }
+  }
+  // The output extension should match the requested format, or the written
+  // file misleads every downstream opener (a .docx that is really a PDF).
+  const outExt = extname(outPath).toLowerCase().replace(/^\./, '')
+  if (outExt !== request.targetFormat) {
+    return {
+      ok: false,
+      code: HEADLESS_EXIT.badArgs,
+      message: `output extension .${outExt || '(none)'} does not match target format ${request.targetFormat}`,
     }
   }
   return { ok: true, input, outPath, module }
