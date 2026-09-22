@@ -233,6 +233,7 @@ import type {
 } from '../shared/ipc'
 import { planSlideDuplicates, planSlideMoves } from '../shared/slide-selection'
 import { buildPrintDocumentHtml } from '../shared/print-html'
+import { validImageBytesInput, validMediaBytesInput, validPxGeometry } from './image-bytes-guard'
 
 import { tm } from './i18n-main'
 import { tiffToPng } from './tiff-decode'
@@ -3556,6 +3557,11 @@ export function registerSlidesIpc(): void {
     if (!session) return null
     const slide = session.opened.deck.slides[op.slideIndex]
     if (!slide) return null
+    // Renderer-supplied stroke bytes/geometry: validate before Buffer.from
+    // allocates or NaN flows into toEmu.
+    if (!validImageBytesInput({ base64: op.base64, ext: 'png' }) || !validPxGeometry(op)) {
+      return null
+    }
     const baseWidthPx = session.opened.deck.size.cx / EMU_PER_PX_96
     const scale = op.fitWidthPx / baseWidthPx
     const toEmu = (px: number) => Math.round((px / scale) * EMU_PER_PX_96)
@@ -3639,6 +3645,17 @@ export function registerSlidesIpc(): void {
     if (!session) return null
     const slide = session.opened.deck.slides[op.slideIndex]
     if (!slide) return null
+    if (!validImageBytesInput(op)) return { error: 'unsupported' as const, ext: op.ext }
+    if ('naturalPx' in op) {
+      const natural = op.naturalPx as { width: unknown; height: unknown }
+      const center = (op as { centerPx?: { x: unknown; y: unknown } }).centerPx
+      const nums = [natural.width, natural.height, center?.x ?? 0, center?.y ?? 0, op.fitWidthPx]
+      if (!nums.every((n) => typeof n === 'number' && Number.isFinite(n))) {
+        return { error: 'unsupported' as const, ext: op.ext }
+      }
+    } else if (!validPxGeometry(op)) {
+      return { error: 'unsupported' as const, ext: op.ext }
+    }
     const deckSize = session.opened.deck.size
     const baseWidthPx = deckSize.cx / EMU_PER_PX_96
     const scale = op.fitWidthPx / baseWidthPx
@@ -3687,6 +3704,7 @@ export function registerSlidesIpc(): void {
     if (!session) return null
     const slide = session.opened.deck.slides[op.slideIndex]
     if (!slide) return null
+    if (!validImageBytesInput(op)) return { error: 'unsupported' as const, ext: op.ext }
     const r = sessionTxn(session, {
       ops: [
         {
@@ -3851,6 +3869,7 @@ export function registerSlidesIpc(): void {
   ipcMain.handle('slides:add-media-bytes', async (e, op: AddMediaBytesOp) => {
     const session = sessions.get(e.sender.id)
     if (!session || !session.opened.deck.slides[op.slideIndex]) return null
+    if (!validMediaBytesInput(op)) return null
     let bytes: Uint8Array
     try {
       bytes =
