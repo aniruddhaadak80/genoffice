@@ -233,6 +233,7 @@ import type {
 } from '../shared/ipc'
 import { planSlideDuplicates, planSlideMoves } from '../shared/slide-selection'
 import { buildPrintDocumentHtml } from '../shared/print-html'
+import { validInkPayload } from './ink-payload-guard'
 
 import { tm } from './i18n-main'
 import { tiffToPng } from './tiff-decode'
@@ -3556,6 +3557,9 @@ export function registerSlidesIpc(): void {
     if (!session) return null
     const slide = session.opened.deck.slides[op.slideIndex]
     if (!slide) return null
+    // The descr payload persists verbatim into the package: reject malformed
+    // or hostile shapes before they bloat the save or break reopen.
+    if (!validInkPayload(op.payload)) return null
     const baseWidthPx = session.opened.deck.size.cx / EMU_PER_PX_96
     const scale = op.fitWidthPx / baseWidthPx
     const toEmu = (px: number) => Math.round((px / scale) * EMU_PER_PX_96)
