@@ -236,9 +236,10 @@ function plainReference(part: string): string {
     .trim()
 }
 
-/// `'S 1'!$A$1:$K$84,'S 1'!$M$1:$N$9` → ['A1:K84', 'M1:N9']. Anything the
-/// print layout cannot crop to (full-column spans, 3-D refs, #REF!) yields
-/// [] so the export falls back to the used range instead of dropping content.
+/// `'S 1'!$A$1:$K$84,'S 1'!$M$1:$N$9` → ['A1:K84', 'M1:N9']. Parts the
+/// print layout cannot crop to (full-column spans, 3-D refs, #REF!) are
+/// skipped so one stale part cannot wipe the rest; [] (fall back to the
+/// used range) only when no part parses.
 export function printAreasFromFormula(formula: string | undefined): string[] {
   if (formula === undefined || formula === '') return []
   const areas: string[] = []
@@ -250,9 +251,8 @@ export function printAreasFromFormula(formula: string | undefined): string[] {
     }
     if (/^[A-Z]{1,3}[0-9]{1,7}:[A-Z]{1,3}[0-9]{1,7}$/.test(reference)) {
       areas.push(reference)
-      continue
     }
-    return []
+    // Anything else (full-column spans, 3-D refs, #REF!) is skipped.
   }
   return areas
 }
