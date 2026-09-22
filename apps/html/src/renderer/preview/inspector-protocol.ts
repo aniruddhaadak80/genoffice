@@ -129,11 +129,48 @@ export type FromInspectorBody =
   /** a resize or reorder drag started / ended (the host hides its chrome meanwhile) */
   | { type: 'gx:drag'; active: boolean }
 
+/** Message tags the instrumented inspector can emit; anything else is forged. */
+const KNOWN_FROM_INSPECTOR = new Set([
+  'gx:ready',
+  'gx:scroll',
+  'gx:hover',
+  'gx:rect',
+  'gx:select',
+  'gx:textSelect',
+  'gx:textEditCommit',
+  'gx:htmlEditCommit',
+  'gx:textEditCancel',
+  'gx:keyCommand',
+  'gx:zoom',
+  'gx:navigateBlocked',
+  'gx:markClick',
+  'gx:resize',
+  'gx:moveTo',
+  'gx:drag',
+])
+
 export function isFromInspector(data: unknown): data is FromInspector {
+  // The frame has an opaque origin (no allow-same-origin), so event.origin is
+  // useless and any script in the previewed document can postMessage here:
+  // require a known tag plus the numeric instrumentation version (the App
+  // additionally drops versions outside its live parse-map set).
+  if (typeof data !== 'object' || data === null) return false
+  const { type, version } = data as { type?: unknown; version?: unknown }
   return (
-    typeof data === 'object' &&
-    data !== null &&
-    typeof (data as { type?: unknown }).type === 'string' &&
-    (data as { type: string }).type.startsWith('gx:')
+    typeof type === 'string' &&
+    KNOWN_FROM_INSPECTOR.has(type) &&
+    typeof version === 'number' &&
+    Number.isFinite(version)
   )
+}
+
+/**
+ * Totally-open hrefs must never reach window.open from a frame message
+ * (javascript:/data:/file: payloads). Returns the trimmed URL when it is
+ * http(s), else null.
+ */
+export function safeExternalHref(href: unknown): string | null {
+  if (typeof href !== 'string') return null
+  const trimmed = href.trim()
+  return /^https?:\/\//i.test(trimmed) ? trimmed : null
 }

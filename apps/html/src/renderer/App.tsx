@@ -18,6 +18,7 @@ import { SourceEditor, type CursorInfo, type SourceEditorHandle } from './source
 import { PreviewFrame, type PreviewFrameHandle } from './preview/PreviewFrame'
 import { instrumentForPreview } from './preview/instrument'
 import type { ComputedSnapshot, ElementRect, FromInspector } from './preview/inspector-protocol'
+import { safeExternalHref } from './preview/inspector-protocol'
 import inspectorSource from './preview/inspector.js?raw'
 import { AiPanel, GensparkMark, type AiPreset, type HtmlAiDeps } from './ai/AiPanel'
 import { AiAskPopover, type AnchorRect, type AskMode } from './components/AiAskPopover'
@@ -706,10 +707,13 @@ export default function App() {
           }
           return
         }
-        case 'gx:navigateBlocked':
-          window.open(msg.href)
+        case 'gx:navigateBlocked': {
+          const href = safeExternalHref(msg.href)
+          if (!href) return
+          window.open(href)
           setNotice(t('openExternal'))
           return
+        }
         case 'gx:resize':
           if (msg.sid === selectedSidRef.current) previewStyleRef.current(msg.styles)
           return
