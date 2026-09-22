@@ -14,8 +14,38 @@ export function diagramLanguage(language: unknown): DiagramLanguage | null {
     : null
 }
 
-export function renderDiagram(language: DiagramLanguage, source: string): Promise<DiagramResult> {
-  return language === WAVEDROM_LANGUAGE ? renderWavedrom(source) : renderMermaid(source)
+export async function renderDiagram(
+  language: DiagramLanguage,
+  source: string,
+): Promise<DiagramResult> {
+  const result =
+    language === WAVEDROM_LANGUAGE ? await renderWavedrom(source) : await renderMermaid(source)
+  // Renderer output lands in the DOM via dangerouslySetInnerHTML: strip active
+  // content (mermaid runs strict, wavedrom interpolates user labels) so a
+  // malicious diagram source cannot execute script in the editor.
+  return result.ok ? { ok: true, svg: sanitizeDiagramSvg(result.svg) } : result
+}
+
+/**
+ * Strip active SVG content: script elements, inline event-handler attributes,
+ * foreignObject subtrees, and javascript: link targets. Pure string surgery
+ * (no DOM) so it also runs in tests and non-DOM contexts.
+ */
+export function sanitizeDiagramSvg(svg: string): string {
+  if (typeof svg !== 'string') return ''
+  return (
+    svg
+      // script elements (paired and self-closing)
+      .replace(/<script\b[^>]*>[\s\S]*?<\/script\s*>/gi, '')
+      .replace(/<script\b[^>]*\/>/gi, '')
+      // foreignObject subtrees can host arbitrary HTML
+      .replace(/<foreignObject\b[^>]*>[\s\S]*?<\/foreignObject\s*>/gi, '')
+      .replace(/<foreignObject\b[^>]*\/>/gi, '')
+      // inline event handlers (quoted and unquoted)
+      .replace(/\s+on[a-z]+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '')
+      // javascript: link targets
+      .replace(/((?:xlink:)?href\s*=\s*)(["'])\s*javascript:[^"']*\2/gi, '$1$2#$2')
+  )
 }
 
 const VIEWBOX_RE =
