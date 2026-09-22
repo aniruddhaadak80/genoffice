@@ -1,10 +1,42 @@
 import { useRef, useState } from 'react'
-import type { MouseEvent as ReactMouseEvent } from 'react'
+import type { MouseEvent as ReactMouseEvent, KeyboardEvent as ReactKeyboardEvent } from 'react'
 import type { Editor } from '@tiptap/core'
 import type { SectionSettings, TabStop } from '@genoffice/docx-engine'
 import { t, type StringKey } from '../i18n/locale'
 
 const twipsToPx = (twips: number) => (twips / 1440) * 96
+
+/** Largest page width the ruler will lay out: ticks, zones and default-stop
+ *  guides all derive from it, so a corrupt/huge section cannot OOM the tab. */
+export const MAX_RULER_INCHES = 50
+/** Keyboard nudge step (Word snap grid) and Shift-nudge step. */
+export const RULER_SNAP_TWIPS = 60
+
+export interface RulerDims {
+  /** finite page width in twips actually laid out */
+  pageWidth: number
+  marginLeft: number
+  marginRight: number
+  /** whole inches ticked, capped */
+  inches: number
+}
+
+/** Section geometry arrives from the file: coerce to finite, in-range dims. */
+export function rulerDims(section: SectionSettings): RulerDims {
+  const finite = (v: unknown, fallback: number): number =>
+    typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : fallback
+  const pageWidth = finite(section.pageWidth, 12240)
+  const marginLeft = Math.min(finite(section.marginLeft, 1440), pageWidth)
+  const marginRight = Math.min(finite(section.marginRight, 1440), pageWidth)
+  const inches = Math.min(Math.floor(pageWidth / 1440), MAX_RULER_INCHES)
+  return { pageWidth, marginLeft, marginRight, inches }
+}
+
+/** Word tab-stop snap grid: nearest 60 twips (~0.04in). */
+export function snapTabTwips(posTwips: number): number {
+  if (!Number.isFinite(posTwips)) return 0
+  return Math.round(posTwips / RULER_SNAP_TWIPS) * RULER_SNAP_TWIPS
+}
 
 /** A `clear` stop cancels an inherited stop — it marks no position, so the
     ruler renders nothing for it (write-back still carries it). Exported for tests. */
@@ -34,12 +66,12 @@ export function Ruler({
   editor: Editor | null
   onTabStopsChange: (stops: TabStop[] | null) => void
 }) {
-  const width = twipsToPx(section.pageWidth)
-  const marginLeft = twipsToPx(section.marginLeft)
-  const marginRight = twipsToPx(section.marginRight)
-  const inches = Math.floor(section.pageWidth / 1440)
+  const dims = rulerDims(section)
+  const width = twipsToPx(dims.pageWidth)
+  const marginLeft = twipsToPx(dims.marginLeft)
+  const marginRight = twipsToPx(dims.marginRight)
   const ticks: number[] = []
-  for (let i = 1; i <= inches; i++) ticks.push(i)
+  for (let i = 1; i <= dims.inches; i++) ticks.push(i)
 
   // Default Word tab interval: 0.5in = 720 twips
   const DEFAULT_TAB_TWIPS = 720
@@ -95,12 +127,13 @@ export function Ruler({
 
   // Click on ruler: add tab stop at position, skip margin zones
   const handleRulerClick = (e: ReactMouseEvent<HTMLDivElement>) => {
+    if (!(width > 0) || !(dims.pageWidth > 0)) return
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
     const x = e.clientX - rect.left
     if (x < marginLeft || x > width - marginRight) return
-    const posTwips = Math.round((x / width) * section.pageWidth)
-    // snap to nearest 60 twips (~0.04in)
-    const snapped = Math.round(posTwips / 60) * 60
+    const posTwips = Math.round((x / width) * dims.pageWidth)
+    // snap to the Word grid
+    const snapped = snapTabTwips(posTwips)
     const existing = stops.filter((s) => Math.abs(s.pos - snapped) > 60)
     const newStop: TabStop = { pos: snapped, val: nextTabType }
     const newStops = [...existing, newStop].sort((a, b) => a.pos - b.pos)
@@ -117,8 +150,8 @@ export function Ruler({
     const onMouseMove = (ev: MouseEvent) => {
       if (!dragRef.current) return
       const x = ev.clientX - rect.left
-      const posTwips = Math.round((x / width) * section.pageWidth)
-      const snapped = Math.round(posTwips / 60) * 60
+      const posTwips = Math.round((x / width) * dims.pageWidth)
+      const snapped = snapTabTwips(posTwips)
       // visual only update via CSS custom property (no state update for perf)
       const marker = document.querySelector(
         `[data-ruler-stop="${stopIndex}"]`,
@@ -136,8 +169,8 @@ export function Ruler({
         const newStops = stops.filter((_, i) => i !== dragRef.current!.stopIndex)
         onTabStopsChange(withRel(newStops))
       } else {
-        const posTwips = Math.round((x / width) * section.pageWidth)
-        const snapped = Math.round(posTwips / 60) * 60
+        const posTwips = Math.round((x / width) * dims.pageWidth)
+        const snapped = snapTabTwips(posTwips)
         const newStops = stops
           .map((s, i) => (i === dragRef.current!.stopIndex ? { ...s, pos: snapped } : s))
           .sort((a, b) => a.pos - b.pos)
@@ -150,17 +183,46 @@ export function Ruler({
     document.addEventListener('mouseup', onMouseUp)
   }
 
-  // Default tab stop markers (light gray) when no custom stops mark a position
+  // Default tab stop markers (light gray) when no custom stops mark a position.
+  // The content width is capped: with corrupt geometry the loop below would
+  // otherwise push millions of guides.
   const defaultStops: number[] = []
   if (!stops.some(isRenderableTabStop)) {
-    const contentWidth = section.pageWidth - section.marginLeft - section.marginRight
+    const contentWidth = Math.min(
+      dims.pageWidth - dims.marginLeft - dims.marginRight,
+      MAX_RULER_INCHES * 1440,
+    )
     for (let pos = DEFAULT_TAB_TWIPS; pos < contentWidth; pos += DEFAULT_TAB_TWIPS) {
-      defaultStops.push(section.marginLeft + pos)
+      defaultStops.push(dims.marginLeft + pos)
     }
   }
 
+  // Keyboard: arrows nudge the focused stop on the snap grid, Delete removes it.
+  const handleStopKeyDown = (e: ReactKeyboardEvent<HTMLSpanElement>, stopIndex: number) => {
+    const stop = stops[stopIndex]
+    if (!stop) return
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+      e.preventDefault()
+      const delta = (e.key === 'ArrowRight' ? 1 : -1) * (e.shiftKey ? 720 : 60)
+      const pos = Math.min(Math.max(snapTabTwips(stop.pos + delta), 0), dims.pageWidth)
+      const newStops = stops
+        .map((s, i) => (i === stopIndex ? { ...s, pos } : s))
+        .sort((a, b) => a.pos - b.pos)
+      onTabStopsChange(withRel(newStops))
+    } else if (e.key === 'Delete' || e.key === 'Backspace') {
+      e.preventDefault()
+      onTabStopsChange(withRel(stops.filter((_, i) => i !== stopIndex)))
+    }
+  }
+
+  const stopLabel = (stop: TabStop): string =>
+    t('appTabStopTitle', {
+      type: t(TAB_TYPE_NAME_KEYS[stop.val]),
+      pos: Math.round((stop.pos / 144) * 10) / 10,
+    }) + (stop.leader ? t('appTabLeader', { leader: stop.leader }) : '')
+
   return (
-    <div className="ruler" style={{ width }} onClick={handleRulerClick}>
+    <div className="ruler" role="group" style={{ width }} onClick={handleRulerClick}>
       {/* Tab type selector button at far left */}
       <button
         className="ruler-tab-type"
@@ -202,14 +264,16 @@ export function Ruler({
             key={`${stop.pos}-${i}`}
             data-ruler-stop={i}
             className={`ruler-tab ruler-tab-${stop.val}`}
-            style={{ left: twipsToPx(stop.pos) }}
-            data-tip={
-              t('appTabStopTitle', {
-                type: t(TAB_TYPE_NAME_KEYS[stop.val]),
-                pos: Math.round((stop.pos / 144) * 10) / 10,
-              }) + (stop.leader ? t('appTabLeader', { leader: stop.leader }) : '')
-            }
+            style={{ left: Math.min(Math.max(twipsToPx(stop.pos), 0), width) }}
+            data-tip={stopLabel(stop)}
+            role="slider"
+            tabIndex={0}
+            aria-label={stopLabel(stop)}
+            aria-valuemin={0}
+            aria-valuemax={dims.pageWidth}
+            aria-valuenow={Number.isFinite(stop.pos) ? stop.pos : 0}
             onMouseDown={(e) => handleTabMouseDown(e, i)}
+            onKeyDown={(e) => handleStopKeyDown(e, i)}
           >
             {TAB_TYPE_LABELS[stop.val]}
           </span>
