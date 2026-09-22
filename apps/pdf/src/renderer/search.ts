@@ -31,6 +31,9 @@ export type SearchIndex = PageEntry[]
 
 const MAX_MATCHES = 1000
 
+/** Queries past this are paste accidents, not finds; scanning megabytes per page hangs the tab. */
+export const MAX_QUERY_CHARS = 1000
+
 interface RawTextItem {
   str?: string
   transform?: number[]
@@ -77,6 +80,9 @@ export async function buildSearchIndex(doc: PDFDocumentProxy): Promise<SearchInd
 
 /** Case-insensitive full-text search; rects linearly interpolated within items by char ratio (approximate; bounding box for rotated glyphs) */
 export function searchInIndex(index: SearchIndex, query: string): SearchMatch[] {
+  if (typeof query !== 'string' || query.length === 0 || query.length > MAX_QUERY_CHARS) {
+    return []
+  }
   const q = foldCase(query)
   if (!q) return []
   const matches: SearchMatch[] = []

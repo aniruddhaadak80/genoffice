@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import type { PDFDocumentProxy } from 'pdfjs-dist'
 import { foldCase } from '@genoffice/ui'
-import { buildSearchIndex, searchInIndex, type SearchIndex } from '../src/renderer/search'
+import {
+  buildSearchIndex,
+  MAX_QUERY_CHARS,
+  searchInIndex,
+  type SearchIndex,
+} from '../src/renderer/search'
 
 interface FakeItem {
   str?: string
@@ -91,6 +96,13 @@ describe('searchInIndex', () => {
   it('returns empty for an empty query', () => {
     const index = [entry('abc', [{ start: 0, end: 3, x: 0, y: 0, w: 30, h: 10 }])]
     expect(searchInIndex(index, '')).toEqual([])
+  })
+
+  it('rejects oversized queries instead of scanning pages with them', () => {
+    const index = [entry('abc', [{ start: 0, end: 3, x: 0, y: 0, w: 30, h: 10 }])]
+    expect(searchInIndex(index, 'a'.repeat(MAX_QUERY_CHARS + 1))).toEqual([])
+    expect(searchInIndex(index, 'a'.repeat(MAX_QUERY_CHARS))).toEqual([])
+    expect(searchInIndex(index, 'abc')).toHaveLength(1)
   })
 
   it('finds case-insensitive matches with interpolated rects', () => {
