@@ -617,6 +617,17 @@ function findNumIdOfKind(blocks: Block[], kind: 'bullet' | 'ordered'): string | 
   return null
 }
 
+/**
+ * Clamp a column-width input to the content width (mirrors the row-height
+ * clamp): Infinity/NaN/huge cm values never reach the table grid. Exported
+ * for tests.
+ */
+export function clampColumnWidthCm(cm: number, maxCm: number): number | null {
+  if (!Number.isFinite(cm) || cm <= 0) return null
+  if (!Number.isFinite(maxCm) || maxCm <= 0) return null
+  return Math.min(cm, maxCm)
+}
+
 function RibbonInner({
   actionsRef,
   quickActions,
@@ -1058,11 +1069,17 @@ function RibbonInner({
   const [borderColor, setBorderColor] = useState('000000')
   const [borderSz, setBorderSz] = useState(4) // 1/8 pt:4 = 0.5pt
   const sectionContentWidthPx = section
-    ? Math.max(1, (section.pageWidth - section.marginLeft - section.marginRight) / 15)
+    ? (() => {
+        const raw = (section.pageWidth - section.marginLeft - section.marginRight) / 15
+        // Corrupt section geometry yields NaN/Infinity here and an Infinitypx
+        // max hint below: fall back to the Letter content width.
+        return Number.isFinite(raw) ? Math.max(1, raw) : 624
+      })()
     : 624
   const maxRowHeightCm = section
     ? (Math.max(1, section.pageHeight - section.marginTop - section.marginBottom) / 1440) * 2.54
     : 23.28
+  const maxColumnWidthCm = (sectionContentWidthPx / 96) * 2.54
 
   type BorderSide = { style: string; szEighths?: number; color?: string }
   /** Apply borders to selected cells: all/outer/inner compute the four sides per cell from selection geometry; none clears explicitly.
@@ -1167,9 +1184,11 @@ function RibbonInner({
 
   /** Set column width for selected columns (cm): writes the matching colwidth slot of every cell in the column */
   const applyColumnWidth = (cm: number | null) => {
-    if (!canEdit || !isInTable(editor.state) || !cm || cm <= 0) return
+    if (!canEdit || !isInTable(editor.state) || cm === null) return
+    const clamped = clampColumnWidthCm(cm, maxColumnWidthCm)
+    if (clamped === null) return
     editor.view.focus()
-    const px = Math.round((cm / 2.54) * 96)
+    const px = Math.round((clamped / 2.54) * 96)
     setSelectedColumnWidth(px, sectionContentWidthPx)(editor.state, editor.view.dispatch)
   }
 
