@@ -26,14 +26,24 @@ export function layoutMarginCards(
   gap = 10,
   minTop = 4,
 ): Map<string, number> {
-  const sorted = [...entries].sort((a, b) => a.pinY - b.pinY)
-  const desired = (e: MarginLayoutEntry) => Math.max(minTop, e.pinY - CARD_PIN_ALIGN)
+  // Corrupt geometry must not poison the layout: entries with non-finite pins
+  // cannot be placed, and a hostile height/gap callback must not inject NaN.
+  const saneGap = Number.isFinite(gap) ? Math.max(0, gap) : 10
+  const saneMinTop = Number.isFinite(minTop) ? minTop : 4
+  const saneHeight = (key: string): number => {
+    const h = height(key)
+    return Number.isFinite(h) && h > 0 ? h : 0
+  }
+  const sorted = [...entries]
+    .filter((e) => e && typeof e.key === 'string' && Number.isFinite(e.pinY))
+    .sort((a, b) => a.pinY - b.pinY)
+  const desired = (e: MarginLayoutEntry) => Math.max(saneMinTop, e.pinY - CARD_PIN_ALIGN)
   const tops = new Array<number>(sorted.length)
 
   const anchorIdx = anchorKey === null ? -1 : sorted.findIndex((e) => e.key === anchorKey)
   if (anchorIdx < 0) {
     for (let i = 0; i < sorted.length; i++) {
-      const min = i === 0 ? minTop : tops[i - 1]! + height(sorted[i - 1]!.key) + gap
+      const min = i === 0 ? saneMinTop : tops[i - 1]! + saneHeight(sorted[i - 1]!.key) + saneGap
       tops[i] = Math.max(desired(sorted[i]!), min)
     }
   } else {
@@ -41,11 +51,11 @@ export function layoutMarginCards(
     // Above the anchor: pull cards up when they would collide (may go past minTop —
     // avoiding overlap wins over staying inside the top edge)
     for (let i = anchorIdx - 1; i >= 0; i--) {
-      const max = tops[i + 1]! - gap - height(sorted[i]!.key)
+      const max = tops[i + 1]! - saneGap - saneHeight(sorted[i]!.key)
       tops[i] = Math.min(desired(sorted[i]!), max)
     }
     for (let i = anchorIdx + 1; i < sorted.length; i++) {
-      const min = tops[i - 1]! + height(sorted[i - 1]!.key) + gap
+      const min = tops[i - 1]! + saneHeight(sorted[i - 1]!.key) + saneGap
       tops[i] = Math.max(desired(sorted[i]!), min)
     }
   }

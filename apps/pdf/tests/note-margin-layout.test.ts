@@ -90,4 +90,31 @@ describe('layoutMarginCards', () => {
     const tops = layoutMarginCards([{ key: 'a', pinY: 100 }], fixedHeight(80), 'gone')
     expect(tops.get('a')).toBe(100 - CARD_PIN_ALIGN)
   })
+
+  it('drops entries with non-finite pins and clamps bad geometry', () => {
+    const tops = layoutMarginCards(
+      [
+        { key: 'good', pinY: 100 },
+        { key: 'nan', pinY: Number.NaN },
+        { key: 'inf', pinY: Infinity },
+      ],
+      fixedHeight(80),
+      null,
+    )
+    expect(tops.has('nan')).toBe(false)
+    expect(tops.has('inf')).toBe(false)
+    expect(tops.get('good')).toBe(100 - CARD_PIN_ALIGN)
+    // Hostile height/gap callbacks cannot inject NaN: every top stays finite.
+    const hostile = layoutMarginCards(
+      [
+        { key: 'a', pinY: 100 },
+        { key: 'b', pinY: 120 },
+      ],
+      () => Number.NaN,
+      null,
+      Number.NaN,
+    )
+    for (const top of hostile.values()) expect(Number.isFinite(top)).toBe(true)
+    expect(hostile.get('b')).toBeGreaterThanOrEqual(hostile.get('a')!)
+  })
 })
