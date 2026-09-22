@@ -24,6 +24,20 @@ export function fitCropPreview(
   maxWidth = PREVIEW_MAX,
   maxHeight = PREVIEW_MAX,
 ): { w: number; h: number } {
+  // Broken-image sources report 0/NaN/Infinity naturals: without a guard the
+  // scale is NaN/Infinity and w/h poison canvas styles as NaNpx.
+  if (
+    !Number.isFinite(naturalWidth) ||
+    !Number.isFinite(naturalHeight) ||
+    naturalWidth <= 0 ||
+    naturalHeight <= 0 ||
+    !Number.isFinite(maxWidth) ||
+    !Number.isFinite(maxHeight) ||
+    maxWidth <= 0 ||
+    maxHeight <= 0
+  ) {
+    return { w: 1, h: 1 }
+  }
   const scale = Math.min(1, maxWidth / naturalWidth, maxHeight / naturalHeight)
   return {
     w: Math.max(1, Math.round(naturalWidth * scale)),

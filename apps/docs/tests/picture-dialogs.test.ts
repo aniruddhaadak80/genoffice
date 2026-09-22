@@ -10,4 +10,22 @@ describe('crop preview sizing', () => {
   it('does not enlarge small images', () => {
     expect(fitCropPreview(120, 80, 500, 300)).toEqual({ w: 120, h: 80 })
   })
+
+  it('falls back to 1x1 for broken-image dimensions instead of NaN', () => {
+    for (const args of [
+      [0, 0],
+      [NaN, 100],
+      [100, NaN],
+      [Infinity, 100],
+      [1920, 1080, NaN, NaN],
+      [1920, 1080, 0, 300],
+      [-5, 100],
+    ] as Array<[number, number, number?, number?]>) {
+      const out = fitCropPreview(...args)
+      expect(Number.isFinite(out.w) && Number.isFinite(out.h)).toBe(true)
+      expect(out.w).toBeGreaterThanOrEqual(1)
+      expect(out.h).toBeGreaterThanOrEqual(1)
+    }
+    expect(fitCropPreview(0, 0)).toEqual({ w: 1, h: 1 })
+  })
 })
