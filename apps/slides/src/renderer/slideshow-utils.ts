@@ -34,6 +34,19 @@ export function computePlayOrder(
 
 // ── Rehearsal timing ─────────────────────────────────────────────────────────────
 
+/** Upper bound for the per-page dwell array (a corrupt count must not OOM). */
+export const MAX_REHEARSE_SLIDES = 100_000
+
+function finiteOr(value: number, fallback: number): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback
+}
+
+/** A rehearsal page pointer: a valid 0-based index, or -1 once finished. */
+function validRehearseIndex(slideCount: number, index: number): number {
+  if (index === -1) return -1
+  return Number.isInteger(index) && index >= 0 && index < slideCount ? index : -1
+}
+
 /** Rehearsal timing state: perPageMs accumulates dwell milliseconds by original slide index. */
 export interface RehearseTiming {
   perPageMs: number[]
@@ -45,10 +58,15 @@ export interface RehearseTiming {
 
 /** Start rehearsal: begin timing from startIndex. */
 export function startRehearse(slideCount: number, startIndex: number, now: number): RehearseTiming {
+  // slideCount feeds new Array: floor it and cap it so fractional or absurd
+  // values cannot throw or exhaust memory.
+  const count = Number.isFinite(slideCount)
+    ? Math.min(Math.max(0, Math.floor(slideCount)), MAX_REHEARSE_SLIDES)
+    : 0
   return {
-    perPageMs: new Array(Math.max(0, slideCount)).fill(0),
-    currentIndex: startIndex,
-    enteredAt: now,
+    perPageMs: new Array(count).fill(0),
+    currentIndex: validRehearseIndex(count, startIndex),
+    enteredAt: finiteOr(now, 0),
   }
 }
 
@@ -59,20 +77,26 @@ export function switchRehearsePage(
   now: number,
 ): RehearseTiming {
   const perPageMs = t.perPageMs.slice()
+  // A non-finite clock reading must not poison the accumulator with NaN.
+  const at = finiteOr(now, t.enteredAt)
   if (t.currentIndex >= 0 && t.currentIndex < perPageMs.length) {
-    perPageMs[t.currentIndex]! += Math.max(0, now - t.enteredAt)
+    const dwell = at - finiteOr(t.enteredAt, at)
+    perPageMs[t.currentIndex]! += dwell > 0 && Number.isFinite(dwell) ? dwell : 0
   }
-  return { perPageMs, currentIndex: nextIndex, enteredAt: now }
+  return { perPageMs, currentIndex: validRehearseIndex(perPageMs.length, nextIndex), enteredAt: at }
 }
 
 /** End rehearsal: accumulate the last slide's dwell, then convert to seconds per slide (rounded; visited slides count at least 1 second). */
 export function finishRehearse(t: RehearseTiming, now: number): number[] {
   const final = switchRehearsePage(t, -1, now)
-  return final.perPageMs.map((ms) => (ms > 0 ? Math.max(1, Math.round(ms / 1000)) : 0))
+  return final.perPageMs.map((ms) =>
+    ms > 0 && Number.isFinite(ms) ? Math.max(1, Math.round(ms / 1000)) : 0,
+  )
 }
 
 /** m:ss clock display (rehearsal timer bar / save confirmation dialog). */
 export function formatClock(ms: number): string {
-  const sec = Math.max(0, Math.floor(ms / 1000))
+  if (!Number.isFinite(ms) || ms < 0) return '0:00'
+  const sec = Math.floor(ms / 1000)
   return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`
 }

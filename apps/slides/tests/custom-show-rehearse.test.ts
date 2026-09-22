@@ -70,6 +70,24 @@ describe('rehearsal timer accumulation', () => {
     expect(formatClock(65_000)).toBe('1:05')
     expect(formatClock(600_000)).toBe('10:00')
   })
+
+  it('non-finite inputs cannot poison the timing state', () => {
+    // Fractional/huge counts cannot throw or OOM the dwell array.
+    expect(startRehearse(2.5, 0, 1000).perPageMs).toEqual([0, 0])
+    expect(startRehearse(Number.NaN, 0, 1000).perPageMs).toEqual([])
+    expect(startRehearse(1e12, 0, 1000).perPageMs.length).toBeLessThanOrEqual(100_000)
+    // Out-of-range start/next indexes settle on finished (-1).
+    expect(startRehearse(2, 9, 1000).currentIndex).toBe(-1)
+    // NaN clock readings accumulate nothing and convert to zero seconds.
+    let t = startRehearse(2, 0, 1000)
+    t = switchRehearsePage(t, 1, Number.NaN)
+    expect(t.perPageMs).toEqual([0, 0])
+    expect(finishRehearse(t, Number.NaN)).toEqual([0, 0])
+    // The clock display never shows NaN.
+    expect(formatClock(Number.NaN)).toBe('0:00')
+    expect(formatClock(Infinity)).toBe('0:00')
+    expect(formatClock(-5000)).toBe('0:00')
+  })
 })
 
 describe('advTm (auto-advance time) pptx patch', () => {
