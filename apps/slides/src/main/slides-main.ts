@@ -233,7 +233,7 @@ import type {
 } from '../shared/ipc'
 import { planSlideDuplicates, planSlideMoves } from '../shared/slide-selection'
 import { buildPrintDocumentHtml } from '../shared/print-html'
-
+import { filterAdvanceTimes } from './advance-times-guard'
 import { tm } from './i18n-main'
 import { tiffToPng } from './tiff-decode'
 import {
@@ -4046,7 +4046,9 @@ export function registerSlidesIpc(): void {
     const session = sessions.get(e.sender.id)
     if (!session) return false
     const slides = session.opened.deck.slides
-    const targets = op.times.filter((t) => slides[t.slideIndex])
+    // Drop malformed rows before the atomic txn: NaN/Infinity/out-of-range ms
+    // or a non-array payload must not throw or fail valid entries.
+    const targets = filterAdvanceTimes(op?.times).filter((t) => slides[t.slideIndex])
     if (targets.length === 0) return false
     const r = sessionTxn(session, {
       ops: targets.map((t) => ({
