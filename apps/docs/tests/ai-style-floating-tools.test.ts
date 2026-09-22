@@ -530,4 +530,38 @@ describe('pictureNode', () => {
       textBoxNode({ text: 'x', width: 10, height: 10, x: 0, y: 0, anchor: 'margin' }),
     ).toHaveProperty('error')
   })
+
+  it('font sizes are bounded in setFont and textBoxNode', async () => {
+    const editor = createEditor([para('x')])
+    const { extras } = catalog()
+    try {
+      const bad = await run(
+        editor,
+        'apply_ops',
+        { ops: [{ op: 'setFont', target: { blockIndexes: [0] }, fontSize: 1e9 }] },
+        extras,
+      )
+      expect(bad.isError).toBe(true)
+      expect(String(bad.output)).toContain('fontSize')
+      const tiny = await run(
+        editor,
+        'apply_ops',
+        { ops: [{ op: 'setFont', target: { blockIndexes: [0] }, fontSize: 0.1 }] },
+        extras,
+      )
+      expect(tiny.isError).toBe(true)
+      const ok = await run(
+        editor,
+        'apply_ops',
+        { ops: [{ op: 'setFont', target: { blockIndexes: [0] }, fontSize: 18 }] },
+        extras,
+      )
+      expect(ok.isError).toBeUndefined()
+    } finally {
+      editor.destroy()
+    }
+    expect(
+      textBoxNode({ text: 'x', width: 10, height: 10, x: 0, y: 0, fontSize: 1e9 }),
+    ).toHaveProperty('error')
+  })
 })

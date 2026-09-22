@@ -285,6 +285,11 @@ const isNumberOrNull = (v: unknown) => v === null || (typeof v === 'number' && N
 /** a present number must be positive; null (= clear) passes */
 const isPositiveOrNull = (v: unknown) =>
   v === null || (typeof v === 'number' && Number.isFinite(v) && v > 0)
+/** Word font sizes are points; anything past this is a corrupt/AI-hallucinated value. */
+export const MAX_FONT_SIZE_PT = 400
+/** a present font size must be a finite positive number within the plausible range */
+const isFontSizeOrNull = (v: unknown) =>
+  v === null || (typeof v === 'number' && Number.isFinite(v) && v >= 0.5 && v <= MAX_FONT_SIZE_PT)
 const isStringOrNull = (v: unknown) => v === null || typeof v === 'string'
 
 function validateFontFields(op: Op, where: string): string | null {
@@ -298,8 +303,8 @@ function validateFontFields(op: Op, where: string): string | null {
   if (op.highlight !== undefined && !isStringOrNull(op.highlight)) {
     return `${where}: highlight must be a color name / hex string or null`
   }
-  if (op.fontSize !== undefined && !isPositiveOrNull(op.fontSize)) {
-    return `${where}: fontSize must be a positive number of points (or null to clear)`
+  if (op.fontSize !== undefined && !isFontSizeOrNull(op.fontSize)) {
+    return `${where}: fontSize must be 0.5-${MAX_FONT_SIZE_PT}pt (or null to clear)`
   }
   if (op.fontFamily !== undefined && !isStringOrNull(op.fontFamily)) {
     return `${where}: fontFamily must be a string or null`
