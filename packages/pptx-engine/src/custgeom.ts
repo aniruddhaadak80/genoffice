@@ -26,6 +26,10 @@ function tagAttrs(tag: string): Record<string, string> {
 const DEG = Math.PI / 180
 /** OOXML angle (1/60000 of a degree) → radians */
 const a2r = (v: number) => (v / 60000) * DEG
+/** Hostile-input collection bounds (legitimate geometries use dozens) */
+export const MAX_CUSTGEOM_GUIDES = 5000
+export const MAX_CUSTGEOM_PATHS = 1000
+export const MAX_CUSTGEOM_CMDS = 50000
 
 /**
  * gd formula evaluation (CT_GeomGuide fmla). Evaluated in order; may reference
@@ -202,6 +206,12 @@ export function parseCustGeom(
   let inGuides = false
   let cur: RawPath | null = null
   let pending: { c: RawCmd['c']; need: number; pts: Array<[string, string]> } | null = null
+  // Hostile files can pack millions of guides/paths/segments; each collected
+  // item costs parse memory plus output path bytes, so collection stops at
+  // generous caps (legitimate geometries use dozens).
+  let guideCount = 0
+  let pathCount = 0
+  let cmdCount = 0
 
   TAG_RE.lastIndex = 0
   let m: RegExpExecArray | null
@@ -213,7 +223,10 @@ export function parseCustGeom(
     if (closing) {
       if (name === 'a:avLst' || name === 'a:gdLst') inGuides = false
       else if (name === 'a:path' && cur) {
-        paths.push(cur)
+        if (pathCount < MAX_CUSTGEOM_PATHS) {
+          paths.push(cur)
+          pathCount++
+        }
         cur = null
         pending = null
       }
@@ -227,11 +240,20 @@ export function parseCustGeom(
         break
       case 'a:gd': {
         if (!inGuides) break // gd elsewhere (e.g. cxnLst) does not participate
+        if (guideCount >= MAX_CUSTGEOM_GUIDES) break
         const a = tagAttrs(tag)
-        if (a.name && a.fmla) gds.push({ name: a.name, fmla: a.fmla })
+        if (a.name && a.fmla) {
+          gds.push({ name: a.name, fmla: a.fmla })
+          guideCount++
+        }
         break
       }
       case 'a:path': {
+        if (pathCount >= MAX_CUSTGEOM_PATHS) {
+          cur = null
+          pending = null
+          break
+        }
         const a = tagAttrs(tag)
         cur = {
           w: a.w ? Number(a.w) || 0 : undefined,
@@ -242,6 +264,7 @@ export function parseCustGeom(
         }
         if (self) {
           paths.push(cur)
+          pathCount++
           cur = null
         }
         break
@@ -257,22 +280,29 @@ export function parseCustGeom(
         const a = tagAttrs(tag)
         pending.pts.push([a.x ?? '0', a.y ?? '0'])
         if (pending.pts.length >= pending.need) {
-          cur.cmds.push({ c: pending.c, pts: pending.pts })
+          if (cmdCount < MAX_CUSTGEOM_CMDS) {
+            cur.cmds.push({ c: pending.c, pts: pending.pts })
+            cmdCount++
+          }
           pending = null
         }
         break
       }
       case 'a:arcTo': {
-        if (!cur) break
+        if (!cur || cmdCount >= MAX_CUSTGEOM_CMDS) break
         const a = tagAttrs(tag)
         cur.cmds.push({
           c: 'A',
           arc: { wR: a.wR ?? '0', hR: a.hR ?? '0', stAng: a.stAng ?? '0', swAng: a.swAng ?? '0' },
         })
+        cmdCount++
         break
       }
       case 'a:close':
-        if (cur) cur.cmds.push({ c: 'Z' })
+        if (cur && cmdCount < MAX_CUSTGEOM_CMDS) {
+          cur.cmds.push({ c: 'Z' })
+          cmdCount++
+        }
         break
     }
   }

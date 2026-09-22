@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseCustGeom, evalGuides } from '../src/custgeom'
+import { parseCustGeom, evalGuides, MAX_CUSTGEOM_CMDS, MAX_CUSTGEOM_GUIDES } from '../src/custgeom'
 import { parseSlide } from '../src/parse'
 
 describe('evalGuides (gd guide formula evaluation)', () => {
@@ -194,6 +194,24 @@ describe('parseCustGeom', () => {
     expect(
       parseCustGeom(spWrap('<a:custGeom><a:pathLst/></a:custGeom>'), 914400, 914400),
     ).toBeUndefined()
+  })
+
+  it('caps hostile segment/guide counts while keeping the head of the geometry', () => {
+    const segs = '<a:lnTo><a:pt x="1" y="1"/></a:lnTo>'.repeat(MAX_CUSTGEOM_CMDS + 5000)
+    const xml =
+      `<p:sp><p:spPr><a:custGeom><a:gdLst>` +
+      Array.from(
+        { length: MAX_CUSTGEOM_GUIDES + 100 },
+        (_, i) => `<a:gd name="g${i}" fmla="val 1"/>`,
+      ).join('') +
+      `</a:gdLst><a:pathLst><a:path w="100" h="100"><a:moveTo><a:pt x="0" y="0"/></a:moveTo>` +
+      segs +
+      `</a:path></a:pathLst></a:custGeom></p:spPr></p:sp>`
+    const geo = parseCustGeom(xml, 914400, 914400)
+    expect(geo?.path).toContain('M 0 0')
+    // Output stays bounded by the segment cap no matter the input size
+    // (each segment emits a few path tokens).
+    expect(geo?.path?.split(' ').length).toBeLessThan(MAX_CUSTGEOM_CMDS * 4)
   })
 })
 
