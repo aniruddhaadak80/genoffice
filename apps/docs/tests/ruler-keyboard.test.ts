@@ -22,6 +22,7 @@ const section = (over: Partial<SectionSettings> = {}): SectionSettings => ({
   marginBottom: 1440,
   marginLeft: 1440,
   pageBorder: false,
+  columns: 1,
   ...over,
 })
 
@@ -38,7 +39,7 @@ function mount(
   document.body.appendChild(container)
   const root: Root = createRoot(container)
   act(() => {
-    root.render(createElement(Ruler, { section: sectionOver, editor, onTabStopsChange }))
+    root.render(createElement(Ruler, { section: section(sectionOver), editor, onTabStopsChange }))
   })
   return {
     container,
