@@ -121,6 +121,17 @@ import { StylesheetEditor } from './xlsx-styles'
 export const XLSX_ZIP_LIMITS = { maxParts: 10_000, maxTotalBytes: 256 * 1024 * 1024 } as const
 const MAX_ENTRY_COUNT = XLSX_ZIP_LIMITS.maxParts
 const MAX_UNCOMPRESSED_BYTES = XLSX_ZIP_LIMITS.maxTotalBytes
+/** Excel grid extent: larger addresses are unaddressable (and unopenable) in Excel */
+export const MAX_GRID_ROWS = 1_048_576
+export const MAX_GRID_COLUMNS = 16_384
+/**
+ * Shared-string table entry cap: each entry costs object overhead far beyond
+ * its bytes, so a tiny (highly compressible) part could otherwise exhaust the
+ * heap long before the uncompressed-byte cap trips. Files with more than a
+ * million unique strings are vanishingly rare; exceeding it fails the open
+ * loudly instead of OOM-crashing it.
+ */
+export const MAX_SHARED_STRINGS = 1_000_000
 
 export interface PackageEntry {
   readonly path: string
@@ -2876,7 +2887,7 @@ function parseWorksheetCells(
   while ((match = cellPattern.exec(worksheetXml)) !== null) {
     const attributes = match[1] ?? ''
     const address = readXmlAttribute(attributes, 'r')
-    if (!address || !/^[A-Z]{1,3}[1-9][0-9]{0,6}$/.test(address)) continue
+    if (!address || !isGridCellAddress(address)) continue
     const body = match[2] ?? ''
     const formula = /<f(?:\s[^>]*[^/>])?>([\s\S]*?)<\/f>/.exec(body)?.[1]
     if (formula !== undefined) {
@@ -2914,11 +2925,36 @@ function parseWorksheetCells(
 async function readSharedStrings(source: EntrySource): Promise<readonly string[]> {
   if (!(await source.has('xl/sharedStrings.xml'))) return []
   const xml = await source.readText('xl/sharedStrings.xml')
-  return [...xml.matchAll(/<si(?:\s[^>]*)?>([\s\S]*?)<\/si>/g)].map((itemMatch) =>
-    [...(itemMatch[1] ?? '').matchAll(/<t(?:\s[^>]*)?>([\s\S]*?)<\/t>/g)]
-      .map((textMatch) => decodeCellText(textMatch[1] ?? ''))
-      .join(''),
-  )
+  return parseSharedStringsXml(xml)
+}
+
+/** Shared-string table parse with an entry-count cap (see MAX_SHARED_STRINGS). Exported for tests. */
+export function parseSharedStringsXml(xml: string): string[] {
+  const out: string[] = []
+  for (const itemMatch of xml.matchAll(/<si(?:\s[^>]*)?>([\s\S]*?)<\/si>/g)) {
+    if (out.length >= MAX_SHARED_STRINGS) {
+      throw new Error('Workbook contains too many shared strings.')
+    }
+    out.push(
+      [...(itemMatch[1] ?? '').matchAll(/<t(?:\s[^>]*)?>([\s\S]*?)<\/t>/g)]
+        .map((textMatch) => decodeCellText(textMatch[1] ?? ''))
+        .join(''),
+    )
+  }
+  return out
+}
+
+/** Cell addresses outside the Excel grid cannot exist in a valid file; skip them. Exported for tests. */
+export function isGridCellAddress(address: string): boolean {
+  const match = /^([A-Z]{1,3})([1-9][0-9]{0,6})$/.exec(address)
+  if (!match) return false
+  const row = Number(match[2])
+  if (row > MAX_GRID_ROWS) return false
+  let column = 0
+  for (const character of match[1]!) {
+    column = column * 26 + character.charCodeAt(0) - 64
+  }
+  return column <= MAX_GRID_COLUMNS
 }
 
 function cellsEqual(left: CellState, right: CellState): boolean {
