@@ -683,3 +683,20 @@ describe('splitBandRows via rebuildXlsx (P40)', () => {
     }
   })
 })
+
+describe('worksheetXml geometry guards', () => {
+  it('omits non-finite row heights and column widths instead of writing them verbatim', async () => {
+    const { worksheetXml } = await import('../src/rebuild-xlsx/workbook')
+    const xml = worksheetXml({
+      name: 'Sheet1',
+      cells: [{ row: 0, col: 1, styleId: 0, value: { kind: 'text', text: 'a' } }],
+      rowHeightsPt: new Map([[0, Number.NaN]]),
+      colWidths: [Number.NaN, 18.33],
+    })
+    expect(xml).not.toContain('NaN')
+    expect(xml).not.toContain('Infinity')
+    expect(xml).not.toContain('customHeight')
+    expect(xml).toContain('<col min="2" max="2" width="18.33" customWidth="1"/>')
+    expect(xml).not.toContain('min="1"')
+  })
+})

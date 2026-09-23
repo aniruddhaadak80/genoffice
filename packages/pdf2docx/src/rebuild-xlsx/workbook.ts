@@ -306,8 +306,12 @@ export function worksheetXml(sheet: SheetSpec): string {
     .sort((a, b) => a[0] - b[0])
     .map(([rowIdx, cells]) => {
       const heightPt = sheet.rowHeightsPt?.get(rowIdx)
+      // A NaN height (Math.min cannot filter it) would land verbatim as
+      // ht="NaN"; omit the attribute and let Excel fall back to default.
       const height =
-        heightPt !== undefined ? ` ht="${Number(heightPt.toFixed(2))}" customHeight="1"` : ''
+        heightPt !== undefined && Number.isFinite(heightPt)
+          ? ` ht="${Number(heightPt.toFixed(2))}" customHeight="1"`
+          : ''
       const cellsXml = cells
         .sort((a, b) => a.col - b.col)
         .map(cellXml)
@@ -318,7 +322,7 @@ export function worksheetXml(sheet: SheetSpec): string {
 
   const colsEntries = (sheet.colWidths ?? [])
     .map((width, i) =>
-      width === undefined
+      width === undefined || !Number.isFinite(width)
         ? ''
         : `<col min="${i + 1}" max="${i + 1}" width="${Number(width.toFixed(2))}" customWidth="1"/>`,
     )
