@@ -7,6 +7,7 @@ import JSZip from 'jszip'
 import { encodeXlsxEscapes } from './xlsx-escapes'
 import { DEFAULT_THEME_XML } from './xlsx-default-theme'
 import { MINIMAL_STYLESHEET_XML } from './xlsx-default-styles'
+import { validateSheetName } from './xlsx-sheets'
 
 const DELIMITERS = [',', ';', '\t'] as const
 
@@ -328,6 +329,7 @@ async function xlsxBufferFromRows(
   rows: readonly (readonly string[])[],
   sheetName: string,
 ): Promise<Buffer> {
+  validateSheetName(sheetName)
   const zip = new JSZip()
   zip.file(
     '[Content_Types].xml',

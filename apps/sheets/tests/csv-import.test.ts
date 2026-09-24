@@ -242,6 +242,13 @@ describe('csvToXlsxBuffer', () => {
     expect(buildWorksheetXml([['<b>&"']])).toContain('&lt;b&gt;&amp;&quot;')
     expect(buildWorksheetXml([['a\rb_x000D_']])).toContain('>a_x000D_b_x005F_x000D_<')
   })
+
+  it('rejects worksheet names that Excel forbids', async () => {
+    for (const name of ['data[final]', 'bad/name', "'quoted", "trailing'"]) {
+      await expect(csvToXlsxBuffer('A\n1', name), name).rejects.toThrow(/sheet name/i)
+      await expect(blankXlsxBuffer(name), name).rejects.toThrow(/sheet name/i)
+    }
+  })
 })
 
 describe('blankXlsxBuffer', () => {
