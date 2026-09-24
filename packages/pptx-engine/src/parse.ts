@@ -332,7 +332,16 @@ function parseShapeFragment(
     .replace(/<a:br\b[^>]*\/>|<a:br\b[\s\S]*?<\/a:br>/g, '<a:r><a:t>\n</a:t></a:r>')
     .replace(/<a:fld\b/g, '<a:r')
     .replace(/<\/a:fld>/g, '</a:r>')
-  const doc = parser.parse(semanticXml)
+  if (sp.name === 'p:grpSp' && groupExceedsBudget(fragXml)) {
+    return passthrough(anchor, 'unknown', undefined)
+  }
+  let doc: any
+  try {
+    doc = parser.parse(semanticXml)
+  } catch (err) {
+    if (sp.name === 'p:grpSp') return passthrough(anchor, 'unknown', undefined)
+    throw err
+  }
   const node = doc[sp.name] ? (Array.isArray(doc[sp.name]) ? doc[sp.name][0] : doc[sp.name]) : null
   if (!node) return null
 
@@ -816,12 +825,46 @@ function parseAvLst(avLst: any): Record<string, number> | undefined {
 // ── p:grpSp (group) ────────────────────────────────────────
 
 const GROUP_CHILD_TAGS = ['p:sp', 'p:pic', 'p:grpSp', 'p:graphicFrame', 'p:cxnSp'] as const
+const MAX_GROUP_DEPTH = 64
+const MAX_GROUP_DESCENDANTS = 10_000
+
+interface GroupParseBudget {
+  remaining: number
+}
+
+function groupExceedsBudget(xml: string): boolean {
+  const tags = new Set<string>(GROUP_CHILD_TAGS)
+  GROUP_TAG_RE.lastIndex = 0
+  let groupDepth = 0
+  let descendants = 0
+  let match: RegExpExecArray | null
+  while ((match = GROUP_TAG_RE.exec(xml))) {
+    const tag = match[0]
+    if (tag.startsWith('<!--') || tag.startsWith('<![') || tag.startsWith('<?')) continue
+    const closing = tag.startsWith('</')
+    const self = !closing && tag.endsWith('/>')
+    const name = GROUP_NAME_RE.exec(tag)?.[1] ?? ''
+    if (closing) {
+      if (name === 'p:grpSp') groupDepth--
+      continue
+    }
+    if (name === 'p:grpSp') {
+      if (groupDepth > 0 && ++descendants > MAX_GROUP_DESCENDANTS) return true
+      if (!self && ++groupDepth > MAX_GROUP_DEPTH) return true
+      continue
+    }
+    if (groupDepth > 0 && tags.has(name) && ++descendants > MAX_GROUP_DESCENDANTS) return true
+  }
+  return false
+}
 
 function parseGroup(
   node: any,
   anchor: ByteAnchor,
   ctx: ParseContext,
   rawXml?: string,
+  depth = 0,
+  budget: GroupParseBudget = { remaining: MAX_GROUP_DESCENDANTS },
 ): GroupElement {
   const grpSpPr = node['p:grpSpPr'] ?? {}
   const xfrm = grpSpPr['a:xfrm']
@@ -845,6 +888,17 @@ function parseGroup(
         }
       : undefined
 
+  const group: GroupElement = {
+    id: uid('grp'),
+    type: 'group',
+    anchor,
+    transform,
+    name,
+    children: [],
+    ...(childOffset ? { childOffset } : {}),
+  }
+  if (depth >= MAX_GROUP_DEPTH || budget.remaining <= 0) return group
+
   // Recursively parse children. Child byte anchors are group-local (only for
   // render/editor positioning; saving still uses the whole group's originalXml:
   // if any child is dirty the whole group regenerates).
@@ -858,24 +912,18 @@ function parseGroup(
     if (!raw) continue
     const list = Array.isArray(raw) ? raw : [raw]
     list.forEach((child, i) => {
+      if (budget.remaining <= 0) return
+      budget.remaining--
       const slice = byTag[tag]?.[i]
-      const el = parseGroupChild(tag, child, childCtx, slice?.xml)
+      const el = parseGroupChild(tag, child, childCtx, slice?.xml, depth + 1, budget)
       if (el) ordered.push({ el, start: slice?.start ?? Number.MAX_SAFE_INTEGER })
     })
+    if (budget.remaining <= 0) break
   }
   // fast-xml-parser batches same-name children; the slice offsets restore document order (z-order)
   ordered.sort((a, b) => a.start - b.start)
-  const children = ordered.map((o) => o.el)
-
-  return {
-    id: uid('grp'),
-    type: 'group',
-    anchor,
-    transform,
-    name,
-    children,
-    ...(childOffset ? { childOffset } : {}),
-  }
+  group.children = ordered.map((o) => o.el)
+  return group
 }
 
 /** Parse a group child (uses the child node's own bytes as originalXml, only for regeneration positioning). */
@@ -884,6 +932,8 @@ function parseGroupChild(
   child: any,
   ctx: ParseContext,
   rawXml?: string,
+  depth = 0,
+  budget: GroupParseBudget = { remaining: MAX_GROUP_DESCENDANTS },
 ): SlideElement | null {
   // Child byte anchor: no independent byte roundtrip inside a group (whole group passes through), so use an empty anchor.
   const childAnchor: ByteAnchor = { spIndex: -1, originalXml: '', range: [0, 0] }
@@ -897,7 +947,7 @@ function parseGroupChild(
       el = parsePicture(child, childAnchor, ctx, rawXml)
       break
     case 'p:grpSp':
-      el = parseGroup(child, childAnchor, ctx, rawXml)
+      el = parseGroup(child, childAnchor, ctx, rawXml, depth, budget)
       break
     case 'p:graphicFrame':
       el = graphicFramePassthrough(child, childAnchor, ctx)
