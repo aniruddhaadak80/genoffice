@@ -29,6 +29,16 @@ describe('applyHyperlinkEdits', () => {
     expect(patch.relsXml).toContain('Target="https://example.com/a&amp;b" TargetMode="External"')
   })
 
+  it('expands a self-closing relationships root before adding a link', () => {
+    const patch = applyHyperlinkEdits(
+      WORKSHEET,
+      '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"/>',
+      [{ row: 0, column: 0, target: 'https://example.com' }],
+    )
+    expect(patch.relsXml).toContain('<Relationship Id="rId1"')
+    expect(patch.relsXml).toContain('</Relationships>')
+  })
+
   it('writes an internal anchor as a location attribute with no rel', () => {
     const patch = applyHyperlinkEdits(WORKSHEET, null, [
       { row: 1, column: 1, target: "#'My Sheet'!B2" },
