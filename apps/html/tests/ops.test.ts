@@ -158,6 +158,21 @@ describe('compileOps', () => {
     ).next
     expect(removed).toContain('<section>')
   })
+  it('matches complete attribute names outside quoted values', () => {
+    const doc = `<a hreflang="en" href="/old" title="style=color:red" style="color: red">x</a>`
+    const sid = sidOf(doc, 'a')
+    const { next, compiled } = run(
+      [
+        { op: 'set_attr', sid, name: 'href', value: '/new' },
+        { op: 'set_style', sid, styles: { color: 'blue' } },
+      ],
+      doc,
+    )
+    expect(compiled.errors).toEqual([])
+    expect(next).toContain('hreflang="en" href="/new"')
+    expect(next).toContain('title="style=color:red" style="color: blue"')
+  })
+
   it('set_attr escapes ampersands in single-quoted attributes', () => {
     const doc = `<html><body><div title='x'>hi</div></body></html>`
     const sid = sidOf(doc, 'div')

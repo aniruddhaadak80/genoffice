@@ -97,21 +97,71 @@ function findAttribute(
   quote: string
   lead: string
 } | null {
-  const re = new RegExp(
-    `(\\s+)(${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})(?:\\s*=\\s*("([^"]*)"|'([^']*)'|([^\\s"'=<>\`]+)))?`,
-    'i',
-  )
-  const m = re.exec(startTag)
-  if (!m) return null
-  const from = m.index
-  const to = m.index + m[0].length
-  const lead = m[1]!
-  if (m[3] === undefined) return { from, to, valueFrom: to, valueTo: to, quote: '', lead }
-  const raw = m[3]
-  const quote = raw.startsWith('"') ? '"' : raw.startsWith("'") ? "'" : ''
-  const valueTo = to - (quote ? 1 : 0)
-  const valueFrom = valueTo - (m[4] ?? m[5] ?? m[6] ?? '').length
-  return { from, to, valueFrom, valueTo, quote, lead }
+  const isSpace = (char: string | undefined): boolean => char !== undefined && /\s/.test(char)
+  const target = name.toLowerCase()
+  let i = 1
+  while (
+    i < startTag.length &&
+    !isSpace(startTag[i]) &&
+    startTag[i] !== '>' &&
+    startTag[i] !== '/'
+  ) {
+    i += 1
+  }
+  while (i < startTag.length) {
+    const from = i
+    while (isSpace(startTag[i])) i += 1
+    if (
+      i >= startTag.length ||
+      startTag[i] === '>' ||
+      (startTag[i] === '/' && startTag[i + 1] === '>')
+    ) {
+      return null
+    }
+    const nameStart = i
+    while (i < startTag.length && !isSpace(startTag[i]) && !'=>/'.includes(startTag[i]!)) {
+      i += 1
+    }
+    const attributeName = startTag.slice(nameStart, i)
+    let to = i
+    let valueFrom = i
+    let valueTo = i
+    let quote = ''
+    let cursor = i
+    while (isSpace(startTag[cursor])) cursor += 1
+    if (startTag[cursor] === '=') {
+      cursor += 1
+      while (isSpace(startTag[cursor])) cursor += 1
+      const first = startTag[cursor]
+      if (first === '"' || first === "'") {
+        quote = first
+        cursor += 1
+        valueFrom = cursor
+        while (cursor < startTag.length && startTag[cursor] !== quote) cursor += 1
+        valueTo = cursor
+        if (cursor < startTag.length) cursor += 1
+      } else {
+        valueFrom = cursor
+        while (cursor < startTag.length && !isSpace(startTag[cursor]) && startTag[cursor] !== '>') {
+          cursor += 1
+        }
+        valueTo = cursor
+      }
+      to = cursor
+    }
+    if (attributeName.toLowerCase() === target) {
+      return {
+        from,
+        to,
+        valueFrom,
+        valueTo,
+        quote,
+        lead: startTag.slice(from, nameStart),
+      }
+    }
+    i = to > i ? to : i + 1
+  }
+  return null
 }
 
 const ENTITY_RE = /&(?:#\d+|#x[0-9a-fA-F]+|[a-zA-Z][a-zA-Z0-9]*);/y
