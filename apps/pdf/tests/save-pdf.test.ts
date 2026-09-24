@@ -3,7 +3,17 @@ import { mkdtempSync, readFileSync, readdirSync, statSync, writeFileSync } from 
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { PDFArray, PDFDict, PDFDocument, PDFHexString, PDFName, degrees } from 'pdf-lib'
+import {
+  PDFArray,
+  PDFContentStream,
+  PDFDict,
+  PDFDocument,
+  PDFHexString,
+  PDFName,
+  PDFRawStream,
+  decodePDFRawStream,
+  degrees,
+} from 'pdf-lib'
 import { getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs'
 import {
   applySaveRequest,
@@ -163,6 +173,28 @@ describe('splitPdfBytes', () => {
 const mergeOpts = (perSheet: number) =>
   ({ perSheet, direction: 'horizontal', separator: false }) as const
 
+function decodedPageContent(page: ReturnType<PDFDocument['getPage']>): string {
+  const contents = page.node.Contents()
+  if (contents instanceof PDFContentStream) {
+    return Buffer.from(contents.getUnencodedContents()).toString('latin1')
+  }
+  if (contents instanceof PDFRawStream) {
+    return Buffer.from(decodePDFRawStream(contents).decode()).toString('latin1')
+  }
+  if (contents instanceof PDFArray) {
+    return Array.from({ length: contents.size() }, (_, index) => {
+      const value = contents.lookup(index)
+      if (value instanceof PDFContentStream) {
+        return Buffer.from(value.getUnencodedContents()).toString('latin1')
+      }
+      return value instanceof PDFRawStream
+        ? Buffer.from(decodePDFRawStream(value).decode()).toString('latin1')
+        : ''
+    }).join('')
+  }
+  return ''
+}
+
 describe('mergeGrid', () => {
   it('is a pair for 2 and a near-square grid otherwise', () => {
     expect(mergeGrid(2)).toEqual({ cols: 2, rows: 1 })
@@ -205,6 +237,18 @@ describe('mergePagesBytes', () => {
     expect(out.getPageCount()).toBe(2)
     expect(out.getPage(0).getWidth()).toBe(200)
     expect(out.getPage(0).getHeight()).toBe(100)
+  })
+
+  it('preserves source-page rotation when imposing pages', async () => {
+    const doc = await PDFDocument.create()
+    const page = doc.addPage([100, 200])
+    page.setRotation(degrees(90))
+    page.drawRectangle({ x: 10, y: 20, width: 30, height: 40, color: undefined })
+    const bytes = await doc.save({ useObjectStreams: false })
+    const out = await PDFDocument.load(await mergePagesBytes(bytes, mergeOpts(2)))
+    expect(out.getPage(0).getWidth()).toBe(100)
+    expect(out.getPage(0).getHeight()).toBe(200)
+    expect(decodedPageContent(out.getPage(0))).toMatch(/1 -1/)
   })
 
   it('draws the embedded pages onto each sheet', async () => {
