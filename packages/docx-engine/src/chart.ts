@@ -986,9 +986,8 @@ function innerTextRanges(
 
 const XML_DECL = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
 
-/** Excel column letter: A, B, C... */
-const xlsxColLetter = (i: number) => String.fromCharCode(65 + i)
-
+// Series data columns start at B (column A holds the categories):
+// 0 → B … 24 → Z, 25 → AA, 26 → AB, … (plain charCode arithmetic breaks past Z).
 /**
  * Build a minimal but valid xlsx file containing one Sheet1 with the chart
  * data (header row + data rows). Returns base64-encoded bytes.
@@ -1019,7 +1018,7 @@ export async function buildChartWorkbookXlsxBase64(
   // A1: empty label cell
   headerCells.push(`<c r="A1" t="s"><v>${si('')}</v></c>`)
   for (let j = 0; j < serCount; j++) {
-    headerCells.push(`<c r="${xlsxColLetter(j + 1)}1" t="s"><v>${si(series[j].name)}</v></c>`)
+    headerCells.push(`<c r="${colLetter(j)}1" t="s"><v>${si(series[j].name)}</v></c>`)
   }
   const dataRows: string[] = []
   for (let i = 0; i < rows; i++) {
@@ -1029,7 +1028,7 @@ export async function buildChartWorkbookXlsxBase64(
     for (let j = 0; j < serCount; j++) {
       const val = series[j].values[i]
       if (val !== null && val !== undefined) {
-        cells.push(`<c r="${xlsxColLetter(j + 1)}${rowNum}"><v>${val}</v></c>`)
+        cells.push(`<c r="${colLetter(j)}${rowNum}"><v>${val}</v></c>`)
       }
     }
     dataRows.push(`<row r="${rowNum}">${cells.join('')}</row>`)
@@ -1128,7 +1127,7 @@ export async function patchChartWorkbookXlsxBase64(
       `<c r="${ref}" t="inlineStr"><is><t xml:space="preserve">${escapeXmlText(text)}</t></is></c>`
     const headerCells = [inlineStr('A1', '')]
     for (let j = 0; j < series.length; j++) {
-      headerCells.push(inlineStr(`${xlsxColLetter(j + 1)}1`, series[j].name))
+      headerCells.push(inlineStr(`${colLetter(j)}1`, series[j].name))
     }
     const dataRows: string[] = []
     for (let i = 0; i < categories.length; i++) {
@@ -1137,7 +1136,7 @@ export async function patchChartWorkbookXlsxBase64(
       for (let j = 0; j < series.length; j++) {
         const val = series[j].values[i]
         if (val !== null && val !== undefined) {
-          cells.push(`<c r="${xlsxColLetter(j + 1)}${rowNum}"><v>${val}</v></c>`)
+          cells.push(`<c r="${colLetter(j)}${rowNum}"><v>${val}</v></c>`)
         }
       }
       dataRows.push(`<row r="${rowNum}">${cells.join('')}</row>`)
@@ -1150,7 +1149,7 @@ export async function patchChartWorkbookXlsxBase64(
       /<sheetData\/>|<sheetData[^>]*>[\s\S]*?<\/sheetData>/,
       newSheetData,
     )
-    const lastRef = `${xlsxColLetter(series.length)}${categories.length + 1}`
+    const lastRef = `${series.length > 0 ? colLetter(series.length - 1) : 'A'}${categories.length + 1}`
     updatedSheet = updatedSheet.replace(/<dimension[^>]*\/>/, `<dimension ref="A1:${lastRef}"/>`)
 
     zip.file('xl/worksheets/sheet1.xml', updatedSheet)
