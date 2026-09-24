@@ -1,3 +1,4 @@
+import JSZip from 'jszip'
 import { describe, expect, it } from 'vitest'
 
 import {
@@ -7,8 +8,8 @@ import {
 import type { SheetNoteState } from '@genoffice/xlsx-gateway/gateway/xlsx-gateway'
 import { buildEditFixture } from './fixture-builder'
 
-async function planNotes(noteStates: SheetNoteState[]) {
-  const source = await createBufferEntrySource(await buildEditFixture())
+async function planNotes(noteStates: SheetNoteState[], fixture?: Buffer) {
+  const source = await createBufferEntrySource(fixture ?? (await buildEditFixture()))
   return planCellEditsToXlsx(
     source,
     [],
@@ -72,6 +73,25 @@ describe('note snapshots', () => {
     expect(contentTypes).toContain('Extension="vml"')
     const worksheet = plan.replaced.get('xl/worksheets/sheet1.xml')
     expect(worksheet).toContain('<legacyDrawing r:id="')
+  })
+
+  it('allocates a relationship id without spreading a large id set', async () => {
+    const zip = await JSZip.loadAsync(await buildEditFixture())
+    const relationships = Array.from(
+      { length: 130_000 },
+      (_, index) =>
+        `<Relationship Id="rId${index + 1}" Type="https://example.test/relationship" Target="part${index + 1}"/>`,
+    ).join('')
+    zip.file(
+      'xl/worksheets/_rels/sheet1.xml.rels',
+      `<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${relationships}</Relationships>`,
+    )
+    const fixture = await zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' })
+    const plan = await planNotes(NOTES, fixture)
+    const rels =
+      plan.replaced.get('xl/worksheets/_rels/sheet1.xml.rels') ??
+      plan.added.get('xl/worksheets/_rels/sheet1.xml.rels')
+    expect(rels).toContain('Id="rId130001"')
   })
 
   it('is a no-op when clearing notes on a sheet that never had any', async () => {

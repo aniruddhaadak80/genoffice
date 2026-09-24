@@ -72,8 +72,11 @@ function resolveRelTarget(worksheetPath: string, target: string): string {
 }
 
 function nextFreeRid(relsXml: string): string {
-  const ids = [...relsXml.matchAll(/ Id="rId(\d+)"/g)].map((match) => Number(match[1]))
-  return `rId${ids.length === 0 ? 1 : Math.max(...ids) + 1}`
+  let max = 0
+  for (const match of relsXml.matchAll(/ Id="rId(\d+)"/g)) {
+    max = Math.max(max, Number(match[1]))
+  }
+  return `rId${max + 1}`
 }
 
 async function nextFreePath(
