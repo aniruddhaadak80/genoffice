@@ -140,7 +140,7 @@ export function handleGlobalKeydown(
     return
   }
   if (mod && !e.altKey && (e.key === 'y' || e.key === 'Y')) {
-    if (editing || inField) return
+    if (editing || (inField && !shouldRouteUndoToDeck(e.target as HTMLElement))) return
     e.preventDefault()
     void ctx.redo()
     return

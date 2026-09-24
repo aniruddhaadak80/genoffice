@@ -9,7 +9,7 @@ function target(tagName: string, attributes: Record<string, string> = {}) {
   }
 }
 
-describe('Slides undo shortcut routing', () => {
+describe('Slides history shortcut routing', () => {
   it('routes a cleared, untouched AI composer to deck undo', () => {
     const textarea = target('TEXTAREA', {
       'data-slides-ai-input': 'true',

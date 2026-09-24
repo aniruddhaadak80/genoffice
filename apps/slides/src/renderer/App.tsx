@@ -1046,7 +1046,8 @@ export function App() {
   }, [editing, applyHistoryResult])
 
   const redo = useCallback(async () => {
-    if (editing || inTextField()) {
+    const target = document.activeElement as HTMLElement | null
+    if (editing || (isTextUndoTarget(target) && !shouldRouteUndoToDeck(target))) {
       document.execCommand('redo')
       return
     }

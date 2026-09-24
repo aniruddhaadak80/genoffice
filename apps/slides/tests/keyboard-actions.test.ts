@@ -149,6 +149,59 @@ describe('slide show shortcuts', () => {
   })
 })
 
+describe('history shortcuts', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    document.body.innerHTML = ''
+  })
+
+  const aiComposer = () => {
+    const input = document.createElement('textarea')
+    input.setAttribute('data-slides-ai-input', 'true')
+    input.setAttribute('data-deck-undo-ready', 'true')
+    document.body.appendChild(input)
+    input.focus()
+    return input
+  }
+
+  it('routes Shift+Z from an untouched AI composer to deck redo', () => {
+    aiComposer()
+    const redo = vi.fn()
+    const ctx = makeCtx({ redo })
+    const e = keydown('z', { shiftKey: true })
+
+    handleGlobalKeydown(ctx, e)
+
+    expect(e.defaultPrevented).toBe(true)
+    expect(redo).toHaveBeenCalledOnce()
+  })
+
+  it('routes Ctrl+Y from an untouched AI composer to deck redo', () => {
+    aiComposer()
+    const redo = vi.fn()
+    const ctx = makeCtx({ redo })
+    const e = keydown('y', { metaKey: false, ctrlKey: true })
+
+    handleGlobalKeydown(ctx, e)
+
+    expect(e.defaultPrevented).toBe(true)
+    expect(redo).toHaveBeenCalledOnce()
+  })
+
+  it('leaves redo native in an ordinary input', () => {
+    const input = document.createElement('input')
+    document.body.appendChild(input)
+    input.focus()
+    const redo = vi.fn()
+    const e = keydown('y')
+
+    handleGlobalKeydown(makeCtx({ redo }), e)
+
+    expect(e.defaultPrevented).toBe(false)
+    expect(redo).not.toHaveBeenCalled()
+  })
+})
+
 describe('copy shortcuts with a DOM text selection', () => {
   beforeEach(() => {
     vi.clearAllMocks()
