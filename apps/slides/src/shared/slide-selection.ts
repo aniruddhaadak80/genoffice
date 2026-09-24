@@ -58,6 +58,35 @@ export function movedBlockPositions(selected: number[], insertAt: number): numbe
   return selected.map((_, k) => first + k)
 }
 
+export interface SlideIdentity {
+  readonly partPath?: string
+}
+
+function remapSlideIndex(
+  previous: readonly SlideIdentity[],
+  restored: readonly SlideIdentity[],
+  index: number,
+): number {
+  const partPath = previous[index]?.partPath
+  if (partPath) {
+    const restoredIndex = restored.findIndex((slide) => slide.partPath === partPath)
+    if (restoredIndex >= 0) return restoredIndex
+  }
+  return Math.max(0, Math.min(index, restored.length - 1))
+}
+
+export function remapSlideSelection(
+  previous: readonly SlideIdentity[],
+  restored: readonly SlideIdentity[],
+  selection: SlideSelection,
+): SlideSelection {
+  const current = remapSlideIndex(previous, restored, selection.current)
+  const selected = sortUnique(
+    selection.selected.map((index) => remapSlideIndex(previous, restored, index)),
+  )
+  return { selected: selected.length > 0 ? selected : [current], current }
+}
+
 export type MoveStep = { from: number; to: number }
 
 /**

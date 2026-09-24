@@ -6,6 +6,7 @@ import {
   planSlideDuplicates,
   planSlideMoves,
   rangeSelection,
+  remapSlideSelection,
   toggleSelection,
 } from '../src/shared/slide-selection'
 
@@ -42,6 +43,24 @@ describe('thumbnail click selection', () => {
     expect(normalizeSelection([1, 2], 0, 3)).toEqual([0])
     expect(normalizeSelection([1, 5], 1, 3)).toEqual([1])
     expect(normalizeSelection([], 1, 3)).toEqual([1])
+  })
+
+  it('remaps history selections by stable slide identity', () => {
+    const previous = [
+      { partPath: 'slide1.xml' },
+      { partPath: 'slide2.xml' },
+      { partPath: 'slide3.xml' },
+      { partPath: 'slide4.xml' },
+    ]
+    const restored = [previous[2]!, previous[3]!, previous[1]!, previous[0]!]
+    expect(remapSlideSelection(previous, restored, { selected: [3], current: 3 })).toEqual({
+      selected: [1],
+      current: 1,
+    })
+    expect(remapSlideSelection(previous, restored, { selected: [0, 1], current: 1 })).toEqual({
+      selected: [2, 3],
+      current: 2,
+    })
   })
 })
 

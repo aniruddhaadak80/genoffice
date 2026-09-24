@@ -143,7 +143,7 @@ import * as arrangeActions from './arrange-actions'
 import * as tableActions from './table-actions'
 import * as styleActions from './style-actions'
 import { handleGlobalKeydown, slideRailHasFocus } from './keyboard-actions'
-import { clickSelection, normalizeSelection } from '../shared/slide-selection'
+import { clickSelection, normalizeSelection, remapSlideSelection } from '../shared/slide-selection'
 import { useEscOverlay, useEscOverlayOpen } from './esc-overlay'
 import { buildCtxItems } from './context-menu-items'
 import { isMac, nextSelection } from './platform-modifiers'
@@ -1022,18 +1022,22 @@ export function App() {
   }
 
   /** Apply the full slides set after undo/redo: page count may change (undoing a new page), clamp current */
-  const applyHistoryResult = useCallback((r: RenderSlide[] | null) => {
-    if (!r) return
-    setSlides(r)
-    setCurrent((c) => Math.min(c, r.length - 1))
-    setSelectedSlides([])
-    setSelectedIds([])
-    setEditing(null)
-    setPasteFloater(null) // The paste the floater refers to may have just been undone
-    notesDraftRef.current = null // Undo overrides the unsaved draft, avoiding writing an old draft back
-    setAnnotationsNonce((n) => n + 1) // Notes/comments aren't in RenderSlide; re-fetch
-    void window.slidesApi.isDirty().then(setDirty)
-  }, [])
+  const applyHistoryResult = useCallback(
+    (r: RenderSlide[] | null) => {
+      if (!r) return
+      const selection = remapSlideSelection(slides, r, { selected: selectedSlides, current })
+      setSlides(r)
+      setCurrent(selection.current)
+      setSelectedSlides(selection.selected)
+      setSelectedIds([])
+      setEditing(null)
+      setPasteFloater(null) // The paste the floater refers to may have just been undone
+      notesDraftRef.current = null // Undo overrides the unsaved draft, avoiding writing an old draft back
+      setAnnotationsNonce((n) => n + 1) // Notes/comments aren't in RenderSlide; re-fetch
+      void window.slidesApi.isDirty().then(setDirty)
+    },
+    [current, selectedSlides, slides],
+  )
 
   const undo = useCallback(async () => {
     // Preserve native undo while typing. The cleared AI composer explicitly yields to deck undo.
