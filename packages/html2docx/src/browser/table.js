@@ -34,6 +34,13 @@
       // text lands on dark row shading.
       return toHex(cs(cell).backgroundColor) || behind;
     };
+    const MAX_TABLE_SPAN = 1024;
+    const spanValue = (value, fallback = 1) => {
+      const number = Number(value);
+      return Number.isFinite(number) && number > 0
+        ? Math.min(Math.floor(number), MAX_TABLE_SPAN)
+        : fallback;
+    };
     const rows = [];
     const boundarySamples = [];
     const activeSpans = [];
@@ -68,7 +75,7 @@
         (cell) => [...cell.children].filter(isCompactPaintedLabel).length >= 2,
       );
       if (exactVisualRow && !activeSpans.some((span) => span.endRow > rowIndex)) {
-        const colspan = directCells.reduce((sum, cell) => sum + (cell.colSpan || 1), 0);
+        const colspan = directCells.reduce((sum, cell) => sum + spanValue(cell.colSpan), 0);
         cells.push({
           colspan,
           rowspan: 1,
@@ -87,13 +94,13 @@
       let nextColumn = 0;
       for (const cell of tr.children) {
         if (cell.tagName !== 'TD' && cell.tagName !== 'TH') continue;
-        const colspan = cell.colSpan || 1;
+        const colspan = spanValue(cell.colSpan);
         while (
           [...Array(colspan).keys()].some((offset) => occupied.has(nextColumn + offset))
         ) {
           nextColumn++;
         }
-        const rowspan = cell.rowSpan || 1;
+        const rowspan = spanValue(cell.rowSpan);
         const entry = {
           colspan,
           rowspan,

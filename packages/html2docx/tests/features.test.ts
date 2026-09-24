@@ -44,6 +44,14 @@ async function convertHtml(html: string, name: string) {
   return { zip, xml, ir: result.ir, screenshotText: result.screenshotText }
 }
 
+test('bounds hostile table spans before extraction', async () => {
+  const { ir } = await convertHtml(
+    '<!doctype html><html><body><table><tr><td colspan="1000000000">x</td></tr></table></body></html>',
+    'hostile-table-span',
+  )
+  assert.ok(ir.some((node) => node.type === 'table'))
+})
+
 test('preserves rowspan, numbering, controls, headers, media, and page size', async () => {
   const { zip, xml } = await convertHtml(
     `<!doctype html>
