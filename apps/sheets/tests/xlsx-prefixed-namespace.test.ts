@@ -8,12 +8,20 @@
 import JSZip from 'jszip'
 import { describe, expect, it } from 'vitest'
 
-import { applyCellEditsToXlsx } from '@genoffice/xlsx-gateway/gateway/xlsx-gateway'
+import {
+  applyCellEditsToXlsx,
+  readBasicWorkbook,
+} from '@genoffice/xlsx-gateway/gateway/xlsx-gateway'
 import {
   ensureRelationshipNamespace,
   normalizeOoxmlPartPrefix,
 } from '@genoffice/xlsx-gateway/gateway/xlsx-namespace'
-import { maxRelationshipId, parseSheetElements } from '@genoffice/xlsx-gateway/gateway/xlsx-sheets'
+import {
+  maxRelationshipId,
+  maxSheetIdInWorkbook,
+  parseSheetElements,
+  readXmlAttribute,
+} from '@genoffice/xlsx-gateway/gateway/xlsx-sheets'
 
 const MAIN_NS = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main'
 const REL_NS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships'
@@ -115,7 +123,16 @@ describe('normalizeOoxmlPartPrefix', () => {
 })
 
 describe('non-numeric relationship ids', () => {
-  it('maxRelationshipId ignores them so new ids start fresh without colliding', () => {
+  it('reads single-quoted sheet and cell attributes', () => {
+    const workbook = "<sheet name='Data' sheetId='1' r:id='rId1'/>"
+    expect(parseSheetElements(workbook)).toEqual([
+      expect.objectContaining({ name: 'Data', relationshipId: 'rId1' }),
+    ])
+    expect(maxSheetIdInWorkbook(`<sheets>${workbook}</sheets>`)).toBe(1)
+    expect(readXmlAttribute("r='A1' t='inlineStr'", 'r')).toBe('A1')
+  })
+
+  it('maxRelationshipId ignores non-numeric ids so new ids start fresh without colliding', () => {
     expect(maxRelationshipId(workbookRels)).toBe(0)
     expect(workbookRels).not.toContain('Id="rId1"')
   })
@@ -136,6 +153,30 @@ describe('saving a workbook with prefixed parts', () => {
     // Untouched siblings keep their original bytes.
     const sibling = (await zip.file('xl/worksheets/sheet2.xml')?.async('text')) ?? ''
     expect(sibling).toBe(prefixedWorksheet('two'))
+  })
+
+  it('imports and edits single-quoted workbook and cell attributes', async () => {
+    const zip = await JSZip.loadAsync(await buildPrefixedFixture())
+    for (const path of [
+      'xl/workbook.xml',
+      'xl/_rels/workbook.xml.rels',
+      'xl/worksheets/sheet1.xml',
+    ]) {
+      const xml = await zip.file(path)!.async('string')
+      const normalized = path.endsWith('.rels') ? xml : normalizeOoxmlPartPrefix(xml)
+      zip.file(path, normalized.replace(/="([^"]*)"/g, "='$1'"))
+    }
+    const source = await zip.generateAsync({ type: 'nodebuffer' })
+    const imported = await readBasicWorkbook(source)
+    expect(imported.snapshot.sheets[0]?.cells.A1?.value).toBe('one')
+
+    const mutation = await applyCellEditsToXlsx(source, [
+      { sheetName: 'Sheet1', row: 0, column: 1, writeValue: true, cell: { value: 42 } },
+    ])
+    const saved = await JSZip.loadAsync(mutation.buffer)
+    const sheet = await saved.file('xl/worksheets/sheet1.xml')!.async('string')
+    expect(sheet).toContain('<c r="B1"><v>42</v></c>')
+    expect(sheet.match(/<row\b/g)).toHaveLength(1)
   })
 
   it('adds a sheet with a fresh rId and a root-level r binding', async () => {

@@ -67,6 +67,7 @@ import {
   renameSheetReferencesInChart,
   renameSheetReferencesInDefinedNames,
   renameSheetReferencesInWorksheet,
+  readXmlAttribute,
   sanitizeClonedWorksheetXml,
   SheetEditError,
   stripPageSetupRelIds,
@@ -449,7 +450,7 @@ async function ensureDynamicArrayMetadata(
 }
 
 function markDynamicArrayAnchor(worksheetXml: string, address: string, cm: number): string {
-  const cellPattern = new RegExp(`<c\\b([^>]*)\\br="${address}"([^>]*)>`)
+  const cellPattern = new RegExp(`<c\\b([^>]*)\\br\\s*=\\s*["']${address}["']([^>]*)>`)
   return worksheetXml.replace(cellPattern, (open, before: string, after: string) =>
     /\bcm="/.test(open) ? open : `<c${before}r="${address}"${after} cm="${cm}">`,
   )
@@ -1928,10 +1929,10 @@ async function resolveWorksheetPath(
   // Two-step lookup: attribute order varies by producer (openpyxl puts
   // Target before Id), so never assume Id precedes Target.
   const relationshipXml = new RegExp(
-    `<Relationship\\b[^>]*\\bId="${escapeRegExp(relationshipId)}"[^>]*/?>`,
+    `<Relationship\\b[^>]*\\bId\\s*=\\s*["']${escapeRegExp(relationshipId)}["'][^>]*/?>`,
   ).exec(relationshipsXml)?.[0]
   const targetMatch =
-    relationshipXml === undefined ? undefined : /\bTarget="([^"]+)"/.exec(relationshipXml)?.[1]
+    relationshipXml === undefined ? undefined : readXmlAttribute(relationshipXml, 'Target')
   if (!targetMatch) throw new Error(`Relationship ${relationshipId} was not found.`)
   const target = targetMatch.replace(/^\/?xl\//, '')
   return `xl/${target.replace(/^\.\//, '')}`
@@ -1941,14 +1942,16 @@ function replaceSheetName(workbookXml: string, before: string, after: string): s
   const element = findSheetElement(workbookXml, before)
   if (!element) throw new Error(`Sheet "${before}" was not found.`)
   const renamedXml = element.xml.replace(
-    /(\bname=")[^"]*(")/,
-    (_match, prefix: string, suffix: string) => `${prefix}${escapeXmlAttribute(after)}${suffix}`,
+    /(\bname\s*=\s*)(?:"[^"]*"|'[^']*')/,
+    (_match, prefix: string) => `${prefix}"${escapeXmlAttribute(after)}"`,
   )
   return workbookXml.replace(element.xml, () => renamedXml)
 }
 
 function patchCell(worksheetXml: string, address: string, cell: CellState): string {
-  const cellPattern = new RegExp(`<c\\b[^>]*\\br="${address}"[^>]*(?:/>|>[\\s\\S]*?</c>)`)
+  const cellPattern = new RegExp(
+    `<c\\b[^>]*\\br\\s*=\\s*["']${address}["'][^>]*(?:/>|>[\\s\\S]*?</c>)`,
+  )
   const replacement = serializeCell(address, cell)
   if (cellPattern.test(worksheetXml)) {
     return worksheetXml.replace(cellPattern, replacement)
@@ -1957,7 +1960,9 @@ function patchCell(worksheetXml: string, address: string, cell: CellState): stri
 
   const rowNumber = address.match(/[1-9][0-9]*$/)?.[0]
   if (!rowNumber) throw new Error(`Invalid cell address: ${address}`)
-  const rowPattern = new RegExp(`(<row\\b[^>]*\\br="${rowNumber}"[^>]*>)([\\s\\S]*?)(</row>)`)
+  const rowPattern = new RegExp(
+    `(<row\\b[^>]*\\br\\s*=\\s*["']${rowNumber}["'][^>]*>)([\\s\\S]*?)(</row>)`,
+  )
   if (rowPattern.test(worksheetXml)) {
     return worksheetXml.replace(rowPattern, `$1$2${replacement}$3`)
   }
@@ -1986,9 +1991,9 @@ function readHeaderCellText(
   address: string,
   sharedStrings: readonly string[],
 ): HeaderCellText {
-  const match = new RegExp(`<c\\b([^>]*)\\br="${address}"([^>]*?)(?:/>|>([\\s\\S]*?)</c>)`).exec(
-    worksheetXml,
-  )
+  const match = new RegExp(
+    `<c\\b([^>]*)\\br\\s*=\\s*["']${address}["']([^>]*?)(?:/>|>([\\s\\S]*?)</c>)`,
+  ).exec(worksheetXml)
   if (!match) return { kind: 'blank' }
   const attributes = `${match[1] ?? ''} ${match[2] ?? ''}`
   const body = match[3] ?? ''
@@ -2016,7 +2021,9 @@ function readHeaderCellText(
 /// Rewrites a cell to hold plain text, keeping its style index (table header
 /// formatting) intact.
 function writeHeaderCellText(worksheetXml: string, address: string, text: string): string {
-  const pattern = new RegExp(`<c\\b([^>]*)\\br="${address}"([^>]*?)(?:/>|>[\\s\\S]*?</c>)`)
+  const pattern = new RegExp(
+    `<c\\b([^>]*)\\br\\s*=\\s*["']${address}["']([^>]*?)(?:/>|>[\\s\\S]*?</c>)`,
+  )
   const match = pattern.exec(worksheetXml)
   const body = `<is><t xml:space="preserve">${escapeCellText(text)}</t></is>`
   if (match) {
@@ -2032,7 +2039,7 @@ function writeHeaderCellText(worksheetXml: string, address: string, text: string
   const rowMatch =
     rowNumber === undefined
       ? null
-      : new RegExp(`<row\\b[^>]*\\br="${rowNumber}"[^>]*?(/>|>)`).exec(worksheetXml)
+      : new RegExp(`<row\\b[^>]*\\br\\s*=\\s*["']${rowNumber}["'][^>]*?(/>|>)`).exec(worksheetXml)
   if (!rowMatch) return patchCell(worksheetXml, address, { value: text })
   const cell = `<c r="${address}" t="inlineStr">${body}</c>`
   const rowStart = rowMatch.index + rowMatch[0].length
@@ -2078,7 +2085,9 @@ function renameTableColumn(tableXml: string, id: number, name: string): string {
 }
 
 function readCellStyleIndex(worksheetXml: string, address: string): number | undefined {
-  const match = new RegExp(`<c\\b([^>]*)\\br="${address}"([^>]*?)[/>]`).exec(worksheetXml)
+  const match = new RegExp(`<c\\b([^>]*)\\br\\s*=\\s*["']${address}["']([^>]*?)[/>]`).exec(
+    worksheetXml,
+  )
   if (!match) return undefined
   const index = readXmlAttribute(`${match[1] ?? ''} ${match[2] ?? ''}`, 's')
   return index === undefined ? undefined : Number(index)
@@ -2093,7 +2102,7 @@ function patchCellStyleOnly(
   styleIndex: number | undefined,
 ): string {
   if (styleIndex === undefined) return worksheetXml
-  const cellPattern = new RegExp(`(<c\\b[^>]*?\\br="${address}"[^>]*?)(\\s*/>|>)`)
+  const cellPattern = new RegExp(`(<c\\b[^>]*?\\br\\s*=\\s*["']${address}["'][^>]*?)(\\s*/>|>)`)
   const existing = cellPattern.exec(worksheetXml)
   if (existing) {
     const opening = existing[1] ?? ''
@@ -2116,7 +2125,9 @@ function patchCellKeepingStyle(
   styleOverride?: number,
   rich?: readonly WorkbookRichRun[],
 ): string {
-  const cellPattern = new RegExp(`<c\\b([^>]*)\\br="${address}"([^>]*?)(?:/>|>[\\s\\S]*?</c>)`)
+  const cellPattern = new RegExp(
+    `<c\\b([^>]*)\\br\\s*=\\s*["']${address}["']([^>]*?)(?:/>|>[\\s\\S]*?</c>)`,
+  )
   const existing = cellPattern.exec(worksheetXml)
   const styleIndex =
     styleOverride !== undefined
@@ -2144,7 +2155,9 @@ function patchFormulaCachedValue(
   value: FormulaCachedValue,
 ): string {
   // Paired form only: a self-closing <c/> has no formula to keep.
-  const cellPattern = new RegExp(`<c\\b([^>]*)\\br="${address}"([^>]*)>([\\s\\S]*?)</c>`)
+  const cellPattern = new RegExp(
+    `<c\\b([^>]*)\\br\\s*=\\s*["']${address}["']([^>]*)>([\\s\\S]*?)</c>`,
+  )
   const existing = cellPattern.exec(worksheetXml)
   if (!existing) return worksheetXml
   const body = existing[3] ?? ''
@@ -2477,7 +2490,8 @@ function transformWorksheetCells<T>(
     parts.push(body.slice(cursor, openMatch.index))
     cursor = rowEnd
     rowOpenPattern.lastIndex = rowEnd
-    const rowNumber = Number(/\br="([1-9][0-9]*)"/.exec(openTag)?.[1])
+    const rowAddress = readXmlAttribute(openTag, 'r')
+    const rowNumber = rowAddress === undefined ? Number.NaN : Number(rowAddress)
     if (!Number.isFinite(rowNumber)) {
       parts.push(rowXml)
       continue
@@ -2550,7 +2564,8 @@ function transformRowCells<T>(
     parts.push(body.slice(cursor, openMatch.index))
     cursor = cellEnd
     cellOpenPattern.lastIndex = cellEnd
-    const letters = /\br="([A-Z]{1,3})[1-9][0-9]*"/.exec(openCell)?.[1]
+    const address = readXmlAttribute(openCell, 'r')
+    const letters = address?.match(/^([A-Z]{1,3})[1-9][0-9]*$/)?.[1]
     const column = letters === undefined ? undefined : lettersToColumn(letters)
     if (column === undefined) {
       parts.push(cellXml)
@@ -2585,7 +2600,9 @@ function insertMissingCell(worksheetXml: string, address: string, cellXml: strin
   const rowNumber = Number(/[1-9][0-9]*$/.exec(address)?.[0])
   if (!Number.isFinite(rowNumber)) throw new Error(`Invalid cell address: ${address}`)
   const targetColumn = parseA1Column(address)
-  const rowPattern = new RegExp(`<row\\b([^>]*?\\br="${rowNumber}"[^>]*?)(/>|>([\\s\\S]*?)</row>)`)
+  const rowPattern = new RegExp(
+    `<row\\b([^>]*?\\br\\s*=\\s*["']${rowNumber}["'][^>]*?)(/>|>([\\s\\S]*?)</row>)`,
+  )
   const rowMatch = rowPattern.exec(worksheetXml)
   if (rowMatch) {
     const attributes = rowMatch[1] ?? ''
@@ -2855,14 +2872,16 @@ function serializeCell(address: string, cell: CellState): string {
 }
 
 function parseCell(worksheetXml: string, address: string): CellState {
-  const cellPattern = new RegExp(`<c\\b([^>]*)\\br="${address}"([^>]*)(?:/>|>([\\s\\S]*?)</c>)`)
+  const cellPattern = new RegExp(
+    `<c\\b([^>]*)\\br\\s*=\\s*["']${address}["']([^>]*)(?:/>|>([\\s\\S]*?)</c>)`,
+  )
   const match = cellPattern.exec(worksheetXml)
   if (!match) return { value: null }
   const attributes = `${match[1] ?? ''}${match[2] ?? ''}`
   const body = match[3] ?? ''
   const formula = /<f(?:\s[^>]*[^/>])?>([\s\S]*?)<\/f>/.exec(body)?.[1]
   if (formula !== undefined) return { value: null, formula: `=${decodeXmlText(formula)}` }
-  const type = /\bt="([^"]+)"/.exec(attributes)?.[1]
+  const type = readXmlAttribute(attributes, 't')
   if (type === 's') throw new Error(`Shared-string cell ${address} is not writable in this PoC.`)
   if (type === 'inlineStr') {
     const text = /<t(?:\s[^>]*)?>([\s\S]*?)<\/t>/.exec(body)?.[1] ?? ''
@@ -3003,8 +3022,4 @@ function escapeXmlAttribute(input: string): string {
 
 function escapeRegExp(input: string): string {
   return input.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-}
-
-function readXmlAttribute(attributes: string, name: string): string | undefined {
-  return new RegExp(`(?:^|\\s)${escapeRegExp(name)}="([^"]*)"`).exec(attributes)?.[1]
 }

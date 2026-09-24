@@ -283,7 +283,11 @@ export function parseSheetElements(workbookXml: string): SheetElement[] {
       // The relationships namespace is conventionally bound to "r", but any
       // prefix is legal — fall back to whatever prefix the producer chose.
       relationshipId:
-        readAttribute(xml, 'r:id') ?? /(?:^|\s)[A-Za-z_][\w.-]*:id="([^"]*)"/.exec(xml)?.[1],
+        readAttribute(xml, 'r:id') ??
+        /(?:^|\s)[A-Za-z_][\w.-]*:id\s*=\s*(?:"([^"]*)"|'([^']*)')/
+          .exec(xml)
+          ?.slice(1)
+          .find(Boolean),
     })
   }
   return elements
@@ -292,17 +296,20 @@ export function parseSheetElements(workbookXml: string): SheetElement[] {
 export function maxSheetIdInWorkbook(workbookXml: string): number {
   let max = 0
   for (const match of workbookXml.matchAll(
-    new RegExp(`<sheet\\b${TAG_ATTRIBUTES}\\bsheetId="([0-9]+)"`, 'g'),
+    new RegExp(`<sheet\\b${TAG_ATTRIBUTES}(?:/>|>[\\s\\S]*?</sheet>)`, 'g'),
   )) {
-    max = Math.max(max, Number(match[1]))
+    const id = readXmlAttribute(match[0], 'sheetId')
+    if (id !== undefined) max = Math.max(max, Number(id))
   }
   return max
 }
 
 export function maxRelationshipId(relationshipsXml: string): number {
   let max = 0
-  for (const match of relationshipsXml.matchAll(/\bId="rId([0-9]+)"/g)) {
-    max = Math.max(max, Number(match[1]))
+  for (const match of relationshipsXml.matchAll(/<Relationship\b[^>]*\/?\s*>/g)) {
+    const id = readXmlAttribute(match[0], 'Id')
+    const numeric = id === undefined ? undefined : /^rId([0-9]+)$/.exec(id)?.[1]
+    if (numeric !== undefined) max = Math.max(max, Number(numeric))
   }
   return max
 }
@@ -326,9 +333,7 @@ export function applySheetPlanToWorkbookXml(
     if (removedSet.has(element.name)) continue
     const newName = renameByOriginal.get(element.name)
     const xml =
-      newName === undefined
-        ? element.xml
-        : element.xml.replace(/\bname="[^"]*"/, () => `name="${escapeXmlAttribute(newName)}"`)
+      newName === undefined ? element.xml : replaceXmlAttribute(element.xml, 'name', newName)
     finalElements.set(newName ?? element.name, { xml, hidden: element.hidden })
   }
   for (const addition of additions) {
@@ -579,8 +584,22 @@ export function definedNamesReferenceSheet(
   return false
 }
 
+export function readXmlAttribute(attributes: string, name: string): string | undefined {
+  const match = new RegExp(`(?:^|\\s)${escapeRegExp(name)}\\s*=\\s*(?:"([^"]*)"|'([^']*)')`).exec(
+    attributes,
+  )
+  return match?.[1] ?? match?.[2]
+}
+
 function readAttribute(elementXml: string, name: string): string | undefined {
-  return new RegExp(`(?:^|\\s)${escapeRegExp(name)}="([^"]*)"`).exec(elementXml)?.[1]
+  return readXmlAttribute(elementXml, name)
+}
+
+function replaceXmlAttribute(elementXml: string, name: string, value: string): string {
+  return elementXml.replace(
+    new RegExp(`((?:^|\\s)${escapeRegExp(name)}\\s*=\\s*)(?:"[^"]*"|'[^']*')`),
+    `$1"${escapeXmlAttribute(value)}"`,
+  )
 }
 
 function escapeRegExp(input: string): string {
