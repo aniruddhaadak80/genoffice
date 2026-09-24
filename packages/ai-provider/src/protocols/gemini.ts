@@ -7,6 +7,7 @@ import { createStreamWatchdog, type StreamWatchdog } from '../watchdog'
 import { toGeminiSchema } from './gemini-schema'
 import {
   jsonBodyInsteadOfSse,
+  readCappedResponseText,
   sseErrorText,
   sseLines,
   throwIfCreditsNotice,
@@ -186,9 +187,11 @@ async function geminiTurn(
   // headers arrived: ping the renderer watchdog too, or a slow first chunk could trip it
   onBytes()
   if (!response.ok || !response.body) {
-    throw new Error(`Gemini HTTP ${response.status}: ${httpBodyDetail(await response.text())}`)
+    throw new Error(
+      `Gemini HTTP ${response.status}: ${httpBodyDetail(await readCappedResponseText(response, onBytes))}`,
+    )
   }
-  const jsonBody = await jsonBodyInsteadOfSse(response)
+  const jsonBody = await jsonBodyInsteadOfSse(response, onBytes)
   if (jsonBody !== null) {
     throwIfCreditsNotice(jsonBody)
     return emitGeminiJsonMessage(jsonBody, cb)
@@ -285,13 +288,13 @@ export async function chatGemini(
   if (!response.ok) {
     return {
       ok: false,
-      error: `Gemini HTTP ${response.status}: ${httpBodyDetail(await response.text())}`,
+      error: `Gemini HTTP ${response.status}: ${httpBodyDetail(await readCappedResponseText(response, () => wd.touch()))}`,
     }
   }
   // A 200 with an HTML shell / empty / truncated body (gateway soft-failure)
   // would make response.json() throw; return ok:false instead of leaking a
   // raw SyntaxError to the caller.
-  const bodyText = await response.text()
+  const bodyText = await readCappedResponseText(response, () => wd.touch())
   let json: {
     candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>
   }

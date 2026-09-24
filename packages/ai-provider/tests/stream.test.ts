@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { AgentToolCall } from '@genoffice/agent-core'
 import { AiCreditsError, sseLines, streamForProvider } from '../src/stream'
-import { jsonBodyInsteadOfSse } from '../src/protocols/shared'
+import { MAX_RESPONSE_BODY_BYTES, jsonBodyInsteadOfSse } from '../src/protocols/shared'
 import { jsonResponse, okResponse, sseStream } from './test-utils'
 
 afterEach(() => {
@@ -69,6 +69,35 @@ describe('sseLines', () => {
     const lines: string[] = []
     for await (const line of sseLines(body)) lines.push(line)
     expect(lines).toEqual(['data: a', 'data: b', 'data: c'])
+  })
+})
+
+describe('non-SSE response body cap', () => {
+  it.each([
+    ['anthropic', { apiKey: 'k', model: 'm' }],
+    ['gemini', { apiKey: 'k', model: 'm' }],
+    ['openai', { apiKey: 'k', model: 'm' }],
+  ] as const)('caps oversized JSON for %s', async (provider, config) => {
+    let cancelled = false
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new Uint8Array(MAX_RESPONSE_BODY_BYTES + 1))
+      },
+      cancel() {
+        cancelled = true
+      },
+    })
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValue(new Response(body, { headers: { 'content-type': 'application/json' } })),
+    )
+    const { cb } = collector()
+    await expect(streamForProvider(provider, config, 'sys', [], [], 100, cb)).rejects.toThrow(
+      /Response body exceeded/,
+    )
+    expect(cancelled).toBe(true)
   })
 })
 

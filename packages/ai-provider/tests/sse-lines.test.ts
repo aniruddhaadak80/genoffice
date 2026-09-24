@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { MAX_SSE_LINE_BYTES, sseLines } from '../src/protocols/shared'
+import {
+  MAX_RESPONSE_BODY_BYTES,
+  MAX_SSE_LINE_BYTES,
+  readCappedResponseText,
+  sseLines,
+} from '../src/protocols/shared'
 
 function sseBody(lines: string[]): ReadableStream<Uint8Array> {
   const encoder = new TextEncoder()
@@ -19,6 +24,44 @@ function hangingBody(): ReadableStream<Uint8Array> {
     },
   })
 }
+
+describe('readCappedResponseText', () => {
+  it('reads a small chunked body', async () => {
+    const encoder = new TextEncoder()
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(encoder.encode('{"ok":'))
+        controller.enqueue(encoder.encode('true}'))
+        controller.close()
+      },
+    })
+    await expect(readCappedResponseText(new Response(body))).resolves.toBe('{"ok":true}')
+  })
+
+  it('rejects a declared oversized body before reading it', async () => {
+    const response = new Response('small', {
+      headers: { 'content-length': String(MAX_RESPONSE_BODY_BYTES + 1) },
+    })
+    await expect(readCappedResponseText(response)).rejects.toThrow(/Response body exceeded/)
+  })
+
+  it('cancels a streamed oversized body and releases its reader', async () => {
+    let cancelled = false
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new Uint8Array(MAX_RESPONSE_BODY_BYTES + 1))
+      },
+      cancel() {
+        cancelled = true
+      },
+    })
+    await expect(readCappedResponseText(new Response(body))).rejects.toThrow(
+      /Response body exceeded/,
+    )
+    expect(cancelled).toBe(true)
+    expect(() => body.getReader()).not.toThrow()
+  })
+})
 
 describe('sseLines', () => {
   it('yields SSE lines from a completing stream', async () => {

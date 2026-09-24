@@ -4,6 +4,50 @@ import type { AgentToolCall } from '@genoffice/agent-core'
 
 /** Max buffered SSE line: a gateway sending GB without newline would OOM main. */
 export const MAX_SSE_LINE_BYTES = 4 * 1024 * 1024
+export const MAX_RESPONSE_BODY_BYTES = MAX_SSE_LINE_BYTES
+
+export class ResponseBodyTooLargeError extends Error {
+  constructor(
+    readonly receivedBytes: number,
+    readonly capBytes: number,
+  ) {
+    super(`Response body exceeded the ${capBytes}-byte limit (${receivedBytes} bytes)`)
+    this.name = 'ResponseBodyTooLargeError'
+  }
+}
+
+export async function readCappedResponseText(
+  response: Response,
+  onBytes?: () => void,
+): Promise<string> {
+  const declaredBytes = Number(response.headers.get('content-length'))
+  if (Number.isFinite(declaredBytes) && declaredBytes > MAX_RESPONSE_BODY_BYTES) {
+    if (response.body) await response.body.cancel().catch(() => undefined)
+    throw new ResponseBodyTooLargeError(declaredBytes, MAX_RESPONSE_BODY_BYTES)
+  }
+  if (!response.body) return ''
+
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder()
+  let text = ''
+  let bytes = 0
+  try {
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) break
+      onBytes?.()
+      bytes += value.byteLength
+      if (bytes > MAX_RESPONSE_BODY_BYTES) {
+        throw new ResponseBodyTooLargeError(bytes, MAX_RESPONSE_BODY_BYTES)
+      }
+      text += decoder.decode(value, { stream: true })
+    }
+    return text + decoder.decode()
+  } finally {
+    await reader.cancel().catch(() => undefined)
+    reader.releaseLock()
+  }
+}
 
 export async function* sseLines(
   body: NodeJS.ReadableStream | ReadableStream<Uint8Array>,
@@ -153,9 +197,14 @@ export function sseErrorText(error: unknown, fallback: string): string {
  * parser would find no `data:` lines in such a body and dissolve it into an empty
  * "successful" turn. Returns the body text when that happens, else null.
  */
-export async function jsonBodyInsteadOfSse(response: Response): Promise<string | null> {
+export async function jsonBodyInsteadOfSse(
+  response: Response,
+  onBytes?: () => void,
+): Promise<string | null> {
   const contentType = response.headers.get('content-type') ?? ''
-  return contentType.toLowerCase().includes('application/json') ? await response.text() : null
+  return contentType.toLowerCase().includes('application/json')
+    ? readCappedResponseText(response, onBytes)
+    : null
 }
 
 /**
