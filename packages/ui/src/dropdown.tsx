@@ -22,6 +22,17 @@ export interface DropdownOption<K extends string = string> {
   readonly disabled?: boolean
 }
 
+export function nextEnabledIndex(
+  options: ReadonlyArray<{ readonly disabled?: boolean }>,
+  start: number,
+  step: 1 | -1,
+): number {
+  for (let i = start; i >= 0 && i < options.length; i += step) {
+    if (!options[i]!.disabled) return i
+  }
+  return -1
+}
+
 export function Dropdown<K extends string>({
   value,
   options,
@@ -64,13 +75,22 @@ export function Dropdown<K extends string>({
   const current = options.find((o) => o.value === value)
   const openList = () => {
     const i = options.findIndex((o) => o.value === value)
-    setActive(i < 0 ? 0 : i)
+    const initial = i >= 0 && !options[i]!.disabled ? i : nextEnabledIndex(options, 0, 1)
+    setActive(initial)
     setOpen(true)
   }
   const pick = (o: DropdownOption<K>) => {
     if (o.disabled) return
     setOpen(false)
     onPick(o.value)
+  }
+  const move = (step: 1 | -1) => {
+    setActive((i) => {
+      const current = i >= 0 && i < options.length ? i : -1
+      const start = current < 0 ? (step === 1 ? 0 : options.length - 1) : current + step
+      const next = nextEnabledIndex(options, start, step)
+      return next < 0 ? current : next
+    })
   }
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (!open) {
@@ -81,10 +101,10 @@ export function Dropdown<K extends string>({
       return
     }
     if (e.key === 'Escape') setOpen(false)
-    else if (e.key === 'ArrowDown') setActive((i) => Math.min(options.length - 1, i + 1))
-    else if (e.key === 'ArrowUp') setActive((i) => Math.max(0, i - 1))
-    else if (e.key === 'Home') setActive(0)
-    else if (e.key === 'End') setActive(options.length - 1)
+    else if (e.key === 'ArrowDown') move(1)
+    else if (e.key === 'ArrowUp') move(-1)
+    else if (e.key === 'Home') setActive(nextEnabledIndex(options, 0, 1))
+    else if (e.key === 'End') setActive(nextEnabledIndex(options, options.length - 1, -1))
     else if (e.key === 'Enter' || e.key === ' ') {
       const o = options[active]
       if (o) pick(o)
@@ -144,7 +164,9 @@ export function Dropdown<K extends string>({
               data-value={o.value}
               title={o.label}
               className={`gs-dd-item${o.value === value ? ' selected' : ''}${i === active && !o.disabled ? ' active' : ''}`}
-              onMouseEnter={() => setActive(i)}
+              onMouseEnter={() => {
+                if (!o.disabled) setActive(i)
+              }}
               // menu-button pattern: options never take focus, so picking one
               // can't blur focus-scoped hosts (the PDF text editor commits its
               // draft on focus leaving the edit bar)
