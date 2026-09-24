@@ -129,7 +129,7 @@ async function doSync(storePath: string, owner: string): Promise<CloudProjectsSn
       .filter((e) => !seen.has(e.projectId))
     for (const e of entries) seen.add(e.projectId)
     collected.push(...entries)
-    if (offset === 0 && known.size === page.total) {
+    if (offset === 0 && !page.hasMore && known.size === page.total) {
       const unchanged = entries.every((e) => {
         const k = known.get(e.projectId)
         return k && k.title === e.title && k.kind === e.kind
