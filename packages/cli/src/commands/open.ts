@@ -96,6 +96,7 @@ async function spawnApp(path: string, ctx: CommandContext): Promise<string> {
 }
 
 const TARGET_FLAGS = ['slide', 'el', 'block', 'range', 'sheet', 'page'] as const
+const PRESENTATION_EXTENSIONS = new Set(['.pptx', '.ppsx', '.potx'])
 
 export function parseTarget(args: ParsedArgs, path: string): ControlTarget | undefined {
   const given = TARGET_FLAGS.filter((f) => args.flags[f] !== undefined)
@@ -130,7 +131,7 @@ export function parseTarget(args: ParsedArgs, path: string): ControlTarget | und
     }
     return n
   }
-  if (/^\.pptxm?$|^\.ppsx$|^\.potx$/.test(ext) || ext === '.pptx') {
+  if (PRESENTATION_EXTENSIONS.has(ext)) {
     expect(['slide', 'el'], 'presentation')
     if (args.flags.slide === undefined) {
       throw new CliError(EXIT.usage, '--el needs --slide', undefined, {

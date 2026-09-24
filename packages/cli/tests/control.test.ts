@@ -80,6 +80,13 @@ describe('open targets', () => {
     expect(() => target(['--el', 'e_1'], '/d.pptx')).toThrow(/--el needs --slide/)
     expect(() => target(['--page', '1'], '/notes.md')).toThrow(/pptx, docx, xlsx and pdf/)
   })
+
+  it('accepts supported presentation extensions and rejects pptxm', () => {
+    for (const ext of ['.pptx', '.ppsx', '.potx']) {
+      expect(target(['--slide', '0'], `/d${ext}`), ext).toEqual({ kind: 'slide', slide: 0 })
+    }
+    expect(() => target(['--slide', '0'], '/d.pptxm')).toThrow(/pptx, docx, xlsx and pdf/)
+  })
 })
 
 describe('control endpoint', () => {
