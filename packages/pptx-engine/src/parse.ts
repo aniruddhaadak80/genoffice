@@ -1491,6 +1491,8 @@ interface DgmTreeNode {
   styleIdx?: number
 }
 
+const MAX_DGM_TREE_DEPTH = 256
+
 /** Depth-first bullet lines of a node's descendants (lvl 1 = direct child). */
 function dgmBulletLines(node: DgmTreeNode, lvl = 1): Array<{ text: string; lvl: number }> {
   const out: Array<{ text: string; lvl: number }> = []
@@ -1702,7 +1704,7 @@ export function layoutDiagramFallback(
   for (const arr of bySrc.values())
     arr.sort((a, b) => (parseInt(a['@_srcOrd'], 10) || 0) - (parseInt(b['@_srcOrd'], 10) || 0))
   const seen = new Set<string>()
-  const build = (id: string): DgmTreeNode[] =>
+  const build = (id: string, depth = 0): DgmTreeNode[] =>
     (bySrc.get(id) ?? [])
       .map((c) => String(c['@_destId']))
       .filter((d) => !seen.has(d) && (seen.add(d), true))
@@ -1718,7 +1720,7 @@ export function layoutDiagramFallback(
           ...(pt?.['dgm:spPr']?.['a:solidFill'] ? { spPr: pt['dgm:spPr'] } : {}),
           ...(pt?.['@_type'] === 'asst' ? { asst: true } : {}),
           ...(hierBranchOf.has(d) ? { hierBranch: hierBranchOf.get(d) } : {}),
-          children: build(d),
+          children: depth < MAX_DGM_TREE_DEPTH ? build(d, depth + 1) : [],
         }
       })
   const roots = build(String(docId))
