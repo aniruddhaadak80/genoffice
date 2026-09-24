@@ -194,6 +194,7 @@ import {
   parseRemovePersonalInfo,
   parseWriteProtection,
   resolveMainDocumentPath,
+  resolveRelationshipTargetPath,
 } from './parse-package'
 import { parseSdtBlock, sdtMeta, sdtTableXml, splitSdtParts } from './parse-sdt'
 import { sdtCheckboxControl } from './checkbox-control'
@@ -358,8 +359,8 @@ export async function parseDocx(
   )
 
   const scan = scanBody(documentXml)
-  const mediaByRid = await tableBlipMedia(scan.elements, documentXml, zip, rels)
-  const externalTxbxByRid = await externalTxbxParts(documentXml, zip, rels)
+  const mediaByRid = await tableBlipMedia(scan.elements, documentXml, zip, rels, docPath)
+  const externalTxbxByRid = await externalTxbxParts(documentXml, zip, rels, docPath)
   // sections end at their w:sectPr: the one governing an offset is the first
   // sectPr at or after it (page/margin-anchored drawing placement)
   const sectSlices = [...documentXml.matchAll(/<w:sectPr[^>]*\/>|<w:sectPr[\s\S]*?<\/w:sectPr>/g)]
@@ -382,6 +383,7 @@ export async function parseDocx(
   const compatibilityMode = await parseCompatibilityMode(zip)
   const buildCtx: BuildContext = {
     zip,
+    sourcePath: docPath,
     styles,
     rels,
     numFormats,
@@ -447,7 +449,7 @@ export async function parseDocx(
       continue
     }
     if (el.name === 'w:altChunk' && options.expandAltChunks !== false) {
-      const expanded = await expandAltChunk(xml, zip, rels, styles, numbering)
+      const expanded = await expandAltChunk(xml, zip, rels, styles, numbering, docPath)
       if (expanded.length > 0) {
         // the chunk element keeps its bytes under the first block; the rest
         // anchor to empty ranges so an untouched save re-emits nothing for them
@@ -483,6 +485,7 @@ export async function parseDocx(
       compatibilityMode,
       theme.fonts,
       docDefaults,
+      docPath,
     )
   const header = await readHf('header', 'default')
   const footer = await readHf('footer', 'default')
@@ -501,6 +504,7 @@ export async function parseDocx(
     compatibilityMode,
     theme.fonts,
     docDefaults,
+    docPath,
   )
   if (layoutSettings.balanceDbcsSpacing) {
     const hfGroups: Array<Run[] | undefined> = []
@@ -531,7 +535,7 @@ export async function parseDocx(
         offsetYPx: run.offsetYPx,
         widthPx: run.widthPx,
         heightPx: run.heightPx,
-        dataUrl: run.embedRId ? await mediaDataUrl(zip, rels, run.embedRId) : null,
+        dataUrl: run.embedRId ? await mediaDataUrl(zip, rels, run.embedRId, docPath) : null,
         payload: run.payload,
       })
     }
@@ -599,6 +603,7 @@ export async function parseDocx(
 
 interface BuildContext {
   zip: JSZip
+  sourcePath?: string
   styles: Map<string, StyleInfo>
   rels: Map<string, RelInfo>
   numFormats: Map<string, 'bullet' | 'ordered'>
@@ -698,14 +703,21 @@ async function expandAltChunk(
   rels: Map<string, RelInfo>,
   styles: Map<string, StyleInfo>,
   numbering: Map<string, NumberingDef>,
+  sourcePath = 'word/document.xml',
 ): Promise<Block[]> {
   const rId = /\br:id="([^"]+)"/.exec(xml)?.[1]
   if (!rId) return []
   try {
-    const bytes = await altChunkToDocx(zip, rels, rId, async (path) => {
-      const { defaults, overrides } = await contentTypesOf(zip)
-      return overrides.get(`/${path}`) ?? defaults.get(path.split('.').pop()?.toLowerCase() ?? '')
-    })
+    const bytes = await altChunkToDocx(
+      zip,
+      rels,
+      rId,
+      async (path) => {
+        const { defaults, overrides } = await contentTypesOf(zip)
+        return overrides.get(`/${path}`) ?? defaults.get(path.split('.').pop()?.toLowerCase() ?? '')
+      },
+      sourcePath,
+    )
     if (!bytes) {
       // no converter here (a Worker parse): the host parses again where one is installed
       if (!hasAltChunkHtmlConverter()) {
@@ -1129,7 +1141,9 @@ async function buildBlock(
         return buildTextParagraph(base, xml, ctx, true, el.start)
       }
       const rId = /<v:imagedata[^>]*r:id="([^"]+)"/.exec(detect)?.[1]
-      const image = rId ? await mediaDataUrl(ctx.zip, ctx.rels, rId) : null
+      const image = rId
+        ? await mediaDataUrl(ctx.zip, ctx.rels, rId, ctx.sourcePath ?? 'word/document.xml')
+        : null
       if (image) {
         return {
           ...base,
@@ -5278,7 +5292,7 @@ async function hfImages(zip: JSZip, partPath: string, partXml: string): Promise<
     if (fallbackDup(m.index!)) continue
     if (!/<wp:anchor[\s>]/.test(frag) && onCellRun(m.index!)) continue
     if (/<wp:anchor[\s>]/.test(frag) && frag.includes('<wpg:wgp')) {
-      const children = await hfGroupPictures(zip, rels, frag)
+      const children = await hfGroupPictures(zip, rels, frag, partPath)
       if (children) {
         out.push(...children)
         recordProduced(m.index!)
@@ -5289,7 +5303,7 @@ async function hfImages(zip: JSZip, partPath: string, partXml: string): Promise<
     // Fallback); use the first one whose media resolves
     let dataUrl: string | null = null
     for (const b of frag.matchAll(/<a:blip[^>]*r:embed="([^"]+)"/g)) {
-      dataUrl = await mediaDataUrl(zip, rels, b[1])
+      dataUrl = await mediaDataUrl(zip, rels, b[1], partPath)
       if (dataUrl) break
     }
     // textless vector decorations (wpg group of custGeom shapes) render as one SVG
@@ -5361,7 +5375,7 @@ async function hfImages(zip: JSZip, partPath: string, partXml: string): Promise<
       out.push(image)
       continue
     }
-    const dataUrl = await mediaDataUrl(zip, rels, rId)
+    const dataUrl = await mediaDataUrl(zip, rels, rId, partPath)
     if (!dataUrl) continue
     // VML dimensions live in the v:shape style attribute (pt, in, cm...)
     const style = /<v:shape[^>]*style="([^"]*)"/.exec(frag)?.[1] ?? ''
@@ -5454,6 +5468,7 @@ async function hfGroupPictures(
   zip: JSZip,
   rels: Map<string, RelInfo>,
   frag: string,
+  sourcePath = 'word/document.xml',
 ): Promise<HfImage[] | null> {
   const body = frag.replace(/<mc:Fallback[^>]*>[\s\S]*?<\/mc:Fallback>/g, '')
   const anchor: Pick<HfImage, 'posH' | 'posV' | 'posXPx' | 'posYPx' | 'posHRel' | 'posVRel'> = {}
@@ -5486,7 +5501,7 @@ async function hfGroupPictures(
     const cy = (attrNum(size, 'cy') ?? 0) * sy
     if (cx <= 0 || cy <= 0) return null
     const rId = /<a:blip[^>]*r:embed="([^"]+)"/.exec(pic)?.[1]
-    const dataUrl = rId ? await mediaDataUrl(zip, rels, rId) : null
+    const dataUrl = rId ? await mediaDataUrl(zip, rels, rId, sourcePath) : null
     if (!dataUrl) continue
     const image: HfImage = {
       dataUrl,
@@ -5644,7 +5659,7 @@ async function hfTableMedia(
         out.set(rId, rel.target)
         continue
       }
-      const dataUrl = await mediaDataUrl(zip, rels, rId)
+      const dataUrl = await mediaDataUrl(zip, rels, rId, partPath)
       if (dataUrl) out.set(rId, dataUrl)
     }
   }
@@ -5883,6 +5898,7 @@ async function readHeaderFooterPart(
   compatibilityMode = 0,
   themeFonts?: ThemeFonts | null,
   docDefaults?: DocDefaults,
+  sourcePath = 'word/document.xml',
 ): Promise<{
   text: string
   hasPageNumber: boolean
@@ -5905,7 +5921,8 @@ async function readHeaderFooterPart(
   const rId = /r:id="([^"]+)"/.exec(ref)?.[1]
   const target = rId ? rels.get(rId)?.target : undefined
   if (!target) return null
-  const path = target.startsWith('/') ? target.slice(1) : `word/${target}`
+  const path = resolveRelationshipTargetPath(sourcePath, target)
+  if (!path) return null
   const file = zip.file(path)
   if (!file) return null
   const xml = await file.async('string')
@@ -5932,6 +5949,7 @@ async function parseAllHfParts(
   compatibilityMode = 0,
   themeFonts?: ThemeFonts | null,
   docDefaults?: DocDefaults,
+  sourcePath = 'word/document.xml',
 ): Promise<Record<string, HfPartInfo>> {
   const out: Record<string, HfPartInfo> = {}
   for (const [rId, rel] of rels) {
@@ -5941,7 +5959,8 @@ async function parseAllHfParts(
         ? 'footer'
         : null
     if (!kind) continue
-    const path = rel.target.startsWith('/') ? rel.target.slice(1) : `word/${rel.target}`
+    const path = resolveRelationshipTargetPath(sourcePath, rel.target)
+    if (!path) continue
     const file = zip.file(path)
     if (!file) continue
     const xml = await file.async('string')
@@ -6920,12 +6939,12 @@ async function mediaDataUrl(
   zip: JSZip,
   rels: Map<string, RelInfo>,
   rId: string,
+  sourcePath = 'word/document.xml',
 ): Promise<string | null> {
   const rel = rels.get(rId)
   if (!rel || rel.targetMode === 'External') return null
-  const path = rel.target.startsWith('/') ? rel.target.slice(1) : `word/${rel.target}`
-  const partPath = path.replace(/^word\/\.\.\//, '')
-  return mediaPartDataUrl(zip, partPath)
+  const partPath = resolveRelationshipTargetPath(sourcePath, rel.target)
+  return partPath ? mediaPartDataUrl(zip, partPath) : null
 }
 
 /** one string per media part: a picture anchored on thousands of paragraphs
@@ -6989,7 +7008,7 @@ async function resolvePicBullets(
   const rels = await parseRels(zip, 'word/_rels/numbering.xml.rels')
   const srcById = new Map<number, string>()
   for (const [id, rId] of picBullets) {
-    const src = await mediaDataUrl(zip, rels, rId)
+    const src = await mediaDataUrl(zip, rels, rId, 'word/numbering.xml')
     if (src) srcById.set(id, src)
   }
   for (const def of numbering.values()) {
@@ -7010,6 +7029,7 @@ async function externalTxbxParts(
   documentXml: string,
   zip: JSZip,
   rels: Map<string, RelInfo>,
+  sourcePath = 'word/document.xml',
 ): Promise<Map<string, string>> {
   const out = new Map<string, string>()
   for (const m of documentXml.matchAll(/<wps:txbx\b[^>]*\br:txbx="([^"]+)"/g)) {
@@ -7017,8 +7037,8 @@ async function externalTxbxParts(
     if (out.has(rId)) continue
     const rel = rels.get(rId)
     if (!rel || rel.targetMode === 'External') continue
-    const path = rel.target.startsWith('/') ? rel.target.slice(1) : `word/${rel.target}`
-    const file = zip.file(path.replace(/^word\/\.\.\//, ''))
+    const path = resolveRelationshipTargetPath(sourcePath, rel.target)
+    const file = path ? zip.file(path) : null
     if (file) out.set(rId, await file.async('string'))
   }
   return out
@@ -7033,6 +7053,7 @@ async function tableBlipMedia(
   documentXml: string,
   zip: JSZip,
   rels: Map<string, RelInfo>,
+  sourcePath = 'word/document.xml',
 ): Promise<Map<string, string>> {
   const out = new Map<string, string>()
   const rIds = new Set<string>()
@@ -7055,7 +7076,7 @@ async function tableBlipMedia(
       out.set(rId, rel.target)
       continue
     }
-    const dataUrl = await mediaDataUrl(zip, rels, rId)
+    const dataUrl = await mediaDataUrl(zip, rels, rId, sourcePath)
     if (dataUrl) out.set(rId, dataUrl)
   }
   return out
@@ -7081,7 +7102,12 @@ async function resolveBlipMedia(xml: string, ctx: BuildContext): Promise<void> {
       media.set(rId, rel.target)
       continue
     }
-    const dataUrl = await mediaDataUrl(ctx.zip, ctx.rels, rId)
+    const dataUrl = await mediaDataUrl(
+      ctx.zip,
+      ctx.rels,
+      rId,
+      ctx.sourcePath ?? 'word/document.xml',
+    )
     if (dataUrl) media.set(rId, dataUrl)
   }
 }
@@ -7099,21 +7125,15 @@ async function extractImage(xml: string, ctx: BuildContext): Promise<string | nu
     return rel.target
   }
 
-  const path = (rel.target.startsWith('/') ? rel.target.slice(1) : `word/${rel.target}`).replace(
-    /^word\/\.\.\//,
-    '',
-  )
-  return mediaPartDataUrl(ctx.zip, path)
+  const path = resolveRelationshipTargetPath(ctx.sourcePath ?? 'word/document.xml', rel.target)
+  return path ? mediaPartDataUrl(ctx.zip, path) : null
 }
 
 /** resolve a document rel to its zip path ("word/…"), or null for external targets */
 function relPartPath(ctx: BuildContext, rId: string | undefined): string | null {
   const rel = rId ? ctx.rels.get(rId) : undefined
   if (!rel || rel.targetMode === 'External') return null
-  return (rel.target.startsWith('/') ? rel.target.slice(1) : `word/${rel.target}`).replace(
-    /^word\/\.\.\//,
-    '',
-  )
+  return resolveRelationshipTargetPath(ctx.sourcePath ?? 'word/document.xml', rel.target)
 }
 
 /**
@@ -7356,18 +7376,11 @@ async function extractDiagramDrawing(
   // picture fills resolve through the drawing part's own rels (../media/...)
   const relsPath = drawingPath.replace(/([^/]+)$/, '_rels/$1.rels')
   const rels = await parseRels(ctx.zip, relsPath)
-  const dir = drawingPath.replace(/[^/]+$/, '')
   const mediaOf = async (rId: string): Promise<string | null> => {
     const rel = rels.get(rId)
     if (!rel || rel.targetMode === 'External') return null
-    const parts: string[] = []
-    for (const seg of (rel.target.startsWith('/') ? rel.target.slice(1) : dir + rel.target).split(
-      '/',
-    )) {
-      if (seg === '..') parts.pop()
-      else if (seg !== '.') parts.push(seg)
-    }
-    const path = parts.join('/')
+    const path = resolveRelationshipTargetPath(drawingPath, rel.target)
+    if (!path) return null
     const f = ctx.zip.file(path)
     if (!f) return null
     const mime = await imagePartMime(ctx.zip, path)
@@ -7523,10 +7536,8 @@ async function extractChart(xml: string, ctx: BuildContext): Promise<ChartDispla
   const rId = /<cx?:chart [^>]*r:id="([^"]+)"/.exec(xml)?.[1]
   const rel = rId ? ctx.rels.get(rId) : undefined
   if (!rel || rel.targetMode === 'External') return null
-  const path = (rel.target.startsWith('/') ? rel.target.slice(1) : `word/${rel.target}`).replace(
-    /^word\/\.\.\//,
-    '',
-  )
+  const path = resolveRelationshipTargetPath(ctx.sourcePath ?? 'word/document.xml', rel.target)
+  if (!path) return null
   const file = ctx.zip.file(path)
   if (!file) return null
   const partXml = await file.async('string')

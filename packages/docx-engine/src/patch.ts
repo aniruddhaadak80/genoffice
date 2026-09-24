@@ -20,6 +20,7 @@ import {
   injectInkRunsIntoParagraph,
   stripInkRuns,
 } from './ink'
+import { resolveRelationshipTargetPath } from './parse-package'
 import { assertZipWithinLimits, resolveMainDocumentPath, type ParseExtras } from './parse'
 import { cleanupDocxOwnedResources } from './resource-cleanup'
 import { loadDocxZip } from './zip-load'
@@ -286,10 +287,8 @@ export async function findChartWorkbookPath(
     // find Relationship with Type ending in /package
     const m = relsXml.match(/Type="[^"]*\/package"[^/]*Target="([^"]+)"/)
     if (!m) return null
-    // Target is relative to dir (word/charts/)
     const target = m[1]
-    if (target.startsWith('/')) return target.slice(1)
-    return `${dir}/${target}`
+    return resolveRelationshipTargetPath(chartPath, target)
   } catch {
     return null
   }
@@ -739,7 +738,8 @@ export async function saveDocx(
     const rId = existing ? /r:id="([^"]+)"/.exec(existing)?.[1] : undefined
     const target = rId ? relTargets.get(rId) : undefined
     if (target) {
-      const path = target.startsWith('/') ? target.slice(1) : `word/${target}`
+      const path = resolveRelationshipTargetPath(docPath, target)
+      if (!path) return
       const file = zip.file(path)
       const originalXml = file ? await file.async('string') : null
       const wmXml =
@@ -807,7 +807,8 @@ export async function saveDocx(
     const rId = existing ? /r:id="([^"]+)"/.exec(existing)?.[1] : undefined
     const target = rId ? relTargets.get(rId) : undefined
     if (target) {
-      const path = target.startsWith('/') ? target.slice(1) : `word/${target}`
+      const path = resolveRelationshipTargetPath(docPath, target)
+      if (!path) continue
       const file = zip.file(path)
       const originalXml = file ? await file.async('string') : null
       hfParts.push({ path, xml: headerFooterPartXml(edit.kind, edit.hf, undefined, originalXml) })
