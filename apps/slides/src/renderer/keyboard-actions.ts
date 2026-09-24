@@ -134,13 +134,15 @@ export function handleGlobalKeydown(
   }
   // Undo/redo (menu accelerators normally intercept; fallback for shell/menuless scenarios)
   if (mod && !e.altKey && (e.key === 'z' || e.key === 'Z')) {
-    if (editing || (inField && !shouldRouteUndoToDeck(e.target as HTMLElement))) return
+    if (editing || (inField && !shouldRouteUndoToDeck(document.activeElement as HTMLElement)))
+      return
     e.preventDefault()
     void (e.shiftKey ? ctx.redo() : ctx.undo())
     return
   }
   if (mod && !e.altKey && (e.key === 'y' || e.key === 'Y')) {
-    if (editing || (inField && !shouldRouteUndoToDeck(e.target as HTMLElement))) return
+    if (editing || (inField && !shouldRouteUndoToDeck(document.activeElement as HTMLElement)))
+      return
     e.preventDefault()
     void ctx.redo()
     return
