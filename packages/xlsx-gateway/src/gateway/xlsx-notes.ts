@@ -4,6 +4,7 @@
 /// [Content_Types].xml entries. Non-note VML shapes (checkboxes, buttons)
 /// survive a rewrite untouched.
 
+import { encodeXlsxEscapes } from './xlsx-escapes'
 import { ensureRelationshipNamespace } from './xlsx-namespace'
 
 export class NoteEditError extends Error {}
@@ -100,14 +101,14 @@ function buildCommentsXml(notes: readonly SheetNote[]): string {
       const ref = `${columnName(note.column)}${note.row + 1}`
       return (
         `<comment ref="${ref}" authorId="${authorId(note.author)}">` +
-        `<text><t xml:space="preserve">${escapeXml(note.text)}</t></text></comment>`
+        `<text><t xml:space="preserve">${escapeXml(encodeXlsxEscapes(note.text))}</t></text></comment>`
       )
     })
     .join('')
   return (
     '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n' +
     '<comments xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
-    `<authors>${authors.map((author) => `<author>${escapeXml(author)}</author>`).join('')}</authors>` +
+    `<authors>${authors.map((author) => `<author>${escapeXml(encodeXlsxEscapes(author))}</author>`).join('')}</authors>` +
     `<commentList>${comments}</commentList></comments>`
   )
 }

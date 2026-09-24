@@ -49,6 +49,21 @@ describe('note snapshots', () => {
     expect(xml).toContain('<comment ref="A5" authorId="1">')
   })
 
+  it('encodes XML-forbidden controls in note text and authors', async () => {
+    const plan = await planNotes([
+      {
+        sheetName: 'Data',
+        notes: [{ row: 0, column: 0, author: 'A\u0001B', text: 'C\u000bD' }],
+      },
+    ])
+    const comments = [...plan.added.entries()].find(([path]) => /xl\/comments\d+\.xml/.test(path))
+    const xml = comments![1]
+    expect(xml).toContain('<author>A_x0001_B</author>')
+    expect(xml).toContain('C_x000B_D')
+    expect(xml).not.toContain('\u0001')
+    expect(xml).not.toContain('\u000b')
+  })
+
   it('creates the VML drawing with one Note shape per comment', async () => {
     const plan = await planNotes(NOTES)
     const vml = [...plan.added.entries()].find(([path]) =>
