@@ -52,6 +52,22 @@ describe('buildChartNode', () => {
     expect(a[1]!).toBeGreaterThan(a[a.length - 1]!)
   })
 
+  it('handles a large valid line series without spread overflow', () => {
+    const model: ChartModel = {
+      kind: 'line',
+      categories: ['x'],
+      series: [
+        {
+          name: 'large',
+          color: '#4472C4',
+          values: Array.from({ length: 130_000 }, (_, index) => index),
+        },
+      ],
+    }
+    const node = buildChartNode('r_large', 'large', model, box, vp, metrics)
+    expect(node).not.toBeNull()
+  })
+
   it('builds clustered bars with per-series colors and non-overlapping x', () => {
     const model: ChartModel = {
       kind: 'bar',

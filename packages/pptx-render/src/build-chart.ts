@@ -72,6 +72,22 @@ function defaultLineWidthPx(model: ChartModel, scale: number): number {
   return Math.max(1.5, ptToPx(model.hasStylePart ? 1.5 : 2.25, scale))
 }
 
+function maxIter(values: Iterable<number>, fallback: number, ...more: Iterable<number>[]): number {
+  let result = fallback
+  for (const collection of [values, ...more]) {
+    for (const value of collection) if (value > result) result = value
+  }
+  return result
+}
+
+function minIter(values: Iterable<number>, fallback: number, ...more: Iterable<number>[]): number {
+  let result = fallback
+  for (const collection of [values, ...more]) {
+    for (const value of collection) if (value < result) result = value
+  }
+  return result
+}
+
 function shade(color: string, f: number): string {
   const m = /^#([0-9a-f]{6})$/i.exec(color)
   if (!m) return color
@@ -395,11 +411,11 @@ function buildChartNodeInner(
     )
     // Overlaid line series on the secondary axis don't feed into the primary range
     const overlayVals = model.series.filter((s) => !isStackSer(s) && !onSecAxis(s)).flatMap(numVals)
-    dataMax = Math.max(...posSums, ...overlayVals, 0)
-    dataMin = Math.min(...negSums, ...overlayVals, 0)
+    dataMax = maxIter(posSums, 0, overlayVals)
+    dataMin = minIter(negSums, 0, overlayVals)
   } else {
-    dataMax = Math.max(...priVals, 0)
-    dataMin = Math.min(...priVals, 0)
+    dataMax = maxIter(priVals, 0)
+    dataMin = minIter(priVals, 0)
   }
   // Percent stacked: the value axis is exactly 0-100% (−100% with negative stacks)
   if (grouping === 'percentStacked') {
@@ -415,7 +431,10 @@ function buildChartNodeInner(
   const logBase = model.valAxis?.logBase
   const { min, max, ticks } = logBase
     ? logTicks(
-        Math.min(...priVals.filter((v) => v > 0), Infinity),
+        minIter(
+          priVals.filter((v) => v > 0),
+          Infinity,
+        ),
         dataMax,
         model.valAxis?.min,
         model.valAxis?.max,
@@ -434,8 +453,8 @@ function buildChartNodeInner(
   // Secondary value axis ticks (right side): range fully independent of the primary (e.g. left axis revenue 0-250, right axis growth% 0-30)
   const sec = secVals.length
     ? ppTicks(
-        model.valAxis2?.min ?? Math.min(...secVals, 0),
-        model.valAxis2?.max ?? Math.max(...secVals, 0),
+        model.valAxis2?.min ?? minIter(secVals, 0),
+        model.valAxis2?.max ?? maxIter(secVals, 0),
         model.valAxis2?.min == null,
         model.valAxis2?.max == null,
         false,
