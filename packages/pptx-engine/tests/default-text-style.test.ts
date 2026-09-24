@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { parseDecorations, parseSlide } from '../src/parse'
+import { unescapeXml } from '../src/notes'
 import {
   parseDefaultTextStyle,
   parsePlaceholderMap,
@@ -42,6 +43,22 @@ describe('presentation defaultTextStyle (napierone 0042)', () => {
     const ctx = { defaultTextStyle: parseDefaultTextStyle(PRES) }
     const slide = parseSlide({ path: 'ppt/slides/slide1.xml', slideXml: slideWith(sp), ctx })
     expect((slide.elements[0] as any).text.paragraphs[0].runs[0].fontSize).toBe(24)
+  })
+})
+
+describe('numeric character references', () => {
+  it('preserves invalid references and decodes valid supplementary characters', () => {
+    expect(unescapeXml('before&#x110000;after')).toBe('before&#x110000;after')
+    expect(unescapeXml('before&#xD800;after')).toBe('before&#xD800;after')
+    expect(unescapeXml('before&#x1F600;after')).toBe('before😀after')
+
+    const layout =
+      '<?xml version="1.0"?><p:sldLayout xmlns:p="p" xmlns:a="a"><p:cSld><p:spTree>' +
+      '<p:sp><p:nvSpPr><p:cNvPr id="1" name="Body"/><p:cNvSpPr/><p:nvPr><p:ph type="body" idx="1"/></p:nvPr></p:nvSpPr>' +
+      '<p:spPr/><p:txBody><a:lstStyle><a:lvl1pPr><a:buChar char="&#x110000;"/></a:lvl1pPr></a:lstStyle></p:txBody></p:sp>' +
+      '</p:spTree></p:cSld></p:sldLayout>'
+    const map = parsePlaceholderMap(layout)
+    expect((map.entries[0] as any).textStyle.levels[0].bullet.char).toBe('&#x110000;')
   })
 })
 

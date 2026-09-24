@@ -19,7 +19,7 @@ import { XMLParser } from 'fast-xml-parser'
 import type { Transform, TextAlign } from './types'
 import { type EaScript, type Theme, eaScriptOfLang, resolveFontRef } from './theme'
 import { resolveColorNode } from './color'
-import { asXmlNode, xmlArray, type XmlNode } from './xml-utils'
+import { asXmlNode, decodeNumericCharRefs, xmlArray, type XmlNode } from './xml-utils'
 
 const phParser = new XMLParser({
   ignoreAttributes: false,
@@ -240,9 +240,7 @@ const ALIGN_MAP: Record<string, TextAlign> = {
 
 /** fast-xml-parser does not decode numeric character references in attributes (&#x2022; etc.); done here. */
 function decodeAttrCharRefs(s: string): string {
-  return s
-    .replace(/&#x([0-9a-fA-F]+);/g, (_, h) => String.fromCodePoint(parseInt(h, 16)))
-    .replace(/&#(\d+);/g, (_, d) => String.fromCodePoint(parseInt(d, 10)))
+  return decodeNumericCharRefs(s)
 }
 
 /** <a:spcPct val="150000"/> → 150 (%). */

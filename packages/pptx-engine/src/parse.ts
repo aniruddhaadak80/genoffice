@@ -69,6 +69,7 @@ import {
   type TablePartStyle,
   type TableStyleFlags,
 } from './table-style'
+import { decodeNumericCharRefs } from './xml-utils'
 
 const parser = new XMLParser({
   ignoreAttributes: false,
@@ -3726,9 +3727,7 @@ function parseParagraphDefRPr(defRPrNode: any, style: LevelTextStyle): Paragraph
 
 /** fast-xml-parser does not decode numeric character references in attributes (&#x2022; etc.); done here. */
 function decodeCharRefs(s: string): string {
-  return s
-    .replace(/&#x([0-9a-fA-F]+);/g, (_, h) => String.fromCodePoint(parseInt(h, 16)))
-    .replace(/&#(\d+);/g, (_, d) => String.fromCodePoint(parseInt(d, 10)))
+  return decodeNumericCharRefs(s)
 }
 
 // East Asian (OOXML a:ea bucket): Chinese/Japanese + Hangul (jamo/syllables), matching the EAW fullwidth ranges in metrics

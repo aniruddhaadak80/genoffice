@@ -13,6 +13,21 @@ export function asXmlNode(v: unknown): XmlNode {
   return typeof v === 'object' && v !== null ? (v as XmlNode) : {}
 }
 
+export function decodeNumericCharRefs(text: string): string {
+  return text.replace(/&#(?:x([0-9a-fA-F]+)|([0-9]+));/g, (entity, hex, decimal) => {
+    const code = hex === undefined ? Number(decimal) : Number.parseInt(hex, 16)
+    if (
+      !Number.isInteger(code) ||
+      code < 0 ||
+      code > 0x10ffff ||
+      (code >= 0xd800 && code <= 0xdfff)
+    ) {
+      return entity
+    }
+    return String.fromCodePoint(code)
+  })
+}
+
 /** Normalize fast-xml-parser's single-child collapse: always get an array of element nodes. */
 export function xmlArray(v: unknown): XmlNode[] {
   if (Array.isArray(v)) return v.map(asXmlNode)
