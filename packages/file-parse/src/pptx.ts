@@ -12,6 +12,7 @@ const parser = new XMLParser({
   trimValues: false,
   parseTagValue: false,
   preserveOrder: true,
+  removeNSPrefix: true,
 })
 
 const manifestParser = new XMLParser({
@@ -19,6 +20,7 @@ const manifestParser = new XMLParser({
   attributeNamePrefix: '@_',
   trimValues: false,
   parseTagValue: false,
+  removeNSPrefix: true,
   attributeValueProcessor: (_name, value) => value.trim(),
 })
 
@@ -36,11 +38,11 @@ async function presentationSlideEntries(zip: JSZip): Promise<(string | null)[] |
   const presXml = await zipText(zip, 'ppt/presentation.xml')
   if (presXml === undefined) return null
   const pres = manifestParser.parse(presXml) as {
-    'p:presentation'?: {
-      'p:sldIdLst'?: { 'p:sldId'?: Record<string, string> | Record<string, string>[] }
+    presentation?: {
+      sldIdLst?: { sldId?: Record<string, string> | Record<string, string>[] }
     }
   }
-  const slideIds = asArray(pres['p:presentation']?.['p:sldIdLst']?.['p:sldId'])
+  const slideIds = asArray(pres.presentation?.sldIdLst?.sldId)
 
   const rels = new Map<string, { target: string; type: string; external: boolean }>()
   const relsXml = await zipText(zip, 'ppt/_rels/presentation.xml.rels')
@@ -61,7 +63,7 @@ async function presentationSlideEntries(zip: JSZip): Promise<(string | null)[] |
 
   const entries: (string | null)[] = []
   for (const sldId of slideIds) {
-    const rel = rels.get(sldId['@_r:id'] ?? '')
+    const rel = rels.get(sldId['@_id'] ?? '')
     entries.push(
       rel && !rel.external && rel.target && rel.type.endsWith('/slide')
         ? resolveTarget('ppt/presentation.xml', rel.target)
@@ -93,12 +95,12 @@ function collectText(nodes: readonly unknown[], out: string[], isText = false): 
     for (const [key, value] of Object.entries(node)) {
       if (key === '#text') {
         if (isText) out.push(String(value))
-      } else if (key === 'a:br') {
+      } else if (key === 'br') {
         out.push('\n')
-      } else if (key === 'a:tab') {
+      } else if (key === 'tab') {
         out.push('\t')
       } else if (Array.isArray(value)) {
-        collectText(value, out, key === 'a:t')
+        collectText(value, out, key === 't')
       }
     }
   }
@@ -110,7 +112,7 @@ function collectParagraphs(nodes: readonly unknown[], out: string[]): void {
     if (node == null || typeof node !== 'object') continue
     for (const [key, value] of Object.entries(node)) {
       if (!Array.isArray(value)) continue
-      if (key === 'a:p') {
+      if (key === 'p') {
         const texts: string[] = []
         collectText(value, texts)
         const line = texts.join('')
@@ -128,7 +130,7 @@ function countPictures(nodes: readonly unknown[]): number {
     if (node == null || typeof node !== 'object') continue
     for (const [key, value] of Object.entries(node)) {
       if (!Array.isArray(value)) continue
-      if (key === 'p:pic') count += 1
+      if (key === 'pic') count += 1
       else count += countPictures(value)
     }
   }
