@@ -17,7 +17,7 @@ import {
   removeCommentFromDoc,
   wordRangeAtCaret,
 } from './editor/comments'
-import { blockTexts, compareParagraphs, type CompareEntry } from './editor/compare'
+import { blockTexts, compareParagraphs, editorTexts, type CompareEntry } from './editor/compare'
 import { pendingCommentPluginKey } from './editor/extensions'
 import type { InkAnnotation } from './editor/ink'
 import {
@@ -282,10 +282,10 @@ export async function compareWithFile(ctx: ReviewContext): Promise<void> {
   }
   try {
     const otherParsed = await parseDocx(await fetchDocBytes(other.dataUrl))
-    const entries = compareParagraphs(
-      blockTexts(ctx.doc.parsed.blocks),
-      blockTexts(otherParsed.blocks),
-    )
+    const currentTexts = ctx.editor
+      ? editorTexts(ctx.editor.getJSON())
+      : blockTexts(ctx.doc.parsed.blocks)
+    const entries = compareParagraphs(currentTexts, blockTexts(otherParsed.blocks))
     ctx.setCompareResult({ otherName: other.name, entries })
   } catch (err) {
     ctx.setStatus(t('appCompareFailed', { error: String(err) }))

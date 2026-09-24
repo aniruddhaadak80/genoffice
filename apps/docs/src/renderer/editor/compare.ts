@@ -23,6 +23,29 @@ export function blockTexts(blocks: Block[]): string[] {
     })
 }
 
+interface PmJsonNode {
+  readonly type?: string
+  readonly text?: string
+  readonly attrs?: Record<string, unknown>
+  readonly content?: readonly PmJsonNode[]
+}
+
+function asPmJsonNode(value: unknown): PmJsonNode | null {
+  return typeof value === 'object' && value !== null ? (value as PmJsonNode) : null
+}
+
+function pmNodeText(node: PmJsonNode): string {
+  if (typeof node.text === 'string') return node.text
+  if (node.content) return node.content.map(pmNodeText).join('')
+  return typeof node.attrs?.previewText === 'string' ? node.attrs.previewText : ''
+}
+
+export function editorTexts(value: unknown): string[] {
+  const root = asPmJsonNode(value)
+  if (!root?.content) return []
+  return root.content.filter((node) => node.attrs?.hidden !== true).map(pmNodeText)
+}
+
 /** LCS-based paragraph diff; a removal directly followed by an addition merges into 'changed' */
 export function compareParagraphs(left: string[], right: string[]): CompareEntry[] {
   const n = left.length
