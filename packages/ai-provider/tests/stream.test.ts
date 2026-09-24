@@ -550,6 +550,24 @@ describe('streamForProvider: gemini', () => {
     expect(toolCalls[0]).toMatchObject({ name: 'set_cell', input: { a1: '42' } })
   })
 
+  it('aborts when a turn starts more tool calls than the count cap', async () => {
+    const calls = Array.from(
+      { length: 101 },
+      (_, index) =>
+        `data: ${JSON.stringify({
+          candidates: [
+            { content: { parts: [{ functionCall: { name: 'do_thing', args: { index } } }] } },
+          ],
+        })}`,
+    )
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(okResponse(sseStream(calls))))
+    const { toolCalls, cb } = collector()
+    await expect(
+      streamForProvider('gemini', { apiKey: 'k', model: 'm' }, 'sys', [], [], 100, cb),
+    ).rejects.toThrow(/Too many streamed tool calls/)
+    expect(toolCalls).toHaveLength(100)
+  })
+
   it('throws when the prompt is blocked instead of finishing an empty turn', async () => {
     const body = sseStream(['data: {"promptFeedback":{"blockReason":"SAFETY"}}'])
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(okResponse(body)))
