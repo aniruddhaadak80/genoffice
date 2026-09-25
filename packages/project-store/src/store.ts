@@ -161,28 +161,34 @@ function readAllChatRecords(filePath: string): ChatMessage[] {
   return parseChatRecords(readFileSync(filePath, 'utf8'))
 }
 
+const terminatedJsonl = new Set<string>()
+
 function appendJsonLines(filePath: string, lines: string): void {
   if (!lines) return
   let prefix = ''
-  try {
-    const size = statSync(filePath).size
-    if (size > 0) {
-      const fd = openSync(filePath, 'r')
-      try {
-        const lastByte = Buffer.allocUnsafe(1)
-        readSync(fd, lastByte, 0, 1, size - 1)
-        if (lastByte[0] !== 0x0a) prefix = '\n'
-      } finally {
-        closeSync(fd)
+  if (!terminatedJsonl.has(filePath)) {
+    try {
+      const size = statSync(filePath).size
+      if (size > 0) {
+        const fd = openSync(filePath, 'r')
+        try {
+          const lastByte = Buffer.allocUnsafe(1)
+          readSync(fd, lastByte, 0, 1, size - 1)
+          if (lastByte[0] !== 0x0a) prefix = '\n'
+        } finally {
+          closeSync(fd)
+        }
       }
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
     }
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
   }
   appendFileSync(filePath, prefix + lines, 'utf8')
+  terminatedJsonl.add(filePath)
 }
 
 function mergeChatFiles(oldPath: string, newPath: string): number {
+  terminatedJsonl.delete(newPath)
   const existing = readAllChatRecords(newPath)
   const moved = readAllChatRecords(oldPath)
   let seq = existing.reduce((m, msg) => Math.max(m, msg.seq), -1) + 1
@@ -192,22 +198,21 @@ function mergeChatFiles(oldPath: string, newPath: string): number {
   if (movedLines) {
     const target = readFileSync(newPath)
     const boundary =
-      target.length > 0 && target[target.length - 1] !== 0x0a
-        ? Buffer.from('\n')
-        : Buffer.alloc(0)
+      target.length > 0 && target[target.length - 1] !== 0x0a ? Buffer.from('\n') : Buffer.alloc(0)
     const tmpPath = `${newPath}.${randomBytes(6).toString('hex')}.tmp`
     try {
       writeFileSync(tmpPath, Buffer.concat([target, boundary, Buffer.from(movedLines, 'utf8')]))
       renameSync(tmpPath, newPath)
+      terminatedJsonl.add(newPath)
     } catch (error) {
       try {
         unlinkSync(tmpPath)
-      } catch {
-      }
+      } catch {}
       throw error
     }
   }
   unlinkSync(oldPath)
+  terminatedJsonl.delete(oldPath)
   return seq - 1
 }
 
@@ -280,9 +285,10 @@ export class ProjectStore {
       this.seqCounters.set(key, next)
       return next
     }
-    // Initialization: scan the existing file for the max seq
-    const existing = this.loadChat(projectId, chatId, 10_000)
-    const maxSeq = existing.reduce((m, msg) => Math.max(m, msg.seq), -1)
+    const filePath = this.chatPath(projectId, chatId)
+    const existing = existsSync(filePath) ? readAllChatRecords(filePath) : []
+    const pending = this.pendingFirstWrite.get(key) ?? []
+    const maxSeq = existing.concat(pending).reduce((m, msg) => Math.max(m, msg.seq), -1)
     const next = maxSeq + 1
     this.seqCounters.set(key, next)
     return next
@@ -595,6 +601,10 @@ export class ProjectStore {
         ensureDir(dirname(newPath))
         if (!existsSync(newPath)) {
           renameSync(oldPath, newPath)
+          if (terminatedJsonl.has(oldPath)) {
+            terminatedJsonl.delete(oldPath)
+            terminatedJsonl.add(newPath)
+          }
         } else {
           mergedMaxSeq = mergeChatFiles(oldPath, newPath)
         }
