@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { FileIndexer } from '../src/main/file-index/indexer'
-import { scanFiles } from '../src/main/file-index/scan'
+import { scanFiles, statResult } from '../src/main/file-index/scan'
 import { FileIndexStore } from '../src/main/file-index/store'
 
 let dir = ''
@@ -64,10 +64,28 @@ describe('scanFiles budgets', () => {
     expect(result.files).toEqual([])
     expect(result.truncated).toBe(true)
   })
+  it('separates confirmed absence from stat errors', () => {
+    dir = mkdtempSync(join(tmpdir(), 'genoffice-stat-result-'))
+    expect(statResult(join(dir, 'missing.md'))).toEqual({ kind: 'missing' })
+    expect(statResult('\u0000')).toMatchObject({ kind: 'error' })
+  })
+
+  it('marks a directory read error incomplete without calling it truncation', () => {
+    const result = scanFiles('\u0000', {
+      maxDepth: 2,
+      maxFiles: 10,
+      timeBudgetMs: 1_000,
+      now: () => 0,
+    })
+    expect(result.files).toEqual([])
+    expect(result.truncated).toBe(false)
+    expect(result.incomplete).toBe(true)
+    expect(result.error).toBeTruthy()
+  })
 })
 
 describe('FileIndexer incomplete scans', () => {
-  it('preserves known entries and reports a truncated scan', async () => {
+  it('preserves known entries and reports an incomplete scan', async () => {
     dir = mkdtempSync(join(tmpdir(), 'genoffice-scan-index-'))
     const store = new FileIndexStore(join(dir, 'index.db'))
     const knownPath = join(dir, 'known.md')
@@ -76,7 +94,7 @@ describe('FileIndexer incomplete scans', () => {
     const workerPath = join(dir, 'worker.mjs')
     writeFileSync(
       workerPath,
-      `import { parentPort } from 'node:worker_threads'\nparentPort.on('message', (request) => parentPort.postMessage({ id: request.id, type: 'scan', files: [], truncated: true }))\n`,
+      `import { parentPort } from 'node:worker_threads'\nparentPort.on('message', (request) => parentPort.postMessage({ id: request.id, type: 'scan', files: [], truncated: false, incomplete: true, error: 'scan failed' }))\n`,
       'utf8',
     )
     const indexer = new FileIndexer(store, workerPath, {
@@ -87,7 +105,39 @@ describe('FileIndexer incomplete scans', () => {
     try {
       await indexer.scan()
       expect(store.listAll().has(knownPath)).toBe(true)
-      expect(indexer.progress().truncated).toBe(true)
+      expect(indexer.progress()).toMatchObject({
+        truncated: false,
+        incomplete: true,
+        error: 'scan failed',
+      })
+    } finally {
+      indexer.stop()
+      store.close()
+    }
+  })
+
+  it('preserves known entries when the scan worker exits', async () => {
+    dir = mkdtempSync(join(tmpdir(), 'genoffice-scan-worker-'))
+    const store = new FileIndexStore(join(dir, 'index.db'))
+    const knownPath = join(dir, 'known.md')
+    writeFileSync(knownPath, 'known')
+    store.upsert({ path: knownPath, mtimeMs: 1, sizeBytes: 6 }, 'known', 'ok')
+    const workerPath = join(dir, 'worker.mjs')
+    writeFileSync(
+      workerPath,
+      `import { parentPort } from 'node:worker_threads'\nparentPort.on('message', () => process.exit(1))\n`,
+      'utf8',
+    )
+    const indexer = new FileIndexer(store, workerPath, {
+      roots: () => [dir],
+      extraPaths: () => [],
+    })
+
+    try {
+      await indexer.scan()
+      expect(store.listAll().has(knownPath)).toBe(true)
+      expect(indexer.progress().incomplete).toBe(true)
+      expect(indexer.progress().error).toBe('worker exited')
     } finally {
       indexer.stop()
       store.close()

@@ -74,12 +74,26 @@ function asRecentPage(result: unknown): RecentPage {
 const EMPTY_SEARCH: FileSearchPage = {
   hits: [],
   total: 0,
-  index: { indexed: 0, pending: 0, scanning: false, truncated: false },
+  index: { indexed: 0, pending: 0, scanning: false, truncated: false, incomplete: false },
 }
 
 function asSearchPage(result: unknown): FileSearchPage {
   if (result && typeof result === 'object' && Array.isArray((result as FileSearchPage).hits)) {
-    return result as FileSearchPage
+    const page = result as FileSearchPage
+    const index = page.index
+    const error = typeof index?.error === 'string' ? index.error : undefined
+    return {
+      hits: page.hits,
+      total: typeof page.total === 'number' ? page.total : page.hits.length,
+      index: {
+        indexed: typeof index?.indexed === 'number' ? index.indexed : 0,
+        pending: typeof index?.pending === 'number' ? index.pending : 0,
+        scanning: index?.scanning === true,
+        truncated: index?.truncated === true,
+        incomplete: index?.incomplete === true || index?.truncated === true || !!error,
+        ...(error ? { error } : {}),
+      },
+    }
   }
   return EMPTY_SEARCH
 }

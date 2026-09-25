@@ -12,7 +12,14 @@ export type WorkerRequest =
 
 export type WorkerResponse =
   | { id: number; type: 'extract'; result: Awaited<ReturnType<typeof extractText>> }
-  | { id: number; type: 'scan'; files: ReturnType<typeof scanFiles>['files']; truncated: boolean }
+  | {
+      id: number
+      type: 'scan'
+      files: ReturnType<typeof scanFiles>['files']
+      truncated: boolean
+      incomplete: boolean
+      error?: string
+    }
 
 parentPort?.on('message', async (req: WorkerRequest) => {
   if (req.type === 'extract') {
@@ -28,6 +35,8 @@ parentPort?.on('message', async (req: WorkerRequest) => {
       type: 'scan',
       files: result.files,
       truncated: result.truncated,
+      incomplete: result.incomplete,
+      error: result.error,
     } satisfies WorkerResponse)
   }
 })

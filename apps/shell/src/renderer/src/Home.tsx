@@ -1621,7 +1621,9 @@ export function Home() {
         if (seq !== searchSeq.current) return
         setSearchPage(page)
         // results grow while the background index catches up
-        if (page.index.pending > 0 || page.index.scanning) timer = window.setTimeout(run, 1500)
+        if (page.index.pending > 0 || page.index.scanning || page.index.incomplete) {
+          timer = window.setTimeout(run, 1500)
+        }
       })
     }
     timer = window.setTimeout(run, 150)
@@ -2931,7 +2933,7 @@ export function Home() {
 
   const renderSearchResults = () => {
     const page = searchPage
-    const busy = !!page && (page.index.pending > 0 || page.index.scanning)
+    const busy = !!page && (page.index.pending > 0 || page.index.scanning || page.index.incomplete)
     return (
       <div className="search-results" aria-live="polite">
         {busy && (
