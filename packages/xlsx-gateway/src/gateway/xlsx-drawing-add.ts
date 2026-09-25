@@ -3,6 +3,7 @@
 /// worksheet/drawing relationships, and the [Content_Types].xml overrides.
 
 import { ensureRelationshipNamespace } from './xlsx-namespace'
+import { nextFreeRelationshipId } from './xlsx-sheets'
 
 export class VisualAddError extends Error {}
 
@@ -776,11 +777,7 @@ export async function appendRelationship(
     : '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n' +
       '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
       '</Relationships>'
-  let max = 0
-  for (const match of xml.matchAll(/\bId="rId(\d+)"/g)) {
-    max = Math.max(max, Number(match[1]))
-  }
-  const id = `rId${max + 1}`
+  const id = nextFreeRelationshipId(xml)
   const element =
     `<Relationship Id="${id}" Type="${escapeXmlAttribute(type)}" ` +
     `Target="${escapeXmlAttribute(target)}"/>`

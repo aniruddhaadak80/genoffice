@@ -1259,7 +1259,7 @@ function parseAxis(ax: any, theme?: Theme): ChartAxisStyle | undefined {
   if (scaling?.['c:max']?.['@_val'] != null && Number.isFinite(max)) out.max = max
   if (scaling?.['c:orientation']?.['@_val'] === 'maxMin') out.reversed = true
   const logBase = Number(scaling?.['c:logBase']?.['@_val'])
-  if (Number.isFinite(logBase) && logBase > 1) out.logBase = logBase
+  if (Number.isFinite(logBase) && logBase >= 2 && logBase <= 1000) out.logBase = logBase
   const crosses = ax['c:crosses']?.['@_val']
   if (crosses === 'autoZero' || crosses === 'min' || crosses === 'max') out.crosses = crosses
   const tickLblPos = ax['c:tickLblPos']?.['@_val']
