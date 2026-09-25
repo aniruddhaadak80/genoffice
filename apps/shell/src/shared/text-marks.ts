@@ -39,19 +39,59 @@ export function findRanges(hay: string, needles: readonly string[]): Array<[numb
   return merged
 }
 
+interface SourceRange {
+  readonly start: number
+  readonly end: number
+}
+
+const graphemeSegmenter =
+  typeof Intl.Segmenter === 'function'
+    ? new Intl.Segmenter(undefined, { granularity: 'grapheme' })
+    : null
+
+function isContinuation(ch: string): boolean {
+  return /^[\p{M}\u200d\uFE00-\uFE0F]$/u.test(ch)
+}
+
+function sourceRanges(text: string): SourceRange[] {
+  if (graphemeSegmenter) {
+    return Array.from(graphemeSegmenter.segment(text), ({ index, segment }) => ({
+      start: index,
+      end: index + segment.length,
+    }))
+  }
+  const ranges: SourceRange[] = []
+  let offset = 0
+  let start = 0
+  for (const ch of text) {
+    if (offset > 0 && !isContinuation(ch)) {
+      ranges.push({ start, end: offset })
+      start = offset
+    }
+    offset += ch.length
+  }
+  if (offset > 0) ranges.push({ start, end: offset })
+  return ranges
+}
+
 function foldTextWithMap(text: string): { text: string; starts: number[]; ends: number[] } {
-  let folded = ''
+  const folded = text.normalize('NFKC').toLowerCase()
   const starts: number[] = []
   const ends: number[] = []
   let offset = 0
-  for (const ch of text) {
-    const normalized = ch.normalize('NFKC').toLowerCase()
-    for (let i = 0; i < normalized.length; i += 1) {
-      starts.push(offset)
-      ends.push(offset + ch.length)
+  for (const { start, end } of sourceRanges(text)) {
+    const length = text.slice(start, end).normalize('NFKC').toLowerCase().length
+    const nextOffset = Math.min(folded.length, offset + length)
+    for (let i = offset; i < nextOffset; i += 1) {
+      starts.push(start)
+      ends.push(end)
     }
-    folded += normalized
-    offset += ch.length
+    offset = nextOffset
+  }
+  while (offset < folded.length) {
+    starts.push(0)
+    ends.push(text.length)
+    offset += 1
   }
   return { text: folded, starts, ends }
 }
