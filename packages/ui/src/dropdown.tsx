@@ -10,7 +10,7 @@
  * Styling comes from dropdown.css (gs-dd* classes, token colors only); apps
  * size the control via `className` on the wrapper.
  */
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useId, useRef, useState } from 'react'
 import { useDismissablePopover } from './popover-dismiss'
 
 export interface DropdownOption<K extends string = string> {
@@ -51,6 +51,10 @@ export function Dropdown<K extends string>({
   const [active, setActive] = useState(0)
   const popRef = useRef<HTMLDivElement>(null)
   const wrapRef = useRef<HTMLSpanElement>(null)
+  // Focus stays on the trigger (menu-button pattern), so the open listbox and
+  // the option the arrows are on are referenced by id instead of by focus.
+  const listId = useId()
+  const optionId = (index: number): string => `${listId}-option-${index}`
   // guarded (capture-phase) dismissal: a press on another dropdown's trigger
   // must close this one even though that trigger stops mousedown propagation
   useDismissablePopover(open, () => setOpen(false), { inside: () => [wrapRef.current] })
@@ -62,6 +66,8 @@ export function Dropdown<K extends string>({
   // No fallback to options[0]: an off-list value (e.g. a document-only font)
   // must read as itself, not masquerade as the first option
   const current = options.find((o) => o.value === value)
+  // mirrors the .active class: a disabled row is never the active option
+  const activeOption = open && options[active] && !options[active]!.disabled ? active : null
   const openList = () => {
     const i = options.findIndex((o) => o.value === value)
     setActive(i < 0 ? 0 : i)
@@ -104,6 +110,8 @@ export function Dropdown<K extends string>({
         data-tip={tip}
         aria-haspopup="listbox"
         aria-expanded={open}
+        aria-controls={open ? listId : undefined}
+        aria-activedescendant={activeOption === null ? undefined : optionId(activeOption)}
         aria-label={ariaLabel ?? current?.label ?? value}
         aria-required={ariaRequired}
         aria-invalid={ariaInvalid}
@@ -129,10 +137,11 @@ export function Dropdown<K extends string>({
         </span>
       </button>
       {open && (
-        <div ref={popRef} className="gs-dd-pop" role="listbox">
+        <div ref={popRef} className="gs-dd-pop" role="listbox" id={listId}>
           {options.map((o, i) => (
             <button
               key={o.value}
+              id={optionId(i)}
               type="button"
               role="option"
               // menu-button pattern: options never join the tab order (focus
