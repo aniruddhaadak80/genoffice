@@ -39,12 +39,43 @@ export function findRanges(hay: string, needles: readonly string[]): Array<[numb
   return merged
 }
 
-/** the whole text split into hit / non-hit runs; a single non-hit run when nothing matches */
+function foldTextWithMap(text: string): { text: string; starts: number[]; ends: number[] } {
+  let folded = ''
+  const starts: number[] = []
+  const ends: number[] = []
+  let offset = 0
+  for (const ch of text) {
+    const normalized = ch.normalize('NFKC').toLowerCase()
+    for (let i = 0; i < normalized.length; i += 1) {
+      starts.push(offset)
+      ends.push(offset + ch.length)
+    }
+    folded += normalized
+    offset += ch.length
+  }
+  return { text: folded, starts, ends }
+}
+
+export function findMappedRanges(text: string, needles: readonly string[]): Array<[number, number]> {
+  const folded = foldTextWithMap(text)
+  const ranges = findRanges(folded.text, needles.map(foldText))
+  const mapped = ranges.map(([start, end]) => {
+    const first = folded.starts[start] ?? text.length
+    const last = end === folded.text.length ? text.length : (folded.ends[end - 1] ?? text.length)
+    return [first, Math.max(first, last)] as [number, number]
+  })
+  mapped.sort((a, b) => a[0] - b[0])
+  const merged: Array<[number, number]> = []
+  for (const range of mapped) {
+    const last = merged[merged.length - 1]
+    if (last && range[0] <= last[1]) last[1] = Math.max(last[1], range[1])
+    else merged.push(range)
+  }
+  return merged
+}
+
 export function markText(text: string, needles: readonly string[]): TextMark[] {
-  const folded = foldText(text)
-  // NFKC can change lengths; fall back to a plain lowercase when it does
-  const hay = folded.length === text.length ? folded : text.toLowerCase()
-  const ranges = findRanges(hay, needles.map(foldText))
+  const ranges = findMappedRanges(text, needles)
   if (ranges.length === 0) return [{ text, hit: false }]
   const out: TextMark[] = []
   let cursor = 0

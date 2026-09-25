@@ -7,6 +7,7 @@ import {
   tokenize,
 } from '../src/main/file-index/tokenize'
 import { buildSnippet, containsAny } from '../src/main/file-index/snippet'
+import { markText } from '../src/shared/text-marks'
 
 describe('tokenize', () => {
   it('splits CJK runs into bigrams and keeps Latin words whole', () => {
@@ -126,6 +127,17 @@ describe('buildSnippet', () => {
     expect(parts.filter((p) => p.hit).map((p) => p.text)).toEqual(['\u62a5\u544a', 'rep'])
     expect(parts[parts.length - 1]).toEqual({ text: '…', hit: false })
     expect(parts.map((p) => p.text).join('').length).toBeLessThanOrEqual(160)
+  })
+
+  it('maps NFKC expansions back to the original text', () => {
+    const parts = buildSnippet('The ﬁle report', ['file'])!
+    expect(parts.filter((p) => p.hit).map((p) => p.text)).toEqual(['ﬁle'])
+    expect(parts.map((p) => p.text).join('')).toBe('The ﬁle report')
+    expect(markText('The ﬁle report', ['file'])).toEqual([
+      { text: 'The ', hit: false },
+      { text: 'ﬁle', hit: true },
+      { text: ' report', hit: false },
+    ])
   })
 
   it('matches case-insensitively and returns null without a hit', () => {
