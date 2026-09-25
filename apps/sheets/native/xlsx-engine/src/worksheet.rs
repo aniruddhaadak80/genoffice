@@ -1389,34 +1389,65 @@ pub(crate) fn strip_future_function_markers(formula: &str) -> String {
             }
             continue;
         }
-        let marker_len = if bytes[index..].starts_with(b"_xlfn.") {
-            6
-        } else if bytes[index..].starts_with(b"_xlws.") {
-            6
-        } else {
-            0
-        };
-        if marker_len > 0 {
-            let mut end = index + marker_len;
-            while end < bytes.len()
-                && (bytes[end].is_ascii_alphanumeric() || bytes[end] == b'_' || bytes[end] == b'.')
+        let start = index;
+        let end = formula_name_end(formula, start);
+        if end > start {
+            let token = &formula[start..end];
+            let marker_len = if token
+                .get(..6)
+                .is_some_and(|prefix| prefix.eq_ignore_ascii_case("_xlfn."))
             {
-                end += 1;
-            }
-            while end < bytes.len() && bytes[end].is_ascii_whitespace() {
-                end += 1;
-            }
-            if end > index + marker_len && bytes.get(end) == Some(&b'(') {
-                out.push_str(&formula[copied_from..index]);
-                copied_from = index + marker_len;
-                index = copied_from;
+                6
+            } else if token
+                .get(..6)
+                .is_some_and(|prefix| prefix.eq_ignore_ascii_case("_xlws."))
+            {
+                6
+            } else {
+                0
+            };
+            let marker_len = if token
+                .get(..12)
+                .is_some_and(|prefix| prefix.eq_ignore_ascii_case("_xlfn._xlws."))
+            {
+                12
+            } else {
+                marker_len
+            };
+            let valid_name = marker_len > 0
+                && !token[marker_len..].is_empty()
+                && token[marker_len..].chars().all(|character| {
+                    character.is_alphanumeric() || matches!(character, '_' | '.' | '\\' | '$')
+                });
+            let after = formula[end..].trim_start();
+            if valid_name && after.starts_with('(') {
+                out.push_str(&formula[copied_from..start]);
+                out.push_str(&token[marker_len..]);
+                copied_from = end;
+                index = end;
                 continue;
             }
+            index = end;
+            continue;
         }
-        index += 1;
+        let Some(character) = formula[index..].chars().next() else {
+            break;
+        };
+        index += character.len_utf8();
     }
     out.push_str(&formula[copied_from..]);
     out
+}
+
+fn formula_name_end(formula: &str, start: usize) -> usize {
+    let mut end = start;
+    for (offset, character) in formula[start..].char_indices() {
+        if !character.is_alphanumeric() && !matches!(character, '_' | '.' | '\\' | '$') {
+            break;
+        }
+        end = start + offset + character.len_utf8();
+    }
+    end
 }
 
 /// `ref` of a `<f t="array">` element; None for ordinary formulas.
