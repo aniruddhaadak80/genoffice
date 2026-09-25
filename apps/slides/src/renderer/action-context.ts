@@ -247,7 +247,7 @@ export interface ActionCtx {
 
   // App-retained helpers (stable or latest-bound in App)
   applySlide: (slideIndex: number, updated: RenderSlide) => void
-  flushNotes: () => Promise<void>
+  flushNotes: () => Promise<boolean>
   findNodeCtx: (id: string) => { node: RenderNode; groupId?: string } | null
   groupIdOf: (id: string) => string | undefined
   startEdit: (sourceId: string, caret?: { x: number; y: number }) => void

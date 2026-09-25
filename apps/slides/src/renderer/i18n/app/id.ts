@@ -224,6 +224,8 @@ export const id = {
   appOutlineNoText: '(Tidak ada teks)',
   appSectionHeaderTitle: 'Klik untuk menciutkan/memperluas; klik kanan untuk mengelola bagian',
   appNotesLabel: 'Catatan',
+  appNotesAiConflict:
+    'AI mengubah catatan ini saat Anda mengetik. Draf Anda tetap ada dan akan dipertahankan saat Anda keluar dari catatan.',
   appNotesClickToAdd: 'Klik untuk menambahkan catatan',
   appNotesPlaceholder: 'Klik untuk menambahkan catatan pembicara (disimpan ke dalam .pptx)',
   appNotesShow: 'Tampilkan catatan',

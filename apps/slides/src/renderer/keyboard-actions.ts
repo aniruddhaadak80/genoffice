@@ -129,7 +129,9 @@ export function handleGlobalKeydown(
     e.preventDefault()
     void flushActiveEdit(ctx)
       .then(() => ctx.flushNotes())
-      .then(() => slideActions.addSlide(ctx))
+      .then((ok) => {
+        if (ok) slideActions.addSlide(ctx)
+      })
     return
   }
   // Undo/redo (menu accelerators normally intercept; fallback for shell/menuless scenarios)

@@ -215,6 +215,8 @@ export const th = {
   appOutlineNoText: '(ไม่มีข้อความ)',
   appSectionHeaderTitle: 'คลิกเพื่อยุบ/ขยาย คลิกขวาเพื่อจัดการส่วน',
   appNotesLabel: 'บันทึกย่อ',
+  appNotesAiConflict:
+    'AI เปลี่ยนคำอธิบายเหล่านี้ขณะที่คุณกำลังพิมพ์ ร่างของคุณยังอยู่และจะถูกเก็บเมื่อคุณออกจากคำอธิบาย',
   appNotesClickToAdd: 'คลิกเพื่อเพิ่มบันทึกย่อ',
   appNotesPlaceholder: 'คลิกเพื่อเพิ่มบันทึกย่อของผู้บรรยาย (บันทึกลงใน pptx พร้อมเอกสาร)',
   appNotesShow: 'แสดงบันทึกย่อ',

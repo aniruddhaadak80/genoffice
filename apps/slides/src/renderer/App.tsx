@@ -104,6 +104,7 @@ import type { ChartPresetDef, IconDef, SmartArtDef } from './insert-presets'
 import { GensparkMark, IconAiBeautify, IconAiFactCheck, IconAiImage } from './components/icons'
 import { ToastHost } from './components/toast'
 import { showToast } from './components/toast-bus'
+import { reconcileNotesDraft, remapNotesDraft, type NotesDraft } from './notes-draft'
 import { t, useI18n } from './i18n/locale'
 import { AiPanel } from './ai/AiPanel'
 import { ChartDataDialog } from './components/ChartDataDialog'
@@ -544,7 +545,9 @@ export function App() {
   const [showNotes, setShowNotes] = useState(true)
   const [notesText, setNotesText] = useState('')
   /** Unsaved notes draft (flushed before page switch/save) */
-  const notesDraftRef = useRef<{ index: number; text: string } | null>(null)
+  const notesDraftRef = useRef<NotesDraft | null>(null)
+  const notesPersistedTextRef = useRef('')
+  const [notesConflict, setNotesConflict] = useState(false)
   /** Notes pane height (px): default shows ~4 lines (PowerPoint-like), drag-resizable */
   const [notesHeight, setNotesHeight] = useState(100)
   const notesDragRef = useRef<{ startY: number; startH: number } | null>(null)
@@ -643,12 +646,35 @@ export function App() {
   }, [slides])
 
   /** Write the notes draft back to the main process (called on page switch / blur / before save). */
-  const flushNotes = useCallback(async () => {
+  const flushNotes = useCallback(async (): Promise<boolean> => {
     const pending = notesDraftRef.current
-    if (!pending) return
-    notesDraftRef.current = null
+    if (!pending) return true
+    if (pending.index < 0) {
+      setNotesConflict(true)
+      showToast(t('appNotesAiConflict'), 'error')
+      return false
+    }
     const ok = await window.slidesApi.setNotes({ slideIndex: pending.index, text: pending.text })
-    if (ok) setDirty(true)
+    if (!ok) {
+      const failed = t('appStatusSaveFailed', { error: t('appUnknownError') })
+      setStatus(failed)
+      showToast(failed, 'error')
+      return false
+    }
+    notesPersistedTextRef.current = pending.text
+    const latest = notesDraftRef.current
+    if (latest === pending) {
+      notesDraftRef.current = null
+    } else if (latest && latest.partPath === pending.partPath) {
+      notesDraftRef.current = {
+        ...latest,
+        baseText: pending.text,
+        conflict: false,
+      }
+    }
+    setNotesConflict(false)
+    setDirty(true)
+    return true
   }, [])
 
   // Uncapped proportional fit ratio from the stage container's measured size
@@ -831,6 +857,9 @@ export function App() {
       setDefaultFont(result.defaultFont ?? null)
       setPath(result.path)
       setCurrent(0)
+      notesDraftRef.current = null
+      notesPersistedTextRef.current = ''
+      setNotesConflict(false)
       setSelectedSlides([0])
       setSelectedIds([])
       setEditing(null)
@@ -1032,6 +1061,8 @@ export function App() {
       setEditing(null)
       setPasteFloater(null) // The paste the floater refers to may have just been undone
       notesDraftRef.current = null // Undo overrides the unsaved draft, avoiding writing an old draft back
+      notesPersistedTextRef.current = ''
+      setNotesConflict(false)
       setAnnotationsNonce((n) => n + 1) // Notes/comments aren't in RenderSlide; re-fetch
       void window.slidesApi.isDirty().then(setDirty)
     },
@@ -1502,15 +1533,20 @@ export function App() {
   )
 
   const applyDeck = useCallback((all: RenderSlide[], goTo?: number) => {
+    const draft = notesDraftRef.current
+    if (draft) {
+      const remapped = remapNotesDraft(draft, all)
+      notesDraftRef.current = remapped
+      if (remapped.conflict && !draft.conflict) {
+        setNotesConflict(true)
+        showToast(t('appNotesAiConflict'), 'error')
+      }
+    }
     setSlides(all)
     if (goTo != null) setCurrent(goTo)
     setSelectedIds([])
     setEditing(null)
     setDirty(true)
-    // The deck is the new truth: drop an in-progress notes draft (same as undo) so a stale
-    // draft can't overwrite what the AI batch wrote via setNotes on the next flush, then
-    // re-fetch notes/comments, which aren't part of RenderSlide.
-    notesDraftRef.current = null
     setAnnotationsNonce((n) => n + 1)
   }, [])
 
@@ -1908,11 +1944,46 @@ export function App() {
   useEffect(() => {
     if (!hasDoc) return
     let cancelled = false
-    void flushNotes()
-      .then(() => window.slidesApi.getNotes(current))
-      .then((t) => {
-        if (!cancelled) setNotesText(t)
-      })
+    const loadCurrentNotes = async (): Promise<void> => {
+      const text = await window.slidesApi.getNotes(current)
+      if (cancelled) return
+      notesPersistedTextRef.current = text
+      setNotesText(text)
+    }
+    void (async () => {
+      const draft = notesDraftRef.current
+      if (!draft) {
+        await loadCurrentNotes()
+        if (!cancelled) setNotesConflict(false)
+        return
+      }
+      if (draft.index < 0) {
+        if (!cancelled) setNotesConflict(true)
+        await loadCurrentNotes()
+        return
+      }
+      const persisted = await window.slidesApi.getNotes(draft.index)
+      if (cancelled || notesDraftRef.current !== draft) return
+      const reconciled = reconcileNotesDraft(draft, persisted)
+      notesDraftRef.current = reconciled.draft
+      setNotesConflict(reconciled.conflict)
+      if (reconciled.conflict && !draft.conflict) {
+        showToast(t('appNotesAiConflict'), 'error')
+      }
+      if (!reconciled.draft) {
+        notesPersistedTextRef.current = persisted
+        if (draft.index === current) {
+          setNotesText(persisted)
+          return
+        }
+      } else if (reconciled.draft.index === current) {
+        setNotesText(reconciled.draft.text)
+        return
+      } else if (!reconciled.conflict && !(await flushNotes())) {
+        return
+      }
+      await loadCurrentNotes()
+    })()
     return () => {
       cancelled = true
     }
@@ -1921,9 +1992,20 @@ export function App() {
   const onNotesChange = useCallback(
     (text: string) => {
       setNotesText(text)
-      notesDraftRef.current = { index: current, text }
+      const partPath = slide?.partPath
+      const existing = notesDraftRef.current
+      notesDraftRef.current =
+        existing?.index === current && existing.partPath === partPath
+          ? { ...existing, text }
+          : {
+              index: current,
+              partPath,
+              baseText: notesPersistedTextRef.current,
+              text,
+              conflict: false,
+            }
     },
-    [current],
+    [current, slide],
   )
 
   // ── Comments: fetch the current page's list on page switch/document change/undo (the ribbon badge uses it too) ──────────
@@ -3468,7 +3550,7 @@ export function App() {
                   setPath(p)
                   setDirty(false)
                 }}
-                onBeforeRun={flushNotes}
+                onBeforeRun={async () => void (await flushNotes())}
                 currentFilePath={path}
                 editQueue={editQueue}
                 onQueueEditInstruction={(key, instruction) =>
@@ -4200,7 +4282,7 @@ export function App() {
                   )}
                   {showNotes && (
                     <div
-                      className={`notes-pane${notesHeight < 60 ? ' notes-thin' : ''}`}
+                      className={`notes-pane${notesHeight < 60 ? ' notes-thin' : ''}${notesConflict ? ' notes-conflict' : ''}`}
                       style={{ height: notesHeight }}
                     >
                       <div
@@ -4214,6 +4296,7 @@ export function App() {
                         }
                         onChange={(e) => onNotesChange(e.target.value)}
                         onBlur={() => void flushNotes()}
+                        aria-invalid={notesConflict || undefined}
                       />
                     </div>
                   )}

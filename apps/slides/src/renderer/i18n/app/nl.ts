@@ -234,6 +234,8 @@ export const nl = {
   appSectionHeaderTitle:
     'Klik om samen/uit te vouwen; klik met de rechtermuisknop om de sectie te beheren',
   appNotesLabel: 'Notities',
+  appNotesAiConflict:
+    'AI heeft deze notities gewijzigd terwijl u typte. Uw concept blijft behouden en wordt opgeslagen wanneer u de notities verlaat.',
   appNotesClickToAdd: 'Klik om notities toe te voegen',
   appNotesPlaceholder: 'Klik om sprekersnotities toe te voegen (opgeslagen in het .pptx-bestand)',
   appNotesShow: 'Notities weergeven',

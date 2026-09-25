@@ -220,6 +220,8 @@ export const ja = {
   appOutlineNoText: '（テキストなし）',
   appSectionHeaderTitle: 'クリックで折りたたみ/展開。右クリックでセクションを管理',
   appNotesLabel: 'ノート',
+  appNotesAiConflict:
+    '入力中に AI がこのノートを変更しました。下書きは保持され、ノートを離れると保存されます。',
   appNotesClickToAdd: 'クリックしてノートを追加',
   appNotesPlaceholder: 'クリックして発表者のノートを追加（ドキュメントと一緒に pptx に保存）',
   appNotesShow: 'ノートを表示',

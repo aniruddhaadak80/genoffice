@@ -231,6 +231,8 @@ export const fr = {
   appOutlineNoText: '(Aucun texte)',
   appSectionHeaderTitle: 'Cliquez pour réduire/développer ; clic droit pour gérer la section',
   appNotesLabel: 'Notes',
+  appNotesAiConflict:
+    'L’IA a modifié ces notes pendant votre saisie. Votre brouillon est conservé et sera retenu lorsque vous quitterez les notes.',
   appNotesClickToAdd: 'Cliquez pour ajouter des notes',
   appNotesPlaceholder:
     'Cliquez pour ajouter des notes du présentateur (enregistrées dans le .pptx)',

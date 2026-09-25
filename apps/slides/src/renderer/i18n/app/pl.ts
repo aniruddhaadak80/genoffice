@@ -230,6 +230,8 @@ export const pl = {
   appSectionHeaderTitle:
     'Kliknij, aby zwinąć/rozwinąć; kliknij prawym przyciskiem, aby zarządzać sekcją',
   appNotesLabel: 'Notatki',
+  appNotesAiConflict:
+    'Sztuczna inteligencja zmieniła te notatki podczas pisania. Wersja robocza pozostaje i zostanie zapisana po wyjściu z notatek.',
   appNotesClickToAdd: 'Kliknij, aby dodać notatki',
   appNotesPlaceholder: 'Kliknij, aby dodać notatki prelegenta (zapisywane w pliku .pptx)',
   appNotesShow: 'Pokaż notatki',

@@ -231,6 +231,8 @@ export const pt = {
   appSectionHeaderTitle:
     'Clique para recolher/expandir; clique com o botão direito para gerenciar a seção',
   appNotesLabel: 'Anotações',
+  appNotesAiConflict:
+    'A IA alterou estas notas enquanto você digitava. Seu rascunho permanece e será mantido ao sair das notas.',
   appNotesClickToAdd: 'Clique para adicionar anotações',
   appNotesPlaceholder: 'Clique para adicionar anotações do orador (salvas no .pptx)',
   appNotesShow: 'Mostrar anotações',

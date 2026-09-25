@@ -230,6 +230,8 @@ export const es = {
   appSectionHeaderTitle:
     'Haga clic para contraer/expandir; clic derecho para administrar la sección',
   appNotesLabel: 'Notas',
+  appNotesAiConflict:
+    'La IA modificó estas notas mientras escribías. Tu borrador se conserva y se mantendrá al salir de las notas.',
   appNotesClickToAdd: 'Haga clic para agregar notas',
   appNotesPlaceholder: 'Haga clic para agregar notas del orador (se guardan en el .pptx)',
   appNotesShow: 'Mostrar notas',

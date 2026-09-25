@@ -228,6 +228,8 @@ export const ms = {
   appOutlineNoText: '(Tiada teks)',
   appSectionHeaderTitle: 'Klik untuk meruntuh/mengembangkan; klik kanan untuk mengurus seksyen',
   appNotesLabel: 'Nota',
+  appNotesAiConflict:
+    'AI menukar nota ini semasa anda menaip. Draf anda kekal dan akan dikekalkan semasa anda meninggalkan nota.',
   appNotesClickToAdd: 'Klik untuk menambah nota',
   appNotesPlaceholder: 'Klik untuk menambah nota penceramah (disimpan dalam fail .pptx)',
   appNotesShow: 'Tunjukkan nota',

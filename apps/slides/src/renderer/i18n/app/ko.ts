@@ -216,6 +216,8 @@ export const ko = {
   appOutlineNoText: '(텍스트 없음)',
   appSectionHeaderTitle: '클릭하여 축소/확장, 마우스 오른쪽 단추로 구역 관리',
   appNotesLabel: '노트',
+  appNotesAiConflict:
+    '입력하는 동안 AI가 이 메모를 변경했습니다. 작성 중인 내용은 유지되며 메모를 나갈 때 저장됩니다.',
   appNotesClickToAdd: '클릭하여 노트 추가',
   appNotesPlaceholder: '클릭하여 발표자 노트 추가(문서와 함께 pptx에 저장됨)',
   appNotesShow: '노트 표시',

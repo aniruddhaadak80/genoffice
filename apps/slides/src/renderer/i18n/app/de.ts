@@ -234,6 +234,8 @@ export const de = {
   appSectionHeaderTitle:
     'Klicken zum Reduzieren/Erweitern; Rechtsklick zum Verwalten des Abschnitts',
   appNotesLabel: 'Notizen',
+  appNotesAiConflict:
+    'Die KI hat diese Notizen während der Eingabe geändert. Ihr Entwurf bleibt erhalten und wird beim Verlassen der Notizen beibehalten.',
   appNotesClickToAdd: 'Klicken, um Notizen hinzuzufügen',
   appNotesPlaceholder:
     'Klicken, um Sprechernotizen hinzuzufügen (werden in der .pptx-Datei gespeichert)',

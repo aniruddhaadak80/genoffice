@@ -222,6 +222,8 @@ export const cs = {
   appOutlineNoText: '(Bez textu)',
   appSectionHeaderTitle: 'Kliknutím sbalíte/rozbalíte; pravým tlačítkem spravujete oddíl',
   appNotesLabel: 'Poznámky',
+  appNotesAiConflict:
+    'AI změnil tyto poznámky, zatímco jste psali. Váš koncept zůstane zachován a bude ponechán při opuštění poznámek.',
   appNotesClickToAdd: 'Klikněte a přidejte poznámky',
   appNotesPlaceholder: 'Klikněte a přidejte poznámky lektora (ukládají se do .pptx)',
   appNotesShow: 'Zobrazit poznámky',
