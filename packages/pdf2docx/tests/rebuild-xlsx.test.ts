@@ -4,6 +4,15 @@ import { describe, expect, it } from 'vitest'
 import type { Rect } from '../src/geometry'
 import type { IrPage, Line, Span, TableBlock, TableCellBlock, TextBlock } from '../src/ir'
 import { parseCellValue } from '../src/rebuild-xlsx/numbers'
+import {
+  MAX_XLSX_CELL_TEXT,
+  MAX_XLSX_COLUMNS,
+  MAX_XLSX_COLUMN_WIDTH,
+  MAX_XLSX_ROW_HEIGHT_PT,
+  MAX_XLSX_ROWS,
+  normalizeSheetSpec,
+  worksheetXml,
+} from '../src/rebuild-xlsx/workbook'
 import { ptToColumnChars, rebuildXlsx } from '../src/rebuild-xlsx/rebuild'
 
 const span = (text: string, over: Partial<Span> = {}): Span => ({
@@ -681,5 +690,69 @@ describe('splitBandRows via rebuildXlsx (P40)', () => {
       expect(rowOfText(`C-${i}`)).toBe(rowOfText(`A-${i}`))
       expect(rowOfText(`D-${i}`)).toBe(rowOfText(`A-${i}`))
     }
+  })
+})
+
+describe('Excel worksheet limits', () => {
+  it('bounds serialized cells, text, widths, heights, and merges', () => {
+    const longText = 'x'.repeat(MAX_XLSX_CELL_TEXT + 1)
+    const { sheet, warnings } = normalizeSheetSpec({
+      name: 'Page 1',
+      cells: [
+        { row: 0, col: 0, styleId: 0, value: { kind: 'text', text: longText } },
+        {
+          row: MAX_XLSX_ROWS - 1,
+          col: MAX_XLSX_COLUMNS - 1,
+          styleId: 0,
+          value: { kind: 'text', text: 'edge' },
+        },
+        { row: MAX_XLSX_ROWS, col: 0, styleId: 0, value: { kind: 'text', text: 'row' } },
+        { row: 0, col: MAX_XLSX_COLUMNS, styleId: 0, value: { kind: 'text', text: 'col' } },
+      ],
+      colWidths: [MAX_XLSX_COLUMN_WIDTH + 1],
+      rowHeightsPt: new Map([
+        [0, MAX_XLSX_ROW_HEIGHT_PT + 1],
+        [MAX_XLSX_ROWS, 10],
+      ]),
+      merges: ['A1:B2', 'A1:XFE1', 'A1:B1048577'],
+    })
+    expect(sheet.cells).toHaveLength(2)
+    expect(sheet.cells[0]!.value).toMatchObject({
+      kind: 'text',
+      text: longText.slice(0, MAX_XLSX_CELL_TEXT),
+    })
+    expect(sheet.cells[1]).toMatchObject({
+      row: MAX_XLSX_ROWS - 1,
+      col: MAX_XLSX_COLUMNS - 1,
+    })
+    expect(sheet.colWidths?.[0]).toBe(MAX_XLSX_COLUMN_WIDTH)
+    expect(sheet.rowHeightsPt?.get(0)).toBe(MAX_XLSX_ROW_HEIGHT_PT)
+    expect(sheet.merges).toEqual(['A1:B2'])
+    expect(warnings.some((warning) => warning.includes('dropped cells'))).toBe(true)
+    expect(warnings.some((warning) => warning.includes('truncated cell text'))).toBe(true)
+    expect(warnings.some((warning) => warning.includes('clamped column widths'))).toBe(true)
+    expect(warnings.some((warning) => warning.includes('clamped row heights'))).toBe(true)
+    expect(warnings.some((warning) => warning.includes('dropped merges'))).toBe(true)
+
+    const xml = worksheetXml(sheet)
+    expect(xml).toContain('r="XFD1048576"')
+    expect(xml).not.toContain('r="1048577"')
+    expect(xml).not.toContain('r="XFE1"')
+    expect(xml).toContain('width="255"')
+    expect(xml).toContain('ht="409"')
+  })
+
+  it('reports limits through the PDF rebuild result', async () => {
+    const text = 'x'.repeat(MAX_XLSX_CELL_TEXT + 1)
+    const { sheets, warnings } = await rebuildXlsx([
+      page({ blocks: [textBlock(text, { x0: 72, y0: 700, x1: 300, y1: 715 })] }),
+    ])
+    expect(sheets[0]!.cells[0]!.value).toMatchObject({
+      kind: 'text',
+      text: text.slice(0, MAX_XLSX_CELL_TEXT),
+    })
+    expect(warnings.some((warning) => warning.includes('Excel limits: truncated cell text'))).toBe(
+      true,
+    )
   })
 })
