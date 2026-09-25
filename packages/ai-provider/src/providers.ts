@@ -417,11 +417,27 @@ export function maxOutputTokensOf(
 
 const str = (v: unknown): string => (typeof v === 'string' ? v.trim() : '')
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+}
+
+function mergeProviderConfigs(
+  defaults: AiSettings['providers'],
+  stored: Record<string, unknown>,
+): Record<string, unknown> {
+  const merged: Record<string, unknown> = { ...defaults }
+  for (const [id, config] of Object.entries(stored)) {
+    if (isRecord(config)) merged[id] = config
+  }
+  return merged
+}
+
 /** pasted keys/URLs/model ids often carry stray whitespace, which turns into a 401 with a valid key */
-function trimConfigs(providers: AiSettings['providers']): AiSettings['providers'] {
-  const trimmed = { ...providers }
-  for (const [id, config] of Object.entries(trimmed)) {
-    trimmed[id as AiProviderId] = {
+function trimConfigs(providers: Record<string, unknown>): AiSettings['providers'] {
+  const trimmed: Record<string, unknown> = {}
+  for (const [id, config] of Object.entries(providers)) {
+    if (!isRecord(config)) continue
+    trimmed[id] = {
       ...config,
       apiKey: str(config.apiKey),
       model: str(config.model),
@@ -429,7 +445,7 @@ function trimConfigs(providers: AiSettings['providers']): AiSettings['providers'
       ...(config.cliPath !== undefined ? { cliPath: str(config.cliPath) } : {}),
     }
   }
-  return trimmed
+  return trimmed as AiSettings['providers']
 }
 
 function migrateRetiredModels(providers: AiSettings['providers']): AiSettings['providers'] {
@@ -448,33 +464,36 @@ function migrateRetiredModels(providers: AiSettings['providers']): AiSettings['p
  * "custom" provider slot. `stored` is whatever the caller read from its
  * settings file (already JSON-parsed); this function does no file I/O.
  */
-export function resolveAiSettings(
-  stored: Partial<AiSettings> & LegacyAiSettings,
-  defaults: AiSettings,
-): AiSettings {
-  if (!stored.providers) {
-    if (stored.apiKey) {
+export function resolveAiSettings(stored: unknown, defaults: AiSettings): AiSettings {
+  const settings = (isRecord(stored) ? stored : {}) as Partial<AiSettings> & LegacyAiSettings
+  const storedProviders = isRecord(settings.providers) ? settings.providers : undefined
+  if (!storedProviders) {
+    if (settings.apiKey) {
       defaults.providers.custom = {
-        apiKey: str(stored.apiKey),
-        model: str(stored.model),
-        baseUrl: str(stored.baseUrl) || 'https://api.openai.com/v1',
+        apiKey: str(settings.apiKey),
+        model: str(settings.model),
+        baseUrl: str(settings.baseUrl) || 'https://api.openai.com/v1',
       }
     }
     return defaults
   }
   return {
-    provider: stored.provider ?? defaults.provider,
+    provider: settings.provider ?? defaults.provider,
     // Trim before migrating: a pasted " deepseek-reasoner " must still hit
     // the retired-id remap instead of being sent to the API verbatim.
-    providers: migrateRetiredModels(trimConfigs({ ...defaults.providers, ...stored.providers })),
-    gskToolsEnabled: stored.gskToolsEnabled ?? defaults.gskToolsEnabled ?? true,
-    media: resolveAiMediaSettings(stored.media ?? defaults.media),
-    search: resolveAiSearchSettings(stored.search ?? defaults.search),
+    providers: migrateRetiredModels(
+      trimConfigs(mergeProviderConfigs(defaults.providers, storedProviders)),
+    ),
+    gskToolsEnabled: settings.gskToolsEnabled ?? defaults.gskToolsEnabled ?? true,
+    media: resolveAiMediaSettings(settings.media ?? defaults.media),
+    search: resolveAiSearchSettings(settings.search ?? defaults.search),
     // clamped on read: a hand-edited settings file with an absurd cap must not be
     // forwarded to the endpoint verbatim
-    ...(stored.maxOutputTokens !== undefined || defaults.maxOutputTokens !== undefined
+    ...(settings.maxOutputTokens !== undefined || defaults.maxOutputTokens !== undefined
       ? {
-          maxOutputTokens: clampMaxOutputTokens(stored.maxOutputTokens ?? defaults.maxOutputTokens),
+          maxOutputTokens: clampMaxOutputTokens(
+            settings.maxOutputTokens ?? defaults.maxOutputTokens,
+          ),
         }
       : {}),
   }
