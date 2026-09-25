@@ -82,6 +82,18 @@ async function zipText(zip: JSZip, path: string): Promise<string | undefined> {
   return file ? file.async('text') : undefined
 }
 
+function mcBranch(value: readonly unknown[]): readonly unknown[] {
+  let choice: readonly unknown[] | undefined
+  for (const entry of value) {
+    if (entry == null || typeof entry !== 'object') continue
+    for (const [key, branch] of Object.entries(entry)) {
+      if (key === 'mc:Fallback') return Array.isArray(branch) ? branch : []
+      if (key === 'mc:Choice' && !choice && Array.isArray(branch)) choice = branch
+    }
+  }
+  return choice ?? []
+}
+
 /**
  * One paragraph's text in document order. Only #text directly under a:t counts: untrimmed, the
  * whitespace laying out any other element is a value too. <a:br> is a soft line break, <a:tab>
@@ -98,7 +110,8 @@ function collectText(nodes: readonly unknown[], out: string[], isText = false): 
       } else if (key === 'a:tab') {
         out.push('\t')
       } else if (Array.isArray(value)) {
-        collectText(value, out, key === 'a:t')
+        if (key === 'mc:AlternateContent') collectText(mcBranch(value), out)
+        else collectText(value, out, key === 'a:t')
       }
     }
   }
@@ -116,7 +129,7 @@ function collectParagraphs(nodes: readonly unknown[], out: string[]): void {
         const line = texts.join('')
         if (line.trim()) out.push(line)
       } else {
-        collectParagraphs(value, out)
+        collectParagraphs(key === 'mc:AlternateContent' ? mcBranch(value) : value, out)
       }
     }
   }
@@ -129,7 +142,7 @@ function countPictures(nodes: readonly unknown[]): number {
     for (const [key, value] of Object.entries(node)) {
       if (!Array.isArray(value)) continue
       if (key === 'p:pic') count += 1
-      else count += countPictures(value)
+      else count += countPictures(key === 'mc:AlternateContent' ? mcBranch(value) : value)
     }
   }
   return count
