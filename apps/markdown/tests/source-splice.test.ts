@@ -197,6 +197,20 @@ describe('source splice', () => {
     }
   })
 
+  it('uses Marked-normalized tags for reference definitions', () => {
+    const editor = createEditor()
+    const source = '[A  B]: https://example.com\n\nSee [a b][A  B].\n'
+    editor.commands.setContent(source, { contentType: 'markdown' })
+    const parse = vi.spyOn(editor.markdown!, 'parse')
+
+    const map = buildSourceMap(editor, editor.state.doc, source)
+
+    expect(map).not.toBeNull()
+    expect(parse.mock.calls.some(([input]) => input.includes('[A  B]: https://example.com'))).toBe(
+      true,
+    )
+  })
+
   it('parses reference blocks with only their definitions', () => {
     const editor = createEditor()
     const count = 200
