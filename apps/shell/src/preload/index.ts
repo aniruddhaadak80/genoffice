@@ -233,7 +233,8 @@ const homeApi: HomeApi = {
     // which sandboxed preload scripts cannot load (window.aiOffice would
     // silently disappear). Preload entries must stay single-file bundles.
     if (channel !== 'stable' && channel !== 'beta') throw new Error('Invalid update channel.')
-    await ipcRenderer.invoke(HOME_CHANNELS.setUpdateChannel, channel)
+    const result: unknown = await ipcRenderer.invoke(HOME_CHANNELS.setUpdateChannel, channel)
+    return result === true
   },
   async accountStatus() {
     const result: unknown = await ipcRenderer.invoke(HOME_CHANNELS.accountStatus)

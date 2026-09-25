@@ -3698,10 +3698,11 @@ function registerHomeIpc(): void {
   ipcMain.handle(HOME_CHANNELS.getUpdateChannel, (): UpdateChannel => currentUpdateChannel())
 
   ipcMain.handle(HOME_CHANNELS.setUpdateChannel, (_event, channel: unknown) => {
-    if (!isUpdateChannel(channel) || channel === currentUpdateChannel()) return
+    if (!isUpdateChannel(channel) || channel === currentUpdateChannel()) return false
+    if (!applyUpdateChannel(channel)) return false
     cachedUpdateChannel = channel
     writeAppSetting(APP_SETTINGS_PATH(), 'updateChannel', channel)
-    applyUpdateChannel(channel)
+    return true
   })
 
   ipcMain.handle(

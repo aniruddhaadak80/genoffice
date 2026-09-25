@@ -1579,8 +1579,9 @@ export function SettingsModal({
                     }))}
                     onPick={(v) => {
                       const next = v === 'beta' ? 'beta' : 'stable'
-                      setChannel(next)
-                      void window.aiOffice.setUpdateChannel(next)
+                      void window.aiOffice.setUpdateChannel(next).then((applied) => {
+                        if (applied) setChannel(next)
+                      })
                     }}
                   />
                 </div>

@@ -221,7 +221,7 @@ export interface HomeApi {
   /** current update channel (persisted in userData/app-settings.json; default 'stable') */
   getUpdateChannel(): Promise<UpdateChannel>
   /** switch + persist the update channel; triggers an immediate update check */
-  setUpdateChannel(channel: UpdateChannel): Promise<void>
+  setUpdateChannel(channel: UpdateChannel): Promise<boolean>
   /** Genspark account status (gsk login state; to be upgraded to a signup/account system later) */
   accountStatus(): Promise<AccountStatus>
   /** start Genspark login (opens the browser; accountStatus flips to logged-in on completion); returns whether the launch succeeded */
