@@ -1,10 +1,10 @@
 import type { ParseMap } from '../document/parse-map'
 
-export const SID_ATTR = 'data-sid'
+export const SID_ATTR = 'data-gx-sid'
 
 /**
  * The preview copy of the document: every element with a source location gets
- * a `data-sid` so the inspector can map clicks straight back to the parse map,
+ * a `data-gx-sid` so the inspector can map clicks straight back to the parse map,
  * and the inspector script is appended. The saved text never sees either.
  */
 export function instrumentForPreview(text: string, map: ParseMap, inspectorSource: string): string {

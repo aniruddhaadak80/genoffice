@@ -303,7 +303,7 @@ describe('structural ops', () => {
 })
 
 describe('preview instrumentation', () => {
-  it('adds data-sid to every mapped start tag and appends the inspector before </body>', async () => {
+  it('adds data-gx-sid to every mapped start tag and appends the inspector before </body>', async () => {
     const { instrumentForPreview } = await import('../src/renderer/preview/instrument')
     const src = '<html><body><p class="a">x</p><img src="i.png"/><br></body></html>'
     const map = buildParseMap(src, 1)
@@ -312,13 +312,23 @@ describe('preview instrumentation', () => {
     const p = map.elements.find((e) => e.tag === 'p')!
     const img = map.elements.find((e) => e.tag === 'img')!
     const br = map.elements.find((e) => e.tag === 'br')!
-    expect(out).toContain(`<p class="a" data-sid="${p.sid}">`)
-    expect(out).toContain(`<img src="i.png" data-sid="${img.sid}"/>`)
-    expect(out).toContain(`<br data-sid="${br.sid}">`)
+    expect(out).toContain(`<p class="a" data-gx-sid="${p.sid}">`)
+    expect(out).toContain(`<img src="i.png" data-gx-sid="${img.sid}"/>`)
+    expect(out).toContain(`<br data-gx-sid="${br.sid}">`)
     expect(out).toMatch(/<script data-gx-inspector>console\.log\(1\)<\/script><\/body>/)
     // a fragment without </body> still gets the script
     expect(instrumentForPreview('<p>x</p>', buildParseMap('<p>x</p>', 1), 's')).toMatch(
       /<\/p><script data-gx-inspector>s<\/script>$/,
     )
+  })
+
+  it('keeps authored data-sid separate from instrumentation', async () => {
+    const { instrumentForPreview } = await import('../src/renderer/preview/instrument')
+    const src = '<p data-sid="999">x</p>'
+    const map = buildParseMap(src, 1)
+    const out = instrumentForPreview(src, map, 'inspector')
+    const sid = map.elements.find((e) => e.tag === 'p')!.sid
+    expect(out).toContain(`data-sid="999" data-gx-sid="${sid}"`)
+    expect(out).not.toContain(`data-sid="${sid}"`)
   })
 })
