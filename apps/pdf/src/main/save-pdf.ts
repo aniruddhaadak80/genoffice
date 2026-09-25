@@ -108,7 +108,7 @@ const quadBounds = (q: number[]) => {
 }
 
 /**
- * Hand-written appearance stream (/AP /N), so viewers don't self-draw from QuadPoints —
+ * Hand-written appearance stream (/AP /N), so viewers don't self-draw from QuadPoints ΓÇö
  * Acrobat/Preview/pdfjs all render from AP for consistent results.
  * Highlight uses Multiply blending to mimic a highlighter; underline/strikeout are stroked
  * segments drawn along the "visual bottom edge" (pageRot is the page's final /Rotate;
@@ -233,7 +233,7 @@ function ellipseOps(x1: number, y1: number, x2: number, y2: number): string[] {
 /**
  * Image signature/stamp: a Stamp annotation whose appearance stream draws the embedded PNG.
  * The image is counter-rotated against the page's final /Rotate (viewers rotate annotation
- * appearances with the page), so it displays upright — matching the renderer preview.
+ * appearances with the page), so it displays upright ΓÇö matching the renderer preview.
  */
 async function addImageStamp(
   pdfDoc: PDFDocument,
@@ -273,7 +273,7 @@ async function addImageStamp(
   appendAnnot(pdfDoc, page, pdfDoc.context.register(annot))
 }
 
-/** Epoch ms → PDF date string, e.g. D:20260812175959+08'00' */
+/** Epoch ms ΓåÆ PDF date string, e.g. D:20260812175959+08'00' */
 function pdfDateString(ms: number): string {
   const d = new Date(ms)
   const p = (n: number) => String(n).padStart(2, '0')
@@ -289,7 +289,7 @@ function pdfDateString(ms: number): string {
 
 const NOTE_RECT_TOL = 2
 
-/** Top-left anchors within tolerance — the only note identity that survives pdf.js
+/** Top-left anchors within tolerance ΓÇö the only note identity that survives pdf.js
     resizing AP-less Text annot rects to its default icon size */
 const noteRectsClose = (a: readonly number[], b: readonly number[]): boolean =>
   Math.abs(Math.min(a[0]!, a[2]!) - Math.min(b[0]!, b[2]!)) <= NOTE_RECT_TOL &&
@@ -334,7 +334,7 @@ function addDrawing(
   pdfDoc: PDFDocument,
   page: PDFPage,
   d: DrawingInput,
-  /** localId → registered ref of notes written earlier in this request (reply parenting) */
+  /** localId ΓåÆ registered ref of notes written earlier in this request (reply parenting) */
   noteRefs?: Map<string, PDFRef>,
 ): void {
   if (d.kind === 'image') return // handled by addImageStamp (needs async embed)
@@ -356,7 +356,7 @@ function addDrawing(
     const when = pdfDateString(d.createdMs ?? Date.now())
     annot.set(PDFName.of('CreationDate'), PDFString.of(when))
     annot.set(PDFName.of('M'), PDFString.of(when))
-    // Reply → standard /IRT chain (WPS/Acrobat comment threads). An unresolvable
+    // Reply ΓåÆ standard /IRT chain (WPS/Acrobat comment threads). An unresolvable
     // parent degrades the reply to a root note instead of dropping the content.
     const parentRef = d.replyToLocalId
       ? (noteRefs?.get(d.replyToLocalId) ?? null)
@@ -527,7 +527,7 @@ export async function splitPdfBytes(bytes: Uint8Array, chunkSize: number): Promi
 export interface MergePagesOptions {
   /** Pages per sheet, 2-16 (WPS-style free count) */
   perSheet: number
-  /** Fill order: horizontal = left→right then down, vertical = top→bottom then right */
+  /** Fill order: horizontal = leftΓåÆright then down, vertical = topΓåÆbottom then right */
   direction: 'horizontal' | 'vertical'
   /** Draw hairline separators on the internal cell boundaries */
   separator: boolean
@@ -565,7 +565,7 @@ export async function mergePagesBytes(
   const sheetW = perSheet === 2 ? firstDisplayH : firstDisplayW
   const sheetH = perSheet === 2 ? firstDisplayW : firstDisplayH
   // embedPages throws on pages without a content stream (e.g. our own inserted
-  // blank pages) — give those an empty stream so they embed as empty cells
+  // blank pages) ΓÇö give those an empty stream so they embed as empty cells
   for (const p of src.getPages()) {
     if (!p.node.Contents()) {
       p.node.set(PDFName.of('Contents'), src.context.register(src.context.stream('')))
@@ -592,30 +592,30 @@ export async function mergePagesBytes(
       const cellY = sheetH - (row + 1) * cellH
       const x =
         rotation === 90
-          ? cellX + (cellW + h) / 2
+          ? cellX + (cellW - h) / 2
           : rotation === 180
             ? cellX + (cellW + w) / 2
             : rotation === 270
-              ? cellX + (cellW - h) / 2
+              ? cellX + (cellW + h) / 2
               : cellX + (cellW - w) / 2
       const y =
         rotation === 90
-          ? cellY + (cellH - w) / 2
+          ? cellY + (cellH + w) / 2
           : rotation === 180
             ? cellY + (cellH + h) / 2
             : rotation === 270
-              ? cellY + (cellH + w) / 2
+              ? cellY + (cellH - w) / 2
               : cellY + (cellH - h) / 2
       sheet.drawPage(ep, {
         x,
         y,
         xScale: scale,
         yScale: scale,
-        rotate: degrees(rotation),
+        rotate: degrees((360 - rotation) % 360),
       })
     }
     if (options.separator) {
-      // Document content (not UI chrome) — a fixed light gray like WPS's segment line
+      // Document content (not UI chrome) ΓÇö a fixed light gray like WPS's segment line
       const line = { thickness: 0.75, color: rgb(0.62, 0.62, 0.62) }
       for (let c = 1; c < cols; c++) {
         sheet.drawLine({
@@ -718,7 +718,7 @@ function displayFracToUserRect(
 }
 
 /**
- * Split every page into a perPage grid of pages (left→right, top→bottom as
+ * Split every page into a perPage grid of pages (leftΓåÆright, topΓåÆbottom as
  * displayed), the inverse of mergePagesBytes: each cell becomes its own page via
  * a copy with a tightened MediaBox/CropBox, so content is preserved losslessly.
  * The grid is laid out on the displayed page, then mapped through /Rotate.
@@ -811,7 +811,7 @@ function applyMetadata(pdfDoc: PDFDocument, meta: MetadataInput): void {
   if (meta.keywords !== undefined) {
     pdfDoc.setKeywords(
       meta.keywords
-        .split(/[,，;；]/)
+        .split(/[,∩╝î;∩╝¢]/)
         .map((k) => k.trim())
         .filter(Boolean),
     )
@@ -833,7 +833,7 @@ export interface SavePdfSkips {
   skippedImageEdits: ImageEditFailure[]
 }
 
-/** Original page index → index in the saved file (after this request's deletions/reorder);
+/** Original page index ΓåÆ index in the saved file (after this request's deletions/reorder);
     null = the page is gone from the output */
 function finalPageIndex(request: SavePdfRequest, p: number): number | null {
   if (request.pageOrder) {
@@ -893,7 +893,7 @@ async function verifyContentEdits(
   }
   if (failures.length > 0) {
     const pages = [...new Set(failures.map((f) => f.pageIndex + 1))].sort((a, b) => a - b)
-    // "save-verify-failed pages=…" is parsed by the renderer to localize the notice
+    // "save-verify-failed pages=ΓÇª" is parsed by the renderer to localize the notice
     throw new Error(
       `save-verify-failed pages=${pages.join(',')}: ${failures[0]!.reason}; the file was not written`,
     )
@@ -1027,7 +1027,7 @@ export async function applySaveRequest(
   }
   // Reorder last: pageOrder gives the new order of remaining-after-delete pages by original index.
   // pdf-lib's removePage never invalidates its page cache, so getPages() here would return the
-  // stale pre-deletion list — derive the surviving pages from the pre-deletion snapshot instead.
+  // stale pre-deletion list ΓÇö derive the surviving pages from the pre-deletion snapshot instead.
   const order = request.pageOrder
   if (order && order.length > 0) {
     const deletedSet = new Set(request.deletedPages ?? [])
