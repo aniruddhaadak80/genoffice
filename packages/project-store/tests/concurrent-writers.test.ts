@@ -12,7 +12,7 @@ import {
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { fileURLToPath, pathToFileURL } from 'node:url'
-import { ProjectStore } from '../src/store.js'
+import { ProjectStore, canonicalPathKey } from '../src/store.js'
 
 const WRITER_SCRIPT = `
 const [root, storeUrl, startAt, ...paths] = process.argv.slice(2)
@@ -124,6 +124,10 @@ describe('concurrent writers', () => {
     return JSON.parse(readFileSync(indexPath, 'utf8')).fileMap ?? {}
   }
 
+  function mappedProjectFor(filePath: string): string | undefined {
+    return readFileMap()[canonicalPathKey(filePath)]
+  }
+
   it('keeps every mapping when separate processes resolve files at the same moment', async () => {
     seedIndex(SEED_ENTRIES)
 
@@ -140,7 +144,7 @@ describe('concurrent writers', () => {
     const fileMap = readFileMap()
     expect(Object.keys(fileMap)).toHaveLength(SEED_ENTRIES + writers * perWriter)
     for (const batch of batches) {
-      for (const filePath of batch) expect(fileMap[filePath]).toBe('default')
+      for (const filePath of batch) expect(mappedProjectFor(filePath)).toBe('default')
     }
   }, 60_000)
 
@@ -165,7 +169,7 @@ describe('concurrent writers', () => {
     writeFileSync(join(tmpDir, 'projects', 'index.json.tmp'), '{ half written', 'utf8')
 
     store.resolveProjectForFile(join(tmpDir, 'recovered.docx'))
-    expect(readFileMap()[join(tmpDir, 'recovered.docx')]).toBe('default')
+    expect(mappedProjectFor(join(tmpDir, 'recovered.docx'))).toBe('default')
   })
 
   it('waits for a lock held by another process before writing', async () => {
@@ -185,7 +189,7 @@ describe('concurrent writers', () => {
 
     expect(result.code).toBe(0)
     expect(result.waitedMs).toBeGreaterThanOrEqual(400)
-    expect(readFileMap()[filePath]).toBe('default')
+    expect(mappedProjectFor(filePath)).toBe('default')
   }, 60_000)
 
   it('releases the lock when a write fails, so later writes still work', () => {
@@ -206,7 +210,7 @@ describe('concurrent writers', () => {
     rmSync(projectJson, { recursive: true, force: true })
     writeFileSync(projectJson, saved, 'utf8')
     store.resolveProjectForFile(join(tmpDir, 'after-failure.docx'))
-    expect(readFileMap()[join(tmpDir, 'after-failure.docx')]).toBe('default')
+    expect(mappedProjectFor(join(tmpDir, 'after-failure.docx'))).toBe('default')
   })
 
   it('two instances in one process do not deadlock and both keep their mappings', () => {
@@ -221,7 +225,8 @@ describe('concurrent writers', () => {
     b.resolveProjectForFile(bPath)
 
     const fileMap = readFileMap()
-    expect(fileMap[aPath]).toBe('default')
-    expect(fileMap[bPath]).toBe('default')
+    expect(fileMap).toBeDefined()
+    expect(mappedProjectFor(aPath)).toBe('default')
+    expect(mappedProjectFor(bPath)).toBe('default')
   })
 })
