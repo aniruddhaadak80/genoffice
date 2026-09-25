@@ -121,6 +121,26 @@ describe('appendChatMessage + loadChat', () => {
     expect(msgs[2].seq).toBe(2)
   })
 
+  it('derives the next seq from all persisted records, not the display window', () => {
+    const chatId = 'chat-out-of-order'
+    const chatPath = join(tmpDir, 'projects', 'default', 'chats', `${chatId}.jsonl`)
+    store.appendChatMessage('default', chatId, { role: 'assistant', text: 'seed' })
+    const records = Array.from({ length: 10_001 }, (_, index) =>
+      JSON.stringify({
+        seq: index === 0 ? 50_000 : index - 1,
+        ts: new Date(index).toISOString(),
+        role: 'assistant',
+        text: `record-${index}`,
+      }),
+    )
+    writeFileSync(chatPath, `${records.join('\n')}\n`, 'utf8')
+
+    const freshStore = new ProjectStore(tmpDir)
+    freshStore.appendChatMessage('default', chatId, { role: 'assistant', text: 'next' })
+
+    expect(freshStore.loadChat('default', chatId, 1)[0]?.seq).toBe(50_001)
+  })
+
   it('ts is a valid UTC ISO string', () => {
     store.appendChatMessage('default', 'chat1', { role: 'user', text: 'hi' })
     const msgs = store.loadChat('default', 'chat1')

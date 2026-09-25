@@ -277,9 +277,13 @@ export class ProjectStore {
       this.seqCounters.set(key, next)
       return next
     }
-    // Initialization: scan the existing file for the max seq
-    const existing = this.loadChat(projectId, chatId, 10_000)
-    const maxSeq = existing.reduce((m, msg) => Math.max(m, msg.seq), -1)
+    // Initialization: the next seq comes from the complete persisted history, not
+    // from the display window a loadChat limit returns, plus anything still held
+    // in the pending buffer for this chat.
+    const filePath = this.chatPath(projectId, chatId)
+    const existing = existsSync(filePath) ? readAllChatRecords(filePath) : []
+    const pending = this.pendingFirstWrite.get(key) ?? []
+    const maxSeq = existing.concat(pending).reduce((m, msg) => Math.max(m, msg.seq), -1)
     const next = maxSeq + 1
     this.seqCounters.set(key, next)
     return next
