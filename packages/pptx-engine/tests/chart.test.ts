@@ -359,6 +359,21 @@ describe('buildChartSpaceXml comboBarLine (generate → parse round-trip)', () =
   })
 })
 
+describe('buildChartSpaceXml spreadsheet column references', () => {
+  it('uses base-26 columns after Z', () => {
+    const xml = buildChartSpaceXml({
+      kind: 'line',
+      categories: ['x'],
+      series: Array.from({ length: 27 }, (_, i) => ({ name: `S${i}`, values: [i] })),
+      offset: { x: 0, y: 0, cx: 100, cy: 100 },
+    })
+    expect(xml).toContain('Sheet1!$AA$1')
+    expect(xml).toContain('Sheet1!$AA$2:$AA$2')
+    expect(xml).toContain('Sheet1!$AB$1')
+    expect(xml).not.toMatch(/Sheet1!\$[[\\]/)
+  })
+})
+
 describe('buildChartSpaceXml style options (generate → parse round-trip)', () => {
   const BASE = {
     kind: 'bar' as const,
