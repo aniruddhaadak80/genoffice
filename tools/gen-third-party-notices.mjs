@@ -16,6 +16,7 @@ import { join, dirname, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { execFileSync } from 'node:child_process'
 import { builtinModules, createRequire } from 'node:module'
+import { licenseText } from './license-text.mjs'
 
 const require = createRequire(import.meta.url)
 
@@ -62,9 +63,6 @@ function extraResourceSeeds() {
   }
   return names
 }
-
-/** license file lives somewhere non-obvious */
-const LICENSE_PATH = { electron: 'dist/LICENSE' }
 
 /** license text is not published to npm; supply the notice by hand */
 const NOTE = {
@@ -180,19 +178,6 @@ function closure(seed) {
     }
   }
   return { resolved: [...seen].filter(([, v]) => v !== null), missing }
-}
-
-const LICENSE_FILE = /^(LICENSE|LICENCE|COPYING)(\.|$)/i
-
-function licenseText(name, dir) {
-  const override = LICENSE_PATH[name]
-  if (override && existsSync(join(dir, override))) {
-    return readFileSync(join(dir, override), 'utf8').trim()
-  }
-  const files = readdirSync(dir).filter((f) => LICENSE_FILE.test(f))
-  files.sort((a, b) => a.length - b.length)
-  if (files.length > 0) return readFileSync(join(dir, files[0]), 'utf8').trim()
-  return null
 }
 
 function noticeText(dir) {
