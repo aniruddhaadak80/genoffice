@@ -2,7 +2,7 @@ import { Worker } from 'node:worker_threads'
 import type { Extracted } from './extract'
 import type { WorkerRequest, WorkerResponse } from './extract-worker'
 import { isSupportedTreeFile } from '../folder-tree'
-import { SCAN_MAX_FILES, SCAN_TIME_BUDGET_MS, statOrNull, type ScannedFile } from './scan'
+import { SCAN_MAX_FILES, SCAN_TIME_BUDGET_MS, statResult, type ScannedFile } from './scan'
 import type { FileIndexStore } from './store'
 
 export interface IndexProgress {
@@ -12,6 +12,8 @@ export interface IndexProgress {
   pending: number
   scanning: boolean
   truncated: boolean
+  incomplete: boolean
+  error?: string
 }
 
 export interface IndexerSources {
@@ -32,7 +34,10 @@ const RESCAN_DEBOUNCE_MS = 1500
 export class FileIndexer {
   private worker: Worker | null = null
   private nextId = 1
-  private readonly waiting = new Map<number, (r: WorkerResponse) => void>()
+  private readonly waiting = new Map<
+    number,
+    { type: WorkerRequest['type']; resolve: (response: WorkerResponse) => void }
+  >()
   private readonly queue: ScannedFile[] = []
   private readonly queued = new Set<string>()
   private draining = false
@@ -41,6 +46,8 @@ export class FileIndexer {
   private rescanTimer: NodeJS.Timeout | null = null
   private lastScanAt = 0
   private scanTruncated = false
+  private scanIncomplete = false
+  private scanError: string | undefined
   private stopped = false
 
   constructor(
@@ -55,6 +62,8 @@ export class FileIndexer {
       pending: this.queue.length,
       scanning: this.scanning,
       truncated: this.scanTruncated,
+      incomplete: this.scanIncomplete,
+      error: this.scanError,
     }
   }
 
@@ -73,6 +82,11 @@ export class FileIndexer {
     if (Date.now() - this.lastScanAt >= maxAgeMs) void this.scan()
   }
 
+  private markIncomplete(error?: string): void {
+    this.scanIncomplete = true
+    if (error) this.scanError ??= error
+  }
+
   async scan(): Promise<void> {
     if (this.stopped) return
     if (this.scanning) {
@@ -81,10 +95,11 @@ export class FileIndexer {
     }
     this.scanning = true
     this.scanTruncated = false
+    this.scanIncomplete = false
+    this.scanError = undefined
     try {
       const seen = new Map<string, ScannedFile>()
       const deadline = Date.now() + SCAN_TIME_BUDGET_MS
-      let walked = true
       let complete = true
       for (const root of this.sources.roots()) {
         const maxFiles = SCAN_MAX_FILES - seen.size
@@ -92,39 +107,64 @@ export class FileIndexer {
         if (maxFiles <= 0 || timeBudgetMs <= 0) {
           complete = false
           this.scanTruncated = true
+          this.markIncomplete('scan budget exhausted')
           break
         }
-        const res = await this.ask({ id: 0, type: 'scan', root, maxFiles, timeBudgetMs })
-        if (res.type === 'scan') {
-          for (const file of res.files) seen.set(file.path, file)
-          if (res.truncated) {
-            complete = false
-            this.scanTruncated = true
-          }
-        } else {
-          walked = false
+        let res: WorkerResponse
+        try {
+          res = await this.ask({ id: 0, type: 'scan', root, maxFiles, timeBudgetMs })
+        } catch (cause) {
+          complete = false
+          this.markIncomplete(cause instanceof Error ? cause.message : String(cause))
+          break
+        }
+        if (res.type !== 'scan') {
+          complete = false
+          this.markIncomplete('worker returned an unexpected response')
+          break
+        }
+        for (const file of res.files) seen.set(file.path, file)
+        if (res.truncated) {
+          complete = false
+          this.scanTruncated = true
+          this.markIncomplete('scan truncated')
+        }
+        if (res.incomplete) {
+          complete = false
+          this.markIncomplete(res.error ?? 'scan incomplete')
         }
       }
-      if (walked) this.diff(seen, complete)
+      const result = this.diff(seen, complete)
+      if (result.incomplete) this.markIncomplete(result.error)
+    } catch (cause) {
+      this.markIncomplete(cause instanceof Error ? cause.message : String(cause))
     } finally {
       this.scanning = false
+      this.lastScanAt = Date.now()
     }
-    // a refresh that arrived mid-scan runs now, whether or not the walk succeeded
     if (this.scanRequested) {
       this.scanRequested = false
       void this.scan()
     }
   }
 
-  /** bring the store in step with what the walk saw; extra paths are stat-ed here */
-  private diff(seen: Map<string, ScannedFile>, complete: boolean): void {
+  private diff(
+    seen: Map<string, ScannedFile>,
+    complete: boolean,
+  ): { incomplete: boolean; error?: string } {
+    let incomplete = false
+    let error: string | undefined
     for (const p of this.sources.extraPaths()) {
       if (seen.has(p) || !isSupportedTreeFile(p)) continue
-      const st = statOrNull(p)
-      if (st) seen.set(p, st)
+      const result = statResult(p)
+      if (result.kind === 'file') seen.set(p, result.file)
+      else if (result.kind === 'error') {
+        incomplete = true
+        error ??= result.error
+      }
     }
     const known = this.store.listAll()
-    if (complete) {
+    if (complete && !incomplete) {
       const gone: string[] = []
       for (const path of known.keys()) if (!seen.has(path)) gone.push(path)
       this.store.remove(gone)
@@ -136,7 +176,7 @@ export class FileIndexer {
       }
       this.enqueue(f)
     }
-    this.lastScanAt = Date.now()
+    return { incomplete, error }
   }
 
   private enqueue(f: ScannedFile): void {
@@ -153,16 +193,30 @@ export class FileIndexer {
       while (this.queue.length && !this.stopped) {
         const f = this.queue.shift()!
         this.queued.delete(f.path)
-        // the file may have changed again while queued; index what is on disk now
-        const st = statOrNull(f.path)
-        if (!st) {
+        const result = statResult(f.path)
+        if (result.kind === 'missing') {
           this.store.remove([f.path])
           continue
         }
-        const res = await this.ask({ id: 0, type: 'extract', path: st.path })
-        if (res.type !== 'extract') continue
-        this.apply(st, res.result)
+        if (result.kind === 'error') {
+          this.markIncomplete(result.error)
+          continue
+        }
+        let response: WorkerResponse
+        try {
+          response = await this.ask({ id: 0, type: 'extract', path: result.file.path })
+        } catch (cause) {
+          this.markIncomplete(cause instanceof Error ? cause.message : String(cause))
+          continue
+        }
+        if (response.type !== 'extract') {
+          this.markIncomplete('worker returned an unexpected response')
+          continue
+        }
+        this.apply(result.file, response.result)
       }
+    } catch (cause) {
+      this.markIncomplete(cause instanceof Error ? cause.message : String(cause))
     } finally {
       this.draining = false
     }
@@ -181,12 +235,12 @@ export class FileIndexer {
   private ask(req: WorkerRequest): Promise<WorkerResponse> {
     const id = this.nextId++
     return new Promise((resolve, reject) => {
-      this.waiting.set(id, resolve)
+      this.waiting.set(id, { type: req.type, resolve })
       try {
         this.ensureWorker().postMessage({ ...req, id })
-      } catch (e) {
+      } catch (error) {
         this.waiting.delete(id)
-        reject(e)
+        reject(error)
       }
     })
   }
@@ -195,18 +249,33 @@ export class FileIndexer {
     if (this.worker) return this.worker
     const w = new Worker(this.workerPath)
     w.on('message', (msg: WorkerResponse) => {
-      const cb = this.waiting.get(msg.id)
-      if (!cb) return
+      const pending = this.waiting.get(msg.id)
+      if (!pending) return
       this.waiting.delete(msg.id)
-      cb(msg)
+      pending.resolve(msg)
     })
     const drop = () => {
-      // a crashed worker fails its in-flight request as an extraction error so the queue moves on
       if (this.worker === w) this.worker = null
-      for (const [id, cb] of this.waiting) {
-        cb({ id, type: 'extract', result: { kind: 'error', error: 'worker exited' } })
-      }
+      const pending = [...this.waiting]
       this.waiting.clear()
+      for (const [id, request] of pending) {
+        if (request.type === 'scan') {
+          request.resolve({
+            id,
+            type: 'scan',
+            files: [],
+            truncated: false,
+            incomplete: true,
+            error: 'worker exited',
+          })
+        } else {
+          request.resolve({
+            id,
+            type: 'extract',
+            result: { kind: 'error', error: 'worker exited' },
+          })
+        }
+      }
     }
     w.on('error', drop)
     w.on('exit', drop)

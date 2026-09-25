@@ -3470,7 +3470,7 @@ function registerHomeIpc(): void {
       return {
         hits: [],
         total: 0,
-        index: { indexed: 0, pending: 0, scanning: false, truncated: false },
+        index: { indexed: 0, pending: 0, scanning: false, truncated: false, incomplete: false },
       }
     }
     // an open search box is the moment a stale index shows; rescan at most once a minute
