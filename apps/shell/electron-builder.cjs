@@ -223,11 +223,7 @@ function assertModuleTreesPresent() {
 }
 
 const NOTICE_PATH = join(__dirname, 'build/THIRD-PARTY-NOTICES.txt')
-const PDFIUM_NOTICE_TERMS = [
-  '@embedpdf/pdfium',
-  'Copyright 2014 PDFium Authors',
-  'Apache License',
-]
+const PDFIUM_NOTICE_TERMS = ['@embedpdf/pdfium', 'Copyright 2014 PDFium Authors', 'Apache License']
 
 function hasValidThirdPartyNotice() {
   if (!existsSync(NOTICE_PATH)) return false
