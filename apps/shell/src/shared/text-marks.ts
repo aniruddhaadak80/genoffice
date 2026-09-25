@@ -50,7 +50,12 @@ const graphemeSegmenter =
     : null
 
 function isContinuation(ch: string): boolean {
-  return /^[\p{M}\u200d\uFE00-\uFE0F]$/u.test(ch)
+  const codePoint = ch.codePointAt(0)
+  return (
+    /^\p{M}$/u.test(ch) ||
+    codePoint === 0x200d ||
+    (codePoint !== undefined && codePoint >= 0xfe00 && codePoint <= 0xfe0f)
+  )
 }
 
 function sourceRanges(text: string): SourceRange[] {
@@ -96,7 +101,10 @@ function foldTextWithMap(text: string): { text: string; starts: number[]; ends: 
   return { text: folded, starts, ends }
 }
 
-export function findMappedRanges(text: string, needles: readonly string[]): Array<[number, number]> {
+export function findMappedRanges(
+  text: string,
+  needles: readonly string[],
+): Array<[number, number]> {
   const folded = foldTextWithMap(text)
   const ranges = findRanges(folded.text, needles.map(foldText))
   const mapped = ranges.map(([start, end]) => {
