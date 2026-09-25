@@ -5,6 +5,7 @@ import { gensparkAttributionHeaders, opencodeSessionHeaders } from '../providers
 import type { AiChatResponse, AiProviderConfig } from '../types'
 import { createStreamWatchdog, type StreamWatchdog } from '../watchdog'
 import {
+  endpointUrl,
   jsonBodyInsteadOfSse,
   parseToolInput,
   sseErrorText,
@@ -128,7 +129,7 @@ async function anthropicTurn(
   }
   let response: Response
   try {
-    response = await aiFetch(`${baseUrl.replace(/\/$/, '')}/v1/messages`, {
+    response = await aiFetch(endpointUrl(baseUrl, 'v1/messages'), {
       method: 'POST',
       signal: wd.signal,
       headers: {
@@ -268,7 +269,7 @@ export async function chatAnthropic(
   user: string,
   baseUrl = ANTHROPIC_BASE_URL,
 ): Promise<AiChatResponse> {
-  const response = await aiFetch(`${baseUrl.replace(/\/$/, '')}/v1/messages`, {
+  const response = await aiFetch(endpointUrl(baseUrl, 'v1/messages'), {
     method: 'POST',
     signal: wd.signal,
     headers: {
