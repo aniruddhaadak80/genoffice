@@ -63,4 +63,72 @@ describe('opaque body regions', () => {
       reparsed.blocks.filter((block) => !block.hidden).map((block) => block.runs?.[0]?.text),
     ).toEqual(['before', 'edited'])
   })
+
+  it('discovers real sibling bodies past body-looking opaque text', () => {
+    const xml =
+      '<w:document><!-- <w:body><w:p>fake</w:p></w:body> -->' +
+      '<w:body><w:p>one</w:p><!-- </w:body> --></w:body>' +
+      '<![CDATA[<w:body><w:p>fake</w:p></w:body>]]>' +
+      '<w:body><w:p>two</w:p></w:body></w:document>'
+    const scan = scanBody(xml)
+
+    expect(scan.elements.map((element) => element.name)).toEqual(['w:p', 'w:p'])
+    expect(xml.slice(scan.elements[0].start, scan.elements[0].end)).toContain('one')
+    expect(xml.slice(scan.elements[1].start, scan.elements[1].end)).toContain('two')
+    expect(scan.bodyContentStart).toBe(xml.indexOf('>', xml.indexOf('<w:body><w:p>one')) + 1)
+    expect(scan.bodyContentEnd).toBe(xml.lastIndexOf('</w:body>'))
+    expect(scan.opaqueRegions.map((region) => xml.slice(region.start, region.end))).toContain(
+      '<![CDATA[<w:body><w:p>fake</w:p></w:body>]]>',
+    )
+  })
+
+  it('retains opaque ranges nested inside a body element', () => {
+    const xml =
+      '<w:document><w:body><w:p><w:r><w:t>x</w:t></w:r>' +
+      '<!-- <w:p>fake</w:p> --><w:r><w:t>y</w:t></w:r></w:p></w:body></w:document>'
+    const scan = scanBody(xml)
+
+    expect(scan.opaqueRegions).toHaveLength(1)
+    expect(scan.opaqueRegions[0]!.start).toBeGreaterThan(scan.elements[0]!.start)
+    expect(scan.opaqueRegions[0]!.end).toBeLessThan(scan.elements[0]!.end)
+  })
+
+  it('keeps nested opaque markup when regenerating its source element', async () => {
+    const nested = '<w:p><w:r><w:t>middle</w:t></w:r><!--NESTED--></w:p>'
+    const source = await buildDocx({ bodyXml: before + '<!--TOP-->' + nested + after })
+    const doc = await parseDocx(source)
+    const saved = await saveDocx(doc, [
+      { kind: 'original', docxIndex: 0 },
+      {
+        kind: 'generated',
+        block: { type: 'paragraph', runs: [{ text: 'edited' }] },
+        docxIndex: 1,
+      },
+      { kind: 'original', docxIndex: 2 },
+    ])
+    const reparsed = await parseDocx(saved)
+    const xml = reparsed.internal.documentXml
+
+    expect(xml).toContain('<!--TOP-->')
+    expect(xml).toContain('<!--NESTED-->')
+    expect(/<w:p>[^]*<!--NESTED-->[^]*<\/w:p>/.test(xml)).toBe(true)
+  })
+
+  it('does not remove comment markers from opaque payloads', async () => {
+    const bodyXml =
+      '<w:p><w:r><w:commentRangeStart w:id="0"/><w:commentReference w:id="0"/></w:r>' +
+      '<!-- <w:commentReference w:id="1"/> <w:fldChar w:fldCharType="separate"/> -->' +
+      '</w:p>'
+    const source = await buildDocx({ bodyXml })
+    const doc = await parseDocx(source)
+    const saved = await saveDocx(doc, [{ kind: 'original', docxIndex: 0 }], { comments: [] })
+    const xml = (await parseDocx(saved)).internal.documentXml
+
+    expect(xml).not.toContain('w:commentRangeStart w:id="0"')
+    expect(xml).not.toContain('w:commentReference w:id="0"')
+    expect(xml).toContain(
+      '<!-- <w:commentReference w:id="1"/> <w:fldChar w:fldCharType="separate"/> -->',
+    )
+    expect(xml).toContain('w:fldCharType="separate"')
+  })
 })
