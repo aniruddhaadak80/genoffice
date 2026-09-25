@@ -86,7 +86,10 @@ function emitOpenAiJsonMessage(bodyText: string, cb: StreamCallbacks): void {
   if (msg.error) throw new Error(sseErrorText(msg.error, 'Model error'))
   const choice = msg.choices?.[0]
   let emitted = false
-  if (choice?.message?.reasoning_content) cb.onReasoningDelta?.(choice.message.reasoning_content)
+  if (choice?.message?.reasoning_content) {
+    emitted = true
+    cb.onReasoningDelta?.(choice.message.reasoning_content)
+  }
   if (choice?.message?.content) {
     emitted = true
     cb.onDelta(choice.message.content)
@@ -251,7 +254,10 @@ async function openAiCompatibleTurn(
     const choice = event.choices?.[0]
     if (!choice) continue
     const reasoning = choice.delta?.reasoning_content ?? choice.delta?.reasoning
-    if (typeof reasoning === 'string' && reasoning) cb.onReasoningDelta?.(reasoning)
+    if (typeof reasoning === 'string' && reasoning) {
+      emitted = true
+      cb.onReasoningDelta?.(reasoning)
+    }
     if (choice.delta?.content) {
       emitted = true
       cb.onDelta(choice.delta.content)
