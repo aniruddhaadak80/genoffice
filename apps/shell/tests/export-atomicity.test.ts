@@ -1,7 +1,15 @@
 import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+
+const mockedRename = vi.hoisted(() => vi.fn())
+
+vi.mock('node:fs/promises', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('node:fs/promises')>()),
+  rename: mockedRename,
+}))
+
 import { atomicWriteFile } from '../src/main/atomic-write'
 
 const root = join(__dirname, '../../..')
@@ -23,6 +31,26 @@ describe('atomic export destinations', () => {
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }
+  })
+
+  it('keeps the destination intact when publishing the temporary file fails', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'genoffice-export-rename-'))
+    const target = join(dir, 'report.docx')
+    writeFileSync(target, 'old')
+    mockedRename.mockRejectedValue(Object.assign(new Error('busy'), { code: 'EPERM' }))
+    try {
+      await expect(atomicWriteFile(target, 'new')).rejects.toMatchObject({ code: 'EPERM' })
+      expect(readFileSync(target, 'utf8')).toBe('old')
+      expect(readdirSync(dir)).toEqual(['report.docx'])
+    } finally {
+      mockedRename.mockReset()
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('does not contain a direct destination-write fallback', () => {
+    const source = read('apps/shell/src/main/atomic-write.ts')
+    expect(source).not.toContain('await writeFile(filePath, data)')
   })
 
   it('publishes every Docs export through a temporary file', () => {
