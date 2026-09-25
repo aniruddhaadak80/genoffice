@@ -331,4 +331,24 @@ describe('preview instrumentation', () => {
     expect(out).toContain(`data-sid="999" data-gx-sid="${sid}"`)
     expect(out).not.toContain(`data-sid="${sid}"`)
   })
+
+  it('replaces authored instrumentation SIDs in the parsed DOM', async () => {
+    const { instrumentForPreview } = await import('../src/renderer/preview/instrument')
+    const src =
+      '<p data-sid="kept" DATA-GX-SID="999>" data-gx-sid=888>one</p><div title="data-gx-sid=&quot;777&quot;">two</div>'
+    const map = buildParseMap(src, 1)
+    const out = instrumentForPreview(src, map, 'inspector')
+    const dom = new DOMParser().parseFromString(out, 'text/html')
+    const p = dom.querySelector('p')!
+    const div = dom.querySelector('div')!
+    const pSid = map.elements.find((entry) => entry.tag === 'p')!.sid
+    const divSid = map.elements.find((entry) => entry.tag === 'div')!.sid
+    expect(p.getAttribute('data-sid')).toBe('kept')
+    expect(p.getAttribute('data-gx-sid')).toBe(String(pSid))
+    expect([...p.attributes].filter((attribute) => attribute.name === 'data-gx-sid')).toHaveLength(
+      1,
+    )
+    expect(div.getAttribute('title')).toBe('data-gx-sid="777"')
+    expect(div.getAttribute('data-gx-sid')).toBe(String(divSid))
+  })
 })
