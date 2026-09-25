@@ -316,21 +316,56 @@ describe('initAutoUpdater', () => {
     const { initAutoUpdater, applyUpdateChannel } = await loadUpdater()
     initAutoUpdater(() => null)
     expect(checkForUpdates).not.toHaveBeenCalled()
-    applyUpdateChannel('beta')
+    expect(applyUpdateChannel('beta')).toBe(true)
     expect(updaterState.channel).toBe('beta')
     expect(updaterState.allowDowngrade).toBe(false)
     expect(checkForUpdates).toHaveBeenCalledTimes(1)
-    applyUpdateChannel('stable')
+    expect(applyUpdateChannel('stable')).toBe(true)
     expect(updaterState.channel).toBe('latest')
     expect(updaterState.allowDowngrade).toBe(false)
     expect(checkForUpdates).toHaveBeenCalledTimes(2)
+  })
+
+  it('blocks channel switches while an update is downloading or downloaded', async () => {
+    downloadUpdate.mockImplementation(() => new Promise(() => {}))
+    const { initAutoUpdater, applyUpdateChannel } = await loadUpdater()
+    initAutoUpdater(() => null)
+    const available = updaterState.listeners.get('update-available')!
+    available({ version: '0.2.0' })
+    lastShownActions().onDownload()
+
+    expect(applyUpdateChannel('beta')).toBe(false)
+    expect(updaterState.channel).toBe('latest')
+    expect(checkForUpdates).not.toHaveBeenCalled()
+
+    updaterState.listeners.get('update-downloaded')!({ version: '0.2.0' })
+
+    expect(applyUpdateChannel('beta')).toBe(false)
+    expect(updaterState.channel).toBe('latest')
+    expect(updaterState.allowDowngrade).toBe(false)
+    expect(updaterState.autoInstallOnAppQuit).toBe(true)
+    expect(checkForUpdates).not.toHaveBeenCalled()
+  })
+
+  it('allows channel switches after a failed download', async () => {
+    downloadUpdate.mockImplementation(() => Promise.reject(new Error('offline')))
+    const { initAutoUpdater, applyUpdateChannel } = await loadUpdater()
+    initAutoUpdater(() => null)
+    updaterState.listeners.get('update-available')!({ version: '0.2.0' })
+    lastShownActions().onDownload()
+    await flushAsync()
+
+    expect(applyUpdateChannel('beta')).toBe(true)
+    expect(updaterState.channel).toBe('beta')
+    expect(updaterState.autoInstallOnAppQuit).toBe(true)
+    expect(checkForUpdates).toHaveBeenCalledTimes(1)
   })
 
   it('applyUpdateChannel is a no-op before the real updater is active', async () => {
     appState.isPackaged = false
     const { initAutoUpdater, applyUpdateChannel } = await loadUpdater()
     initAutoUpdater(() => null)
-    applyUpdateChannel('beta')
+    expect(applyUpdateChannel('beta')).toBe(false)
     expect(updaterState.channel).toBeNull()
     expect(checkForUpdates).not.toHaveBeenCalled()
   })

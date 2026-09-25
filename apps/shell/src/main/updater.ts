@@ -465,6 +465,8 @@ const CHANNEL_FEED: Record<UpdateChannel, string> = { stable: 'latest', beta: 'b
 // true once the packaged-run updater is configured; channel switches before
 // that (or in dev runs) must not touch electron-updater
 let updaterActive = false
+let downloadInFlight = false
+let updateDownloaded = false
 
 function log(...args: unknown[]): void {
   console.log('[updater]', ...args)
@@ -498,14 +500,15 @@ function initialState(version: string): UpdateUiState {
   }
 }
 
-export function applyUpdateChannel(channel: UpdateChannel): void {
-  if (!updaterActive) return
+export function applyUpdateChannel(channel: UpdateChannel): boolean {
+  if (!updaterActive || downloadInFlight || updateDownloaded) return false
   autoUpdater.channel = CHANNEL_FEED[channel]
   // the channel setter unconditionally flips allowDowngrade to true; force it
   // back off since a beta user switching to stable must not downgrade
   autoUpdater.allowDowngrade = false
   log('channel switched:', channel)
   autoUpdater.checkForUpdates().catch((err) => log('check failed:', err?.message ?? err))
+  return true
 }
 
 /** User-triggered check (Help > Check for Updates… / the About dialog button).
@@ -613,7 +616,6 @@ export function initAutoUpdater(
   // (macOS: Squirrel.Mac reports signature/apply failures natively), so both
   // paths funnel into failDownload() and the in-flight flag dedupes them
   let failedAttempts = 0
-  let downloadInFlight = false
   // where latestSeenVersion got to, so re-opening the window for the same
   // version (a manual check after "later") resumes there instead of offering
   // "Update Now" over a download that is running or already finished
@@ -704,6 +706,7 @@ export function initAutoUpdater(
   autoUpdater.on('update-downloaded', (info: UpdateInfo) => {
     log('downloaded:', info.version)
     downloadInFlight = false
+    updateDownloaded = true
     failedAttempts = 0
     setPhase({ phase: 'downloaded', percent: 100 })
   })
