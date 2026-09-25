@@ -59,6 +59,7 @@ export interface AgentLoopOptions<TSnapshot = unknown> {
   maxTurns?: number
   /** history cap in messages, trimmed at user-turn boundaries (default 40) */
   maxHistory?: number
+  maxTurnOutputChars?: number
   /** Context compaction; false disables it (enabled by default with default thresholds) */
   compaction?: CompactionOptions | false
   /** capture rollback state; invoked right before tools run (see snapshotBefore) */
@@ -80,6 +81,7 @@ const STALE_TOOL_OUTPUT_MAX = 1_000
 
 /** Unified turn budget across the suite's chat panels (apps may still override per loop) */
 export const DEFAULT_MAX_TURNS = 100
+export const DEFAULT_MAX_TURN_OUTPUT_CHARS = 200_000
 
 /** Cap on consecutive tool-input parse failures (a successful parse resets it); abort beyond it (keeps the model from burning turns on bad JSON) */
 const MAX_INPUT_PARSE_RETRIES = 3
@@ -216,6 +218,7 @@ export class AgentLoop<TSnapshot = unknown> {
   private turnStopReason: string | null = null
   private turnText = ''
   private turnReasoning = ''
+  private turnOutputChars = 0
   private toolCalls: AgentToolCall[] = []
   /** tools actually executed during this run, fed to skill.verifyResponse */
   private executedCalls: ExecutedToolCall[] = []
@@ -527,11 +530,31 @@ export class AgentLoop<TSnapshot = unknown> {
     const generation = this.generation
     this.turnText = ''
     this.turnReasoning = ''
+    this.turnOutputChars = 0
     this.toolCalls = []
     this.turnStopReason = null
+    const configuredMax = this.options.maxTurnOutputChars
+    const maxTurnOutputChars =
+      configuredMax !== undefined && Number.isFinite(configuredMax) && configuredMax > 0
+        ? configuredMax
+        : DEFAULT_MAX_TURN_OUTPUT_CHARS
     // Some transports emit an extra onDone after cancel — this turn may finalize only once
     let settled = false
-    this.handle = this.options.transport.stream(
+    let handle: AgentStreamHandle | null = null
+    let outputExceeded = false
+    const failOutput = () => {
+      if (settled) return
+      settled = true
+      outputExceeded = true
+      handle?.cancel()
+      this.running = false
+      this.rollbackFailedRun()
+      this.options.events?.onError?.(
+        `The model response exceeded the cumulative ${maxTurnOutputChars} character limit`,
+      )
+    }
+    this.handle = null
+    const streamHandle = this.options.transport.stream(
       {
         system:
           runtimePreamble() +
@@ -543,11 +566,21 @@ export class AgentLoop<TSnapshot = unknown> {
       {
         onDelta: (text) => {
           if (generation !== this.generation || settled) return
+          if (this.turnOutputChars + text.length > maxTurnOutputChars) {
+            failOutput()
+            return
+          }
+          this.turnOutputChars += text.length
           this.turnText += text
           this.options.events?.onText?.(this.turnText)
         },
         onReasoning: (text) => {
           if (generation !== this.generation || settled) return
+          if (this.turnOutputChars + text.length > maxTurnOutputChars) {
+            failOutput()
+            return
+          }
+          this.turnOutputChars += text.length
           this.turnReasoning += text
         },
         onToolCall: (call) => {
@@ -599,6 +632,9 @@ export class AgentLoop<TSnapshot = unknown> {
         },
       },
     )
+    handle = streamHandle
+    if (outputExceeded) streamHandle.cancel()
+    else if (!settled) this.handle = streamHandle
   }
 
   private async finishTurn(): Promise<void> {
