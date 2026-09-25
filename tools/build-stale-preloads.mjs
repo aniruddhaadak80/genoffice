@@ -26,6 +26,19 @@ function newestMtime(dir) {
   return newest
 }
 
+function fileMtime(path) {
+  return existsSync(path) ? statSync(path).mtimeMs : 0
+}
+
+const PACKAGE_CONFIG_FILES = ['package.json', 'tsconfig.json']
+
+function workspaceDependencyMtime(dir) {
+  return Math.max(
+    newestMtime(join(dir, 'src')),
+    ...PACKAGE_CONFIG_FILES.map((file) => fileMtime(join(dir, file))),
+  )
+}
+
 const workspacePackages = new Map()
 for (const entry of readdirSync('packages', { withFileTypes: true })) {
   if (!entry.isDirectory()) continue
@@ -62,7 +75,12 @@ const stale = APPS.filter((app) => {
   const src = Math.max(
     newestMtime(join('apps', app, 'src', 'preload')),
     newestMtime(join('apps', app, 'src', 'shared')),
-    ...workspaceDependencyDirs(app).map((dir) => newestMtime(join(dir, 'src'))),
+    fileMtime(join('apps', app, 'package.json')),
+    fileMtime(join('apps', app, 'electron.vite.config.ts')),
+    fileMtime(join('apps', app, 'tsconfig.json')),
+    fileMtime('package.json'),
+    fileMtime('tsconfig.base.json'),
+    ...workspaceDependencyDirs(app).map(workspaceDependencyMtime),
   )
   return src > built
 })
