@@ -1,8 +1,8 @@
 /**
- * Speaker notes (notesSlide) read/write — archive surgery, same approach as
+ * Speaker notes (notesSlide) read/write ΓÇö archive surgery, same approach as
  * duplicateSlide.
  *
- * - Read: slide rels → notesSlide part → body placeholder <a:t> text (\n-separated).
+ * - Read: slide rels ΓåÆ notesSlide part ΓåÆ body placeholder <a:t> text (\n-separated).
  * - Write: patch the existing notesSlide's body txBody; if there is no notesSlide,
  *   create one (creating a notesMaster too if needed and registering it in
  *   presentation.xml).
@@ -71,14 +71,14 @@ export function getSlideNotes(archive: PackageArchive, slidePath: string): strin
   const tx = /<p:txBody>([\s\S]*?)<\/p:txBody>/.exec(body.xml)?.[1]
   if (!tx) return ''
   const paras = [...tx.matchAll(/<a:p>([\s\S]*?)<\/a:p>/g)].map((p) =>
-    [...p[1]!.matchAll(/<a:t\b[^>]*>([\s\S]*?)<\/a:t>/g)].map((t) => unescapeXml(t[1]!)).join(''),
+    [...p[1]!.matchAll(/<a:t(?:\s[^>]*[^\/>])?>([\s\S]*?)<\/a:t>/g)].map((t) => unescapeXml(t[1]!)).join(''),
   )
   // Drop trailing empty paragraphs (PowerPoint templates often carry an empty placeholder paragraph)
   while (paras.length && paras[paras.length - 1] === '') paras.pop()
   return paras.join('\n')
 }
 
-/** text (\n-separated) → notes txBody. */
+/** text (\n-separated) ΓåÆ notes txBody. */
 function buildNotesTxBody(text: string): string {
   const lines = text.split('\n')
   const paras = lines.every((l) => l === '')
@@ -191,18 +191,32 @@ function ensureNotesMaster(archive: PackageArchive): string | null {
   // Register notesMasterIdLst in presentation.xml
   const presPath = 'ppt/presentation.xml'
   const pres = archive.readText(presPath)
-  if (pres && !pres.includes('<p:notesMasterIdLst>')) {
-    const rid = appendRelationship(
-      archive,
-      presPath,
-      NOTES_MASTER_REL,
-      'notesMasters/notesMaster1.xml',
-    )
-    const lst = `<p:notesMasterIdLst><p:notesMasterId r:id="${rid}"/></p:notesMasterIdLst>`
-    const next = pres.includes('</p:sldMasterIdLst>')
-      ? pres.replace('</p:sldMasterIdLst>', () => `</p:sldMasterIdLst>${lst}`)
-      : pres.replace('<p:sldIdLst>', () => `${lst}<p:sldIdLst>`)
-    setEntry(archive, presPath, next)
+  if (pres) {
+    const existingList = /<p:notesMasterIdLst\b[^>]*(?:\/>|>[\s\S]*?<\/p:notesMasterIdLst>)/.exec(
+      pres,
+    )?.[0]
+    if (!existingList) {
+      const rid = appendRelationship(
+        archive,
+        presPath,
+        NOTES_MASTER_REL,
+        'notesMasters/notesMaster1.xml',
+      )
+      const list = `<p:notesMasterIdLst><p:notesMasterId r:id="${rid}"/></p:notesMasterIdLst>`
+      const next = pres.includes('</p:sldMasterIdLst>')
+        ? pres.replace('</p:sldMasterIdLst>', () => `</p:sldMasterIdLst>${list}`)
+        : pres.replace('<p:sldIdLst>', () => `${list}<p:sldIdLst>`)
+      setEntry(archive, presPath, next)
+    } else if (existingList.endsWith('/>')) {
+      const rid = appendRelationship(
+        archive,
+        presPath,
+        NOTES_MASTER_REL,
+        'notesMasters/notesMaster1.xml',
+      )
+      const list = `<p:notesMasterIdLst><p:notesMasterId r:id="${rid}"/></p:notesMasterIdLst>`
+      setEntry(archive, presPath, pres.replace(existingList, list))
+    }
   }
   return path
 }
