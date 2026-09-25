@@ -35,7 +35,12 @@ import {
   type LegacyAiSettings,
 } from '@genoffice/ai-provider'
 import { shutdownCodexAppServers } from '@genoffice/ai-provider/codex-app-server'
-import { MAX_REMOTE_IMAGE_BYTES, fetchRemoteImage, readBodyCapped } from '@genoffice/electron-utils'
+import {
+  MAX_REMOTE_IMAGE_BYTES,
+  RendererStreamRegistry,
+  fetchRemoteImage,
+  readBodyCapped,
+} from '@genoffice/electron-utils'
 import {
   webSearchTool,
   imageSearchTool,
@@ -72,7 +77,7 @@ function writeJson(path: string, value: unknown): void {
   writeFileSync(path, JSON.stringify(value, null, 2))
 }
 
-const activeAiStreams = new Map<string, AbortController>()
+const activeAiStreams = new RendererStreamRegistry()
 
 // ---- Post-mortem log for runs that produced no usable reply ----
 
@@ -163,8 +168,7 @@ export function registerAiIpc(): void {
       send({ requestId, type: 'error', error: tm('errNoModel') })
       return
     }
-    const controller = new AbortController()
-    activeAiStreams.set(requestId, controller)
+    const controller = activeAiStreams.begin(event.sender, requestId)
     // wire-activity keepalive: lets the renderer's silence watchdog tell a slow turn from a dead one
     let lastPing = 0
     const ping = () => {
@@ -213,12 +217,13 @@ export function registerAiIpc(): void {
         })
       }
     } finally {
-      activeAiStreams.delete(requestId)
+      activeAiStreams.end(event.sender, requestId)
     }
   })
 
-  ipcMain.handle('ai:stream-cancel', (_event, requestId: string) => {
-    activeAiStreams.get(requestId)?.abort()
+  ipcMain.handle('ai:stream-cancel', (event, requestId: string) => {
+    if (typeof requestId !== 'string' || !requestId) return
+    activeAiStreams.cancel(event.sender, requestId)
   })
 
   // Search tools (content + images), Serper with DuckDuckGo fallback

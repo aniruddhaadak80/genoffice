@@ -62,6 +62,7 @@ export {
   readBodyCapped,
   remoteImageHeaders,
 } from './remote-image'
+export { RendererStreamRegistry, type StreamRequester } from './renderer-streams'
 export { GENERATED_IMAGE_DIR, readGeneratedImage, storeGeneratedImage } from './generated-images'
 export {
   buildPrintableHtml,
