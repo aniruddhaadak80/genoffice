@@ -289,6 +289,7 @@ async function imagePartMime(zip: JSZip, path: string): Promise<string | undefin
 export interface ParseExtras {
   /** ranges of top-level body elements, aligned with docxIndex */
   elements: BodyElement[]
+  opaqueRegions: Array<{ start: number; end: number }>
   /** original XML of chart parts referenced by chart blocks (partPath -> xml) */
   chartParts: Record<string, string>
   /** source-document hashes named by lazily served pictures */
@@ -588,6 +589,7 @@ export async function parseDocx(
     },
     extras: {
       elements,
+      opaqueRegions: scan.opaqueRegions,
       chartParts,
       lazyMediaHashes: [...(lazyHashesByZip.get(zip) ?? [])],
       ...(unconvertedChunksByZip.get(zip)
