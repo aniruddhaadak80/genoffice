@@ -416,8 +416,17 @@ export default function App() {
     [commitText, getMap],
   )
 
+  const flushStylesRef = useRef<(() => void) | null>(null)
+  const flushDraftsRef = useRef<(() => void) | null>(null)
+  /** land live style pokes and open panel drafts in the source before anything reads, saves or edits it */
+  const flushPending = useCallback(() => {
+    flushDraftsRef.current?.()
+    flushStylesRef.current?.()
+  }, [])
+
   const replaceAll = useCallback(
     (html: string, highlight: boolean) => {
+      flushPending()
       // a generated document carries the confirmed brief so later turns (and re-opens) stay anchored to it
       const pinned =
         highlight && briefRef.current && !parseBrief(html)
@@ -428,16 +437,8 @@ export default function App() {
       frameScrollRef.current = null
       commitText(pinned, false)
     },
-    [commitText],
+    [commitText, flushPending],
   )
-
-  const flushStylesRef = useRef<(() => void) | null>(null)
-  const flushDraftsRef = useRef<(() => void) | null>(null)
-  /** land live style pokes and open panel drafts in the source before anything reads, saves or edits it */
-  const flushPending = useCallback(() => {
-    flushDraftsRef.current?.()
-    flushStylesRef.current?.()
-  }, [])
 
   /** apply a toolbar/inspector batch; the selection follows the edited element (or clears when it is gone) */
   const runManual = useCallback(
@@ -1587,6 +1588,7 @@ export default function App() {
                 initialText={text}
                 onChange={onEditorChange}
                 onCursor={onCursor}
+                onBeforeReplace={flushPending}
               />
             </div>
           </div>
