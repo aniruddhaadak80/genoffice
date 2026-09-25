@@ -159,6 +159,27 @@ describe('streamText', () => {
     expect(progress).toEqual(['first'])
   })
 
+  it('does not start the transport when the signal is already aborted', async () => {
+    const controller = new AbortController()
+    controller.abort()
+    let starts = 0
+    const outcome = await streamText({
+      transport: {
+        stream: () => {
+          starts += 1
+          return { cancel: () => undefined }
+        },
+      },
+      system: 's',
+      user: 'u',
+      signal: controller.signal,
+      maxChars: 1000,
+      extract: passthrough,
+    })
+    expect(starts).toBe(0)
+    expect(outcome).toEqual({ status: 'empty', error: 'stopped' })
+  })
+
   it('the size cap cancels the stream and reports max_tokens', async () => {
     let cancelled = false
     const outcome = await streamText({
