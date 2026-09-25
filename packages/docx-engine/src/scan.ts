@@ -16,8 +16,14 @@ export interface BodyElement {
   end: number
 }
 
+export interface OpaqueRegion {
+  start: number
+  end: number
+}
+
 export interface BodyScan {
   elements: BodyElement[]
+  opaqueRegions: OpaqueRegion[]
   /** range [innerStart, innerEnd) spanning from the first top-level element start to the last element end */
   innerStart: number
   innerEnd: number
@@ -35,16 +41,39 @@ export function scanBody(documentXml: string): BodyScan {
   const scanFrom = bodyOpenMatch.index + bodyOpenMatch[0].length
 
   const elements: BodyElement[] = []
-  TAG_RE.lastIndex = scanFrom
+  const opaqueRegions: OpaqueRegion[] = []
+  let cursor = scanFrom
   let depth = 0
   let currentStart = -1
   let currentName = ''
-  let match: RegExpExecArray | null
 
-  while ((match = TAG_RE.exec(documentXml)) !== null) {
-    const tag = match[0]
+  while (cursor < documentXml.length) {
+    const tagStart = documentXml.indexOf('<', cursor)
+    if (tagStart === -1) break
     // Skip comments / CDATA / processing instructions (rare in Word output).
-    if (tag.startsWith('<!--') || tag.startsWith('<![') || tag.startsWith('<?')) continue
+    const opaqueTerminator = documentXml.startsWith('<!--', tagStart)
+      ? '-->'
+      : documentXml.startsWith('<![CDATA[', tagStart)
+        ? ']]>'
+        : documentXml.startsWith('<?', tagStart)
+          ? '?>'
+          : null
+    if (opaqueTerminator) {
+      const terminatorEnd = documentXml.indexOf(opaqueTerminator, tagStart + 2)
+      const end =
+        terminatorEnd === -1 ? documentXml.length : terminatorEnd + opaqueTerminator.length
+      opaqueRegions.push({ start: tagStart, end })
+      cursor = end
+      continue
+    }
+    TAG_RE.lastIndex = tagStart
+    const match = TAG_RE.exec(documentXml)
+    if (!match || match.index !== tagStart) {
+      cursor = tagStart + 1
+      continue
+    }
+    const tag = match[0]
+    cursor = match.index + tag.length
     const isClosing = tag.startsWith('</')
     const isSelfClosing = !isClosing && tag.endsWith('/>')
     const name = NAME_RE.exec(tag)?.[1] ?? ''
@@ -60,7 +89,7 @@ export function scanBody(documentXml: string): BodyScan {
           nextBody.lastIndex = match.index + tag.length
           const nb = nextBody.exec(documentXml)
           if (!nb) break
-          TAG_RE.lastIndex = nb.index + nb[0].length
+          cursor = nb.index + nb[0].length
           continue
         }
         throw new Error(`unexpected closing tag </${name}> at body level`)
@@ -83,10 +112,11 @@ export function scanBody(documentXml: string): BodyScan {
   }
 
   if (elements.length === 0) {
-    return { elements, innerStart: scanFrom, innerEnd: scanFrom }
+    return { elements, opaqueRegions, innerStart: scanFrom, innerEnd: scanFrom }
   }
   return {
     elements,
+    opaqueRegions,
     innerStart: elements[0].start,
     innerEnd: elements[elements.length - 1].end,
   }

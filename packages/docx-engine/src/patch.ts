@@ -351,7 +351,7 @@ export async function saveDocx(
   options: SaveOptions = {},
 ): Promise<Uint8Array> {
   const { documentXml, originalBytes, bodyInnerStart, bodyInnerEnd } = parsed.internal
-  const elements = parsed.extras.elements
+  const { elements, opaqueRegions } = parsed.extras
   const scrubPersonalInfo = options.removePersonalInfo ?? parsed.removePersonalInfo ?? false
 
   const visibleOriginalOrder = parsed.blocks.filter((b) => !b.hidden).map((b) => b.docxIndex)
@@ -1039,7 +1039,42 @@ export async function saveDocx(
     }
   }
 
-  const parts: string[] = []
+  const retainedIndexes = new Set<number>()
+  for (const block of finalBlocks) {
+    if (block.kind === 'original') retainedIndexes.add(block.docxIndex)
+    else if (block.kind === 'xml' && block.docxIndex !== undefined) {
+      retainedIndexes.add(block.docxIndex)
+    }
+  }
+  const opaqueBefore = new Map<number, string[]>()
+  const opaqueAfter = new Map<number, string[]>()
+  const detachedOpaque: string[] = []
+  for (const region of opaqueRegions) {
+    if (region.start < bodyInnerStart || region.end > bodyInnerEnd) continue
+    let afterIndex = -1
+    let beforeIndex = -1
+    for (let index = 0; index < elements.length; index++) {
+      if (elements[index].end <= region.start) afterIndex = index
+      if (elements[index].start >= region.end) {
+        beforeIndex = index
+        break
+      }
+    }
+    const xml = documentXml.slice(region.start, region.end)
+    if (afterIndex !== -1 && retainedIndexes.has(afterIndex)) {
+      const regions = opaqueAfter.get(afterIndex) ?? []
+      regions.push(xml)
+      opaqueAfter.set(afterIndex, regions)
+    } else if (beforeIndex !== -1 && retainedIndexes.has(beforeIndex)) {
+      const regions = opaqueBefore.get(beforeIndex) ?? []
+      regions.push(xml)
+      opaqueBefore.set(beforeIndex, regions)
+    } else {
+      detachedOpaque.push(xml)
+    }
+  }
+
+  const parts: string[] = [...detachedOpaque]
   for (let i = 0; i < finalBlocks.length; i++) {
     const fb = finalBlocks[i]
     let xml: string
@@ -1082,13 +1117,18 @@ export async function saveDocx(
       const injected = injectInkRunsIntoParagraph(xml, blockInks.map(inkRunXml).join(''))
       if (injected !== null) xml = injected
     }
-    if (fb.revision && !new RegExp(`^<w:${fb.revision.kind}[\\s>]`).test(xml)) {
+    if (fb.revision && !new RegExp(`^<w:${fb.revision.kind}(?:\\s|>)`).test(xml)) {
       const revision = fb.revision
       const attrs =
         ` w:id="${escapeXmlAttr(revision.id ?? '0')}"` +
         ` w:author="${escapeXmlAttr(revision.author)}"` +
         (revision.date ? ` w:date="${escapeXmlAttr(revision.date)}"` : '')
       xml = `<w:${revision.kind}${attrs}>${xml}</w:${revision.kind}>`
+    }
+    if (fbDocxIndex !== undefined) {
+      const leadingOpaque = (opaqueBefore.get(fbDocxIndex) ?? []).join('')
+      const trailingOpaque = (opaqueAfter.get(fbDocxIndex) ?? []).join('')
+      if (leadingOpaque || trailingOpaque) xml = leadingOpaque + xml + trailingOpaque
     }
     parts.push(xml)
   }
