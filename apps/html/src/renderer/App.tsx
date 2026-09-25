@@ -59,6 +59,7 @@ import {
 import { compileOps, type HtmlOp, type OpError } from './document/ops'
 import { injectBrief, parseBrief, type Brief } from './document/brief'
 import { applyPatches } from './document/patch'
+import { adoptImageRewrites } from './document/image-rewrites'
 import { deriveAutoFileName, deriveNameFromPrompt, derivePageTitleName } from './document/auto-name'
 import type { ExportFormat, SaveMode } from '../shared/ipc'
 
@@ -200,6 +201,7 @@ export default function App() {
   const savingRef = useRef(false)
   const statusRef = useRef<LoadStatus>('loading')
   const pushedTextRef = useRef<string | null>(null)
+  const previewTimerRef = useRef<number | null>(null)
   /** parse-map version of the copy currently served to the preview; messages from older copies are ignored */
   const pushedVersionRef = useRef(-1)
   /** versions whose sids the running frame still describes: the loaded copy plus every in-place commit since
@@ -295,6 +297,10 @@ export default function App() {
    */
   const pushPreview = useCallback(
     (nextText: string, reload = true) => {
+      if (previewTimerRef.current !== null) {
+        window.clearTimeout(previewTimerRef.current)
+        previewTimerRef.current = null
+      }
       if (pushedTextRef.current === nextText) return
       const map = getMap()
       window.htmlApi.updatePreview(instrumentForPreview(nextText, map, inspectorSource))
@@ -310,8 +316,17 @@ export default function App() {
   // push the instrumented buffer to html-preview:// and reload the frame, debounced per keystroke
   useEffect(() => {
     if (status !== 'ready' || pushedTextRef.current === text) return
-    const id = window.setTimeout(() => pushPreview(text), PREVIEW_DEBOUNCE_MS)
-    return () => window.clearTimeout(id)
+    if (previewTimerRef.current !== null) window.clearTimeout(previewTimerRef.current)
+    previewTimerRef.current = window.setTimeout(() => {
+      previewTimerRef.current = null
+      pushPreview(text)
+    }, PREVIEW_DEBOUNCE_MS)
+    return () => {
+      if (previewTimerRef.current !== null) {
+        window.clearTimeout(previewTimerRef.current)
+        previewTimerRef.current = null
+      }
+    }
   }, [text, status, pushPreview])
 
   useEffect(() => {
@@ -369,7 +384,7 @@ export default function App() {
 
   /** every text change goes through here so the version counter and the map cache stay coherent */
   const commitText = useCallback(
-    (next: string, manual: boolean) => {
+    (next: string, manual: boolean, preservePending = false) => {
       textRef.current = next
       versionRef.current += 1
       if (manual) lastManualVersionRef.current = versionRef.current
@@ -377,7 +392,7 @@ export default function App() {
       setTextSel(null)
       // any other document change reloads the preview and drops the live pokes; forget them too rather than
       // committing them later against sids the rebuilt parse map may have reassigned
-      if (!flushingStylesRef.current) {
+      if (!flushingStylesRef.current && !preservePending) {
         if (styleTimerRef.current !== null) window.clearTimeout(styleTimerRef.current)
         styleTimerRef.current = null
         pendingStylesRef.current = {}
@@ -1092,15 +1107,21 @@ export default function App() {
           defaultName: provisionalNameRef.current ?? undefined,
         })
         if (result.ok && 'path' in result) {
+          const adopted = adoptImageRewrites(textAtSave, textRef.current, result.imageRewrites)
+          if (adopted.liveText !== textRef.current) {
+            editorRef.current?.setDoc(adopted.liveText)
+            commitText(adopted.liveText, false, true)
+          }
           setPath((previous) => {
-            // a new path changes the preview's <base>; relative assets only resolve after a reload
             if (previous !== result.path) setPreviewNonce((n) => n + 1)
             return result.path
           })
-          setSavedText(textAtSave)
-          // edits that landed during the write keep the document dirty
-          setSaveState(textRef.current === textAtSave ? 'saved' : 'idle')
-          if (textRef.current !== textAtSave) window.htmlApi.setDirty(true)
+          savedTextRef.current = adopted.savedText
+          setSavedText(adopted.savedText)
+          const saved = adopted.liveText === adopted.savedText
+          setSaveState(saved ? 'saved' : 'idle')
+          if (!saved) window.htmlApi.setDirty(true)
+          pushPreview(adopted.liveText)
           return true
         }
         setSaveState(result.ok ? 'idle' : 'failed')
@@ -1113,7 +1134,7 @@ export default function App() {
         savingRef.current = false
       }
     },
-    [flushPending],
+    [commitText, flushPending, pushPreview],
   )
 
   const zoomIn = useCallback(() => setZoom((z) => clampZoom(Math.round(z) + ZOOM_STEP)), [])
