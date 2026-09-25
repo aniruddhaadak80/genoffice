@@ -6,7 +6,7 @@
 /// which cells belong to the pivot.
 
 import { columnIndex, columnLabel } from '../domain/cell-address'
-import type { MutablePackage } from './xlsx-drawing-add'
+import { resolveRelTarget, type MutablePackage } from './xlsx-drawing-add'
 import { buildCacheDefinitionXml, buildPivotTableXml, type PivotAddition } from './xlsx-pivot-add'
 
 export class PivotExpandError extends Error {}
@@ -88,23 +88,14 @@ async function findPivotTablePathForCache(
     // Target: ../pivotCache/pivotCacheDefinition1.xml
     // Resolved: xl/pivotCache/pivotCacheDefinition1.xml
     const relsDir = relsPath.replace(/\/_rels\/[^/]+$/, '')
-    const resolved = resolveRelativePath(relsDir, targetMatch[1])
+    const sourcePart = relsPath.replace(/\/_rels\/([^/]+)\.rels$/, '/$1')
+    const resolved = resolveRelTarget(sourcePart, targetMatch[1])
     if (resolved !== cachePath) continue
     // The pivot table path: strip _rels/ and .rels suffix
     const tableFilename = relsPath.replace(/.*\/_rels\//, '').replace(/\.rels$/, '')
     return `${relsDir}/${tableFilename}`
   }
   return null
-}
-
-/// Minimal relative-path resolver: walk ".." segments from the base directory.
-function resolveRelativePath(baseDir: string, target: string): string {
-  const segments = baseDir.split('/')
-  for (const part of target.split('/')) {
-    if (part === '..') segments.pop()
-    else if (part !== '.') segments.push(part)
-  }
-  return segments.join('/')
 }
 
 /// Read the current <location ref="…"> from a pivot table XML.
@@ -308,7 +299,7 @@ async function applyPivotRelayout(
       /Target="([^"]+)"[^>]*Type="[^"]*pivotCacheRecords[^"]*"/.exec(relsXml)?.[1] ??
       /Type="[^"]*pivotCacheRecords[^"]*"[^>]*Target="([^"]+)"/.exec(relsXml)?.[1]
     if (target) {
-      const recordsPath = resolveRelativePath(update.cachePath.replace(/\/[^/]+$/, ''), target)
+      const recordsPath = resolveRelTarget(update.cachePath, target)
       pkg.write(
         recordsPath,
         '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n' +

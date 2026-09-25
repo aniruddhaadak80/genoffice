@@ -1934,8 +1934,8 @@ async function resolveWorksheetPath(
   const targetMatch =
     relationshipXml === undefined ? undefined : /\bTarget="([^"]+)"/.exec(relationshipXml)?.[1]
   if (!targetMatch) throw new Error(`Relationship ${relationshipId} was not found.`)
-  const target = targetMatch.replace(/^\/?xl\//, '')
-  return `xl/${target.replace(/^\.\//, '')}`
+  const target = decodeXmlText(targetMatch).replace(/^\/?xl\//, '')
+  return resolveRelTarget('xl/workbook.xml', target)
 }
 
 function replaceSheetName(workbookXml: string, before: string, after: string): string {
