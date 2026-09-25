@@ -91,7 +91,7 @@ export async function save(getCtx: () => ActionCtx, quiet = false): Promise<bool
     // resolved only now: a queued pass must remap selection against the tree the prior save adopted
     const ctx = getCtx()
     await flushActiveEdit(ctx)
-    await ctx.flushNotes()
+    if (!(await ctx.flushNotes())) return false
     const r = await window.slidesApi.save()
     if (r.ok) {
       if (r.slides) adoptSavedSlides(ctx, r.slides)
@@ -117,7 +117,7 @@ export async function saveAs(getCtx: () => ActionCtx): Promise<void> {
   await runSerialized(async () => {
     const ctx = getCtx()
     await flushActiveEdit(ctx)
-    await ctx.flushNotes()
+    if (!(await ctx.flushNotes())) return
     const name = ctx.path?.split('/').pop() ?? 'presentation.pptx'
     const r = await window.slidesApi.saveAs(name)
     if (r.ok) {

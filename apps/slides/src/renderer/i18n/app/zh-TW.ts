@@ -208,6 +208,7 @@ export const zhTW = {
   appOutlineNoText: '（無文字）',
   appSectionHeaderTitle: '按一下摺疊/展開；按右鍵管理章節',
   appNotesLabel: '備忘稿',
+  appNotesAiConflict: 'AI 在你輸入時修改了這些備忘稿。你的草稿仍會保留，離開備忘稿區時將優先儲存。',
   appNotesClickToAdd: '按一下此處新增備忘稿',
   appNotesPlaceholder: '按一下此處新增演講者備忘稿（隨文件儲存進 pptx）',
   appNotesShow: '顯示備忘稿',

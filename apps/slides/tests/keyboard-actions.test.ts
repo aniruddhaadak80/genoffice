@@ -49,7 +49,7 @@ function makeCtx(over: Record<string, unknown> = {}): ActionCtx {
     enteredGroupId: null,
     overlayOpen: false,
     findNodeCtx: () => null,
-    flushNotes: vi.fn(async () => {}),
+    flushNotes: vi.fn(async () => true),
     ...over,
   } as unknown as ActionCtx
 }
@@ -630,6 +630,7 @@ describe('new slide shortcut', () => {
     const ctx = makeCtx({
       flushNotes: vi.fn(async () => {
         order.push('notes')
+        return true
       }),
     })
     vi.mocked(slideActions.addSlide).mockImplementationOnce(async () => {
@@ -640,6 +641,15 @@ describe('new slide shortcut', () => {
     await flush()
     expect(e.defaultPrevented).toBe(true)
     expect(order).toEqual(['edit', 'notes', 'slide'])
+  })
+
+  it('does not add a slide when the notes draft cannot be committed', async () => {
+    const ctx = makeCtx({ flushNotes: vi.fn(async () => false) })
+    const e = keydown('N', { shiftKey: true })
+    handleGlobalKeydown(ctx, e, 'MacIntel')
+    await flush()
+    expect(e.defaultPrevented).toBe(true)
+    expect(slideActions.addSlide).not.toHaveBeenCalled()
   })
 
   it('is a no-op in slide show, presenter and reading view', async () => {

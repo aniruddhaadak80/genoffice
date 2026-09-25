@@ -233,6 +233,8 @@ export const it = {
   appSectionHeaderTitle:
     'Fai clic per comprimere/espandere; fai clic con il pulsante destro per gestire la sezione',
   appNotesLabel: 'Note',
+  appNotesAiConflict:
+    "L'IA ha modificato queste note durante la digitazione. La bozza resta disponibile e viene mantenuta quando esci dalle note.",
   appNotesClickToAdd: 'Fai clic per aggiungere note',
   appNotesPlaceholder: 'Fai clic per aggiungere le note del relatore (salvate nel file .pptx)',
   appNotesShow: 'Mostra note',

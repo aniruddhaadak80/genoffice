@@ -219,6 +219,8 @@ export const en = {
   appOutlineNoText: '(No text)',
   appSectionHeaderTitle: 'Click to collapse/expand; right-click to manage the section',
   appNotesLabel: 'Notes',
+  appNotesAiConflict:
+    'AI changed these notes while you were typing. Your draft is still here and will be kept when you leave Notes.',
   appNotesClickToAdd: 'Click to add notes',
   appNotesPlaceholder: 'Click to add speaker notes (saved into the .pptx)',
   appNotesShow: 'Show notes',

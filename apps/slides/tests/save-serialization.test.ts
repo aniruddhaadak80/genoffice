@@ -14,7 +14,7 @@ function ctx(): ActionCtx {
   return {
     flushActiveEditRef: { current: () => Promise.resolve() },
     editingActiveRef: { current: false },
-    flushNotes: () => Promise.resolve(),
+    flushNotes: () => Promise.resolve(true),
     slides: [],
     current: 0,
     setSlides: () => {},
@@ -114,6 +114,20 @@ describe('slides save serialization', () => {
     expect(mockSaveAs).toHaveBeenCalledTimes(1)
     expect(maxConcurrent).toBe(1)
 
+    vi.unstubAllGlobals()
+  })
+
+  it('does not save or close when an in-progress notes draft cannot be committed', async () => {
+    const mockSave = vi.fn(async () => ({ ok: true }))
+    const mockSaveAs = vi.fn(async () => ({ ok: true }))
+    vi.stubGlobal('window', { slidesApi: { save: mockSave, saveAs: mockSaveAs } })
+    const context = { ...ctx(), flushNotes: async () => false }
+
+    await expect(save(() => context)).resolves.toBe(false)
+    await saveAs(() => context)
+
+    expect(mockSave).not.toHaveBeenCalled()
+    expect(mockSaveAs).not.toHaveBeenCalled()
     vi.unstubAllGlobals()
   })
 

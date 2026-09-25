@@ -5704,6 +5704,10 @@ body.vib .slide-list {
   color: var(--text-tertiary);
 }
 
+.notes-pane.notes-conflict textarea {
+  box-shadow: inset 0 0 0 2px var(--danger);
+}
+
 /* Long notes must stay readable at any pane height: native wheel scrolling
  * plus a slim scrollbar (PowerPoint/WPS keep the notes pane scrollable even
  * when it's dragged down to a single line) */

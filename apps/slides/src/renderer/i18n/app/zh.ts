@@ -207,6 +207,7 @@ export const zh = {
   appOutlineNoText: '（无文字）',
   appSectionHeaderTitle: '单击折叠/展开；右键管理节',
   appNotesLabel: '备注',
+  appNotesAiConflict: 'AI 在你输入时修改了这些备注。你的草稿仍保留，离开备注区时将优先保存。',
   appNotesClickToAdd: '单击此处添加备注',
   appNotesPlaceholder: '单击此处添加演讲者备注（随文档保存进 pptx）',
   appNotesShow: '显示备注',

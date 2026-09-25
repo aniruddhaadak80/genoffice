@@ -213,6 +213,7 @@ export const he = {
   appOutlineNoText: '(אין טקסט)',
   appSectionHeaderTitle: 'לחץ לכיווץ/הרחבה; לחץ לחיצה ימנית לניהול המקטע',
   appNotesLabel: 'הערות',
+  appNotesAiConflict: 'ה‑AI שינה את ההערות בזמן שהקלדת. הטיוטה שלך נשמרת ותישאר כשתצא מההערות.',
   appNotesClickToAdd: 'לחץ כדי להוסיף הערות',
   appNotesPlaceholder: 'לחץ כדי להוסיף הערות מציג (נשמרות בקובץ ה-.pptx)',
   appNotesShow: 'הצג הערות',
