@@ -146,9 +146,10 @@ pub fn translate_shared_formula(
                 }
                 out.push_str(&shift_cell_token(token, row_delta, column_delta)?);
             }
-            byte => {
-                out.push(byte as char);
-                i += 1;
+            _ => {
+                let character = formula[i..].chars().next()?;
+                out.push(character);
+                i += character.len_utf8();
             }
         }
     }
@@ -328,6 +329,14 @@ mod tests {
             translate_shared_formula("ROUND(1.5,0)+TaxRate+3", 1, 1).as_deref(),
             Some("ROUND(1.5,0)+TaxRate+3")
         );
+    }
+
+    #[test]
+    fn preserves_unicode_defined_names() {
+        let mut shared = SharedFormulas::default();
+        shared.register(0, 0, 0, "é”€å”®é¡^M+A1");
+
+        assert_eq!(shared.expand(0, 0, 1).as_deref(), Some("é”€å”®é¡^M+B1"));
     }
 
     #[test]
