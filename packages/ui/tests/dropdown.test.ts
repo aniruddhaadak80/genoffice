@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { nextEnabledIndex } from '../src/dropdown'
+import { nextEnabledIndex, reconcileActiveIndex } from '../src/dropdown'
 
 describe('Dropdown keyboard navigation', () => {
   const options = [{ disabled: true }, {}, { disabled: true }, {}]
@@ -13,5 +13,19 @@ describe('Dropdown keyboard navigation', () => {
     expect(nextEnabledIndex(options, 0, 1)).toBe(1)
     expect(nextEnabledIndex(options, options.length - 1, -1)).toBe(3)
     expect(nextEnabledIndex([{ disabled: true }], 0, 1)).toBe(-1)
+  })
+
+  it('reconciles active indexes when options shrink or become disabled', () => {
+    const choices = [
+      { value: 'auto', disabled: true },
+      { value: 'left' },
+      { value: 'right', disabled: true },
+      { value: 'center' },
+    ]
+    expect(reconcileActiveIndex(choices, 1, 'left')).toBe(1)
+    expect(reconcileActiveIndex(choices, 0, 'auto')).toBe(1)
+    expect(reconcileActiveIndex(choices, 2, 'right')).toBe(3)
+    expect(reconcileActiveIndex(choices, 8, 'center')).toBe(3)
+    expect(reconcileActiveIndex([{ value: 'auto', disabled: true }], 0, 'auto')).toBe(-1)
   })
 })
