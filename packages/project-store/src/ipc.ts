@@ -70,7 +70,7 @@ export interface ProjectApi {
    * When filePath is null, returns the default project + tempChatId (if provided).
    */
   resolveChat(args: ResolveChatArgs): Promise<ResolveChatResult>
-  /** Appends one message to the JSONL */
+  /** Appends one message to the JSONL; the promise rejects when the transcript could not be persisted */
   appendChat(args: AppendChatArgs): Promise<void>
   /** Reads the most recent `limit` messages */
   loadChat(args: LoadChatArgs): Promise<ChatMessage[]>
