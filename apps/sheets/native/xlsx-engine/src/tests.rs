@@ -170,6 +170,22 @@ fn strips_future_function_markers_outside_strings() {
 }
 
 #[test]
+fn preserves_future_function_markers_in_sheet_and_defined_names() {
+    assert_eq!(
+        strip_future_function_markers("='Data_xlfn.Total'!_xlfn.MINIFS(A1:A3,A1:A3,\">0\")"),
+        "='Data_xlfn.Total'!MINIFS(A1:A3,A1:A3,\">0\")"
+    );
+    assert_eq!(
+        strip_future_function_markers("'Owner''s_xlfn.Data'!A1"),
+        "'Owner''s_xlfn.Data'!A1"
+    );
+    assert_eq!(
+        strip_future_function_markers("Budget_xlfn.Total+A1"),
+        "Budget_xlfn.Total+A1"
+    );
+}
+
+#[test]
 fn normalizes_worksheet_paths_with_forward_slashes() {
     assert_eq!(
         normalize_worksheet_path("worksheets/sheet1.xml").unwrap(),
