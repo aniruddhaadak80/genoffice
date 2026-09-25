@@ -37,6 +37,13 @@ describe('text + inline image mixed paragraphs', () => {
     expect(doc.blocks[0].format?.pageBreakBefore).toBe(true)
   })
 
+  it('preserves a single-quoted leading page break before a protected image', async () => {
+    const bodyXml = `<w:p><w:r><w:br w:type='page'/></w:r>${INLINE_IMAGE_RUN}</w:p>`
+    const doc = await parseDocx(await buildDocx({ bodyXml, withImage: true }))
+    expect(doc.blocks[0].type).toBe('image')
+    expect(doc.blocks[0].format?.pageBreakBefore).toBe(true)
+  })
+
   it('matches breaks with extra attributes or another attribute order', async () => {
     const bodyXml = `<w:p><w:r><w:br w:clear="none" w:type="page"/></w:r>${INLINE_IMAGE_RUN}</w:p>`
     const doc = await parseDocx(await buildDocx({ bodyXml, withImage: true }))
