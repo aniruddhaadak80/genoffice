@@ -1,8 +1,8 @@
 /**
  * Speaker notes tests (Task 3):
  *  1. Read notes (pptx that has a notesSlide)
- *  2. Write new notes (blank deck, no notesSlide → part auto-created)
- *  3. Write to a real pptx fixture → save+reopen roundtrip
+ *  2. Write new notes (blank deck, no notesSlide ΓåÆ part auto-created)
+ *  3. Write to a real pptx fixture ΓåÆ save+reopen roundtrip
  *  4. Iron rule: notesSlide bytes of slides without written notes stay unchanged
  */
 import { describe, it, expect } from 'vitest'
@@ -35,7 +35,7 @@ describe('speaker notes', () => {
     )
   })
 
-  it('reads text from a:t elements with attributes and preserves spaces', async () => {
+  it('skips self-closing text runs when reading attributed text', async () => {
     const opened = await openPptx(await createBlankPptx())
     setSlideNotes(opened, 0, 'placeholder')
     const slidePath = opened.deck.slides[0]!.path
@@ -47,13 +47,33 @@ describe('speaker notes', () => {
     opened.archive.entries.set(
       notesPath,
       Buffer.from(
-        xml.replace('<a:t>placeholder</a:t>', '<a:t xml:space="preserve"> Speaker note </a:t>'),
+        xml.replace(
+          /<a:p>[\s\S]*?<\/a:p>/,
+          '<a:p><a:r><a:rPr/><a:t/></a:r><a:r><a:rPr/><a:t xml:space="preserve">Hello world </a:t></a:r></a:p>',
+        ),
       ),
     )
-    expect(getSlideNotes(opened.archive, slidePath)).toBe(' Speaker note ')
+    expect(getSlideNotes(opened.archive, slidePath)).toBe('Hello world ')
+  })
+  it('replaces an empty notes-master list instead of duplicating it', async () => {
+    const opened = await openPptx(await createBlankPptx())
+    const presentationPath = 'ppt/presentation.xml'
+    const presentation = opened.archive.readText(presentationPath)!
+    opened.archive.entries.set(
+      presentationPath,
+      Buffer.from(
+        presentation.replace('</p:sldMasterIdLst>', '</p:sldMasterIdLst><p:notesMasterIdLst/>'),
+      ),
+    )
+    setSlideNotes(opened, 0, 'note')
+    const updated = opened.archive.readText(presentationPath)!
+    expect(updated.match(/<p:notesMasterIdLst\b/g)).toHaveLength(1)
+    expect(updated).toMatch(
+      /<p:notesMasterIdLst><p:notesMasterId r:id="rId\d+"\/><\/p:notesMasterIdLst>/,
+    )
   })
 
-  it('save → reopen persists notes (notesSlide part auto-created)', async () => {
+  it('save ΓåÆ reopen persists notes (notesSlide part auto-created)', async () => {
     const opened = await openPptx(await createBlankPptx())
     setSlideNotes(opened, 0, 'Introduce yourself first & special chars <test>')
     const reopened = await openPptx(await savePptx(opened))
@@ -66,7 +86,7 @@ describe('speaker notes', () => {
     expect(reopened.archive.has('ppt/notesMasters/notesMaster1.xml')).toBe(true)
   })
 
-  it('real pptx fixture → write notes → save+reopen correct', async () => {
+  it('real pptx fixture ΓåÆ write notes ΓåÆ save+reopen correct', async () => {
     const opened = await openPptx(fx('01_standard_business.pptx'))
     setSlideNotes(opened, 0, 'Speaker notes for the first slide')
     const reopened = await openPptx(await savePptx(opened))
