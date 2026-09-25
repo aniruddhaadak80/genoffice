@@ -33,6 +33,21 @@ export function nextEnabledIndex(
   return -1
 }
 
+export function reconcileActiveIndex(
+  options: ReadonlyArray<{ readonly value?: string; readonly disabled?: boolean }>,
+  active: number,
+  value?: string,
+): number {
+  if (active >= 0 && active < options.length && !options[active]!.disabled) return active
+  if (value !== undefined) {
+    const selected = options.findIndex((option) => option.value === value)
+    if (selected >= 0 && !options[selected]!.disabled) return selected
+  }
+  const start = active >= 0 && active < options.length ? active : 0
+  const forward = nextEnabledIndex(options, start, 1)
+  return forward >= 0 ? forward : nextEnabledIndex(options, Math.min(start, options.length - 1), -1)
+}
+
 export function Dropdown<K extends string>({
   value,
   options,
@@ -70,13 +85,15 @@ export function Dropdown<K extends string>({
     // optional chaining on the call: jsdom elements have no scrollIntoView
     popRef.current?.querySelectorAll('.gs-dd-item')[active]?.scrollIntoView?.({ block: 'nearest' })
   }, [open, active])
+  useEffect(() => {
+    setActive((current) => reconcileActiveIndex(options, current, value))
+  }, [options, value])
   // No fallback to options[0]: an off-list value (e.g. a document-only font)
   // must read as itself, not masquerade as the first option
   const current = options.find((o) => o.value === value)
   const openList = () => {
     const i = options.findIndex((o) => o.value === value)
-    const initial = i >= 0 && !options[i]!.disabled ? i : nextEnabledIndex(options, 0, 1)
-    setActive(initial)
+    setActive(reconcileActiveIndex(options, i, value))
     setOpen(true)
   }
   const pick = (o: DropdownOption<K>) => {
@@ -89,7 +106,7 @@ export function Dropdown<K extends string>({
       const current = i >= 0 && i < options.length ? i : -1
       const start = current < 0 ? (step === 1 ? 0 : options.length - 1) : current + step
       const next = nextEnabledIndex(options, start, step)
-      return next < 0 ? current : next
+      return next < 0 ? reconcileActiveIndex(options, current, value) : next
     })
   }
   const onKeyDown = (e: React.KeyboardEvent) => {
@@ -107,7 +124,13 @@ export function Dropdown<K extends string>({
     else if (e.key === 'End') setActive(nextEnabledIndex(options, options.length - 1, -1))
     else if (e.key === 'Enter' || e.key === ' ') {
       const o = options[active]
-      if (o) pick(o)
+      if (o && !o.disabled) pick(o)
+      else {
+        const next = reconcileActiveIndex(options, active, value)
+        setActive(next)
+        const nextOption = options[next]
+        if (nextOption) pick(nextOption)
+      }
     } else return
     e.preventDefault()
     // handled keys stay ours while the list is open: a bubbling Escape would
