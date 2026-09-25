@@ -458,6 +458,19 @@ describe('text body parsing fidelity', () => {
     expect(rtlOf('')).toBeUndefined()
   })
 
+  it('clamps paragraph levels to the OOXML range', () => {
+    const levels = ['-1', '9', '20000000']
+    const paragraphs = levels
+      .map((level) => `<a:p><a:pPr lvl="${level}"/><a:r><a:t>x</a:t></a:r></a:p>`)
+      .join('')
+    const slide = parseSlide({
+      path: 'ppt/slides/slide1.xml',
+      slideXml: slideWith(spWith(paragraphs)),
+      ctx: {},
+    })
+    expect(firstText(slide).paragraphs.map((p: any) => p.level)).toEqual([0, 8, 8])
+  })
+
   it('generateParagraphXml round-trips explicit rtl (true and false)', () => {
     expect(generateParagraphXml({ runs: [{ text: 'x' }], rtl: true })).toContain('rtl="1"')
     expect(generateParagraphXml({ runs: [{ text: 'x' }], rtl: false })).toContain('rtl="0"')

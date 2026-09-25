@@ -471,6 +471,13 @@ function tokenizeParagraph(p: Paragraph, scale: number, fontScale: number): Toke
  * sequence's — PowerPoint numbers "startAt=7" then a plain buAutoNum as 7., 1. Empty paragraphs
  * show no number and change nothing.
  */
+const MAX_PARAGRAPH_LEVEL = 8
+
+function boundedParagraphLevel(level: number | undefined): number {
+  if (level == null || !Number.isFinite(level)) return 0
+  return Math.min(MAX_PARAGRAPH_LEVEL, Math.max(0, Math.floor(level)))
+}
+
 class AutoNumCounter {
   private counts: number[] = []
   private schemes: string[] = []
@@ -479,7 +486,7 @@ class AutoNumCounter {
   /** Number of a numbered text paragraph; undefined for anything else (state still advances). */
   next(p: Paragraph, hasText: boolean): number | undefined {
     if (!hasText) return undefined
-    const lvl = p.level ?? 0
+    const lvl = boundedParagraphLevel(p.level)
     const b = p.bullet
     const from = b?.type === 'number' ? lvl + 1 : lvl
     for (let l = from; l < this.counts.length; l++) this.counts[l] = 0
@@ -1594,7 +1601,8 @@ function layoutAll(
     // draws at marL+indent, negative indent = hanging indent; without a bullet the
     // first line starts at marL+indent). When no layer of the style chain defines
     // marL, PowerPoint's built-in default indents each level by 0.5" (457200 EMU).
-    const marLPx = emuToPx(p.marL ?? (p.level ? p.level * 457200 : 0), scale)
+    const level = boundedParagraphLevel(p.level)
+    const marLPx = emuToPx(p.marL ?? (level ? level * 457200 : 0), scale)
     const indentPx = emuToPx(p.indent ?? 0, scale)
     const hasText = p.runs.some((r) => r.text.trim())
     const bulletType = p.bullet?.type

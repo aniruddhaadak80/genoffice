@@ -1868,6 +1868,21 @@ describe('bullet parity (PowerPoint)', () => {
       bullet: { type: 'number', numType },
     }) as Paragraph
 
+  it('bounds hostile paragraph levels before auto-number counter work', () => {
+    const l = lay([
+      {
+        runs: [{ text: 'hostile', fontSize: 18 }],
+        level: 20_000_000,
+        bullet: { type: 'number' },
+      } as Paragraph,
+      {
+        runs: [{ text: 'normal', fontSize: 18 }],
+        bullet: { type: 'number' },
+      } as Paragraph,
+    ])
+    expect(bulletsOf(l).map((b) => b?.text)).toEqual(['1.', '1.'])
+  })
+
   it('nested numbering keeps one counter per level; the outer list continues after a sublist', () => {
     const l = lay([
       num('one'),
