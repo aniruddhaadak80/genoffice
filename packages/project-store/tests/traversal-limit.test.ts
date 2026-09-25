@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { ProjectStore } from '../src/store.js'
@@ -125,5 +125,27 @@ describe('loadChat limit clamping', () => {
     seedAssistantMessages(store, 'chat-big', 5)
     const msgs = store.loadChat('default', 'chat-big', 20000)
     expect(msgs).toHaveLength(5)
+  })
+
+  it('does not materialize records outside the display read budget', () => {
+    seedAssistantMessages(store, 'chat-budget', 1)
+    const chatPath = join(tmpDir, 'projects', 'default', 'chats', 'chat-budget.jsonl')
+    const old = JSON.stringify({
+      seq: 0,
+      ts: new Date(0).toISOString(),
+      role: 'assistant',
+      text: 'x'.repeat(9 * 1024 * 1024),
+    })
+    const recent = JSON.stringify({
+      seq: 1,
+      ts: new Date(1).toISOString(),
+      role: 'assistant',
+      text: 'recent',
+    })
+    writeFileSync(chatPath, `${old}\n${recent}\n`, 'utf8')
+
+    expect(store.loadChat('default', 'chat-budget', 2).map((message) => message.text)).toEqual([
+      'recent',
+    ])
   })
 })
