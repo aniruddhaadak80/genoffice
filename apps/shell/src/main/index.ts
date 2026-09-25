@@ -1,10 +1,8 @@
 import { execSync, spawn } from 'node:child_process'
 import {
   copyFileSync,
-  cpSync,
   existsSync,
   readFileSync,
-  readdirSync,
   renameSync,
   rmSync,
   statSync,
@@ -65,6 +63,7 @@ import {
   installRendererProtocol,
 } from '@genoffice/electron-utils'
 import { readAppSettings, writeAppSetting, writeAppSettings } from './app-settings'
+import { migrateLegacyUserData } from './user-data-migration'
 import { OPEN_DOCUMENTS_FILE, clearOpenDocuments, publishOpenDocuments } from './open-documents'
 import { startControlServer, type ControlServer } from './control-server'
 import { controlHandler } from './control-handlers'
@@ -360,13 +359,9 @@ if (headlessArgv.kind !== 'none') {
   app.dock?.hide()
 }
 
-// The product rename from "AI Office" to GenOffice changed the userData path; migrate old user data once
-if (app.isPackaged) {
-  const oldDir = join(app.getPath('appData'), 'AI Office')
-  const newDir = app.getPath('userData')
-  const newEmpty = !existsSync(newDir) || readdirSync(newDir).length === 0
-  if (newEmpty && existsSync(oldDir)) cpSync(oldDir, newDir, { recursive: true })
-}
+// The product rename from "AI Office" to GenOffice changed the userData path; the one-time
+// copy of the old tree runs in whenReady() below, once this process owns the single-instance
+// lock, so a second start can never race the first and an interrupted copy is retried.
 
 // module build outputs: packaged builds carry them as extraResources
 // (resources/modules/*, resources/native/*); dev/unpacked resolves them
@@ -5210,18 +5205,20 @@ async function runHeadlessExportEntry(
   app.exit(headlessExitCode(outcome))
 }
 
+const SHELL_PROTOCOL_ROOTS = {
+  docs: join(DOCS_OUT, 'renderer'),
+  sheets: join(SHEETS_OUT, 'renderer'),
+  slides: join(SLIDES_OUT, 'renderer'),
+  pdf: join(PDF_OUT, 'renderer'),
+  markdown: join(MARKDOWN_OUT, 'renderer'),
+  html: join(HTML_OUT, 'renderer'),
+}
+
 app.whenReady().then(async () => {
   // first scan waits for the windows to come up; later ones follow folder changes
   setTimeout(() => ensureFileIndexer()?.refresh(), 4000)
-  installRendererProtocol({
-    docs: join(DOCS_OUT, 'renderer'),
-    sheets: join(SHEETS_OUT, 'renderer'),
-    slides: join(SLIDES_OUT, 'renderer'),
-    pdf: join(PDF_OUT, 'renderer'),
-    markdown: join(MARKDOWN_OUT, 'renderer'),
-    html: join(HTML_OUT, 'renderer'),
-  })
   if (headlessArgv.kind !== 'none') {
+    installRendererProtocol(SHELL_PROTOCOL_ROOTS)
     await runHeadlessExportEntry(headlessArgv)
     return
   }
@@ -5254,6 +5251,21 @@ app.whenReady().then(async () => {
     app.quit()
     return
   }
+  // Only the lock owner may migrate the pre-rename userData tree, and it runs
+  // before the renderer protocol touches the default session: the copy lands
+  // through a staging directory plus a rename, so a crash leaves the
+  // destination empty and the next launch retries instead of accepting a
+  // partial tree as migrated.
+  if (app.isPackaged) {
+    const migration = migrateLegacyUserData({
+      appData: app.getPath('appData'),
+      userData: app.getPath('userData'),
+    })
+    if (migration.status !== 'skipped') {
+      console.log(`[genoffice] userData migration: ${migration.status}`, migration.error ?? '')
+    }
+  }
+  installRendererProtocol(SHELL_PROTOCOL_ROOTS)
   // another GenOffice-family app re-logging in rotates the shared key; the
   // home page re-reads its account status. A logout that leaves only the
   // gsk CLI fallback key is not a login
