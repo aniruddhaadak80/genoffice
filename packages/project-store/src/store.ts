@@ -15,7 +15,7 @@
  * - seq is maintained by the store layer: auto-incremented on each appendChatMessage
  */
 
-import { createHash } from 'node:crypto'
+import { createHash, randomBytes } from 'node:crypto'
 import {
   appendFileSync,
   closeSync,
@@ -159,6 +159,56 @@ function parseChatRecords(raw: string): ChatMessage[] {
 
 function readAllChatRecords(filePath: string): ChatMessage[] {
   return parseChatRecords(readFileSync(filePath, 'utf8'))
+}
+
+function appendJsonLines(filePath: string, lines: string): void {
+  if (!lines) return
+  let prefix = ''
+  try {
+    const size = statSync(filePath).size
+    if (size > 0) {
+      const fd = openSync(filePath, 'r')
+      try {
+        const lastByte = Buffer.allocUnsafe(1)
+        readSync(fd, lastByte, 0, 1, size - 1)
+        if (lastByte[0] !== 0x0a) prefix = '\n'
+      } finally {
+        closeSync(fd)
+      }
+    }
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+  }
+  appendFileSync(filePath, prefix + lines, 'utf8')
+}
+
+function mergeChatFiles(oldPath: string, newPath: string): number {
+  const existing = readAllChatRecords(newPath)
+  const moved = readAllChatRecords(oldPath)
+  let seq = existing.reduce((m, msg) => Math.max(m, msg.seq), -1) + 1
+  const movedLines = moved
+    .map((message) => JSON.stringify({ ...message, seq: seq++ }) + '\n')
+    .join('')
+  if (movedLines) {
+    const target = readFileSync(newPath)
+    const boundary =
+      target.length > 0 && target[target.length - 1] !== 0x0a
+        ? Buffer.from('\n')
+        : Buffer.alloc(0)
+    const tmpPath = `${newPath}.${randomBytes(6).toString('hex')}.tmp`
+    try {
+      writeFileSync(tmpPath, Buffer.concat([target, boundary, Buffer.from(movedLines, 'utf8')]))
+      renameSync(tmpPath, newPath)
+    } catch (error) {
+      try {
+        unlinkSync(tmpPath)
+      } catch {
+      }
+      throw error
+    }
+  }
+  unlinkSync(oldPath)
+  return seq - 1
 }
 
 function readJson<T>(filePath: string): T | null {
@@ -399,7 +449,7 @@ export class ProjectStore {
     try {
       ensureDir(this.chatsDir(projectId))
       const lines = buf.map((r) => JSON.stringify(r) + '\n').join('')
-      appendFileSync(this.chatPath(projectId, chatId), lines, 'utf8')
+      appendJsonLines(this.chatPath(projectId, chatId), lines)
     } catch (err) {
       console.warn('[project-store] flushPending failed:', err)
     }
@@ -456,7 +506,7 @@ export class ProjectStore {
           ensureDir(this.chatsDir(projectId))
           this.pendingFirstWrite.delete(key)
           const lines = buf.map((r) => JSON.stringify(r) + '\n').join('')
-          appendFileSync(this.chatPath(projectId, chatId), lines, 'utf8')
+          appendJsonLines(this.chatPath(projectId, chatId), lines)
           return
         }
         this.pendingFirstWrite.set(key, buf)
@@ -466,7 +516,7 @@ export class ProjectStore {
       const buf = this.pendingFirstWrite.get(key) ?? []
       this.pendingFirstWrite.delete(key)
       const lines = [...buf, record].map((r) => JSON.stringify(r) + '\n').join('')
-      appendFileSync(this.chatPath(projectId, chatId), lines, 'utf8')
+      appendJsonLines(this.chatPath(projectId, chatId), lines)
     } catch (err) {
       console.warn('[project-store] appendChatMessage failed:', err)
     }
@@ -546,13 +596,7 @@ export class ProjectStore {
         if (!existsSync(newPath)) {
           renameSync(oldPath, newPath)
         } else {
-          const existing = readAllChatRecords(newPath)
-          let seq = existing.reduce((m, msg) => Math.max(m, msg.seq), -1) + 1
-          const moved = readAllChatRecords(oldPath)
-          const lines = moved.map((m) => JSON.stringify({ ...m, seq: seq++ }) + '\n').join('')
-          if (lines) appendFileSync(newPath, lines, 'utf8')
-          unlinkSync(oldPath)
-          mergedMaxSeq = seq - 1
+          mergedMaxSeq = mergeChatFiles(oldPath, newPath)
         }
       }
     } catch (err) {
