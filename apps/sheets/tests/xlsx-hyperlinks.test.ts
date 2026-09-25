@@ -65,7 +65,7 @@ describe('applyHyperlinkEdits', () => {
     const patch = applyHyperlinkEdits(withLink, RELS, [
       { row: 0, column: 0, target: 'https://new.example' },
     ])
-    // The old rel is dropped first, freeing its id space ΓÇö rId1 is reused.
+    // The old rel is dropped first, freeing its id space — rId1 is reused.
     expect(patch.worksheetXml).toContain('<hyperlink ref="A1" r:id="rId1"/>')
     expect(patch.relsXml).not.toContain('https://old.example')
     expect(patch.relsXml).toContain('Id="rId1" Type=')
