@@ -97,7 +97,7 @@ export function applyHyperlinkEdits(
     xml = insertHyperlinkElement(xml, element)
   }
 
-  // An emptied section must go ΓÇö Excel repairs `<hyperlinks/>` with no children.
+  // An emptied section must go — Excel repairs `<hyperlinks/>` with no children.
   xml = xml.replace(/<hyperlinks>\s*<\/hyperlinks>/, '')
   return { worksheetXml: xml, relsXml: rels, relsChanged }
 }
