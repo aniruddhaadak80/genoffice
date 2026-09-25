@@ -11,6 +11,7 @@ export async function* sseLines(
 ): AsyncGenerator<string> {
   const decoder = new TextDecoder()
   let buffer = ''
+  let lineBytes = 0
   const stream = body as ReadableStream<Uint8Array>
   const reader = stream.getReader()
   try {
@@ -18,12 +19,19 @@ export async function* sseLines(
       const { done, value } = await reader.read()
       if (done) break
       onBytes?.()
-      buffer += decoder.decode(value, { stream: true })
-      if (buffer.length > MAX_SSE_LINE_BYTES) {
-        throw new Error(
-          `SSE line exceeded buffer limit (${buffer.length} chars, cap ${MAX_SSE_LINE_BYTES}); the gateway sent a line without newline.`,
-        )
+      for (const byte of value) {
+        if (byte === 0x0a) {
+          lineBytes = 0
+          continue
+        }
+        lineBytes++
+        if (lineBytes > MAX_SSE_LINE_BYTES) {
+          throw new Error(
+            `SSE line exceeded buffer limit (${lineBytes} bytes, cap ${MAX_SSE_LINE_BYTES}); the gateway sent a line without newline.`,
+          )
+        }
       }
+      buffer += decoder.decode(value, { stream: true })
       const lines = buffer.split('\n')
       buffer = lines.pop() ?? ''
       for (const line of lines) yield line

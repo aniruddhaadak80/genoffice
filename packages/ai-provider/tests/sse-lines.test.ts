@@ -87,4 +87,20 @@ describe('sseLines', () => {
       }
     }).rejects.toThrow(/buffer limit/)
   })
+
+  it('counts encoded UTF-8 bytes toward the buffer cap', async () => {
+    const big = '\u4e2d'.repeat(Math.floor(MAX_SSE_LINE_BYTES / 2) + 1)
+    const encoded = new TextEncoder().encode(big)
+    expect(big.length).toBeLessThan(MAX_SSE_LINE_BYTES)
+    expect(encoded.byteLength).toBeGreaterThan(MAX_SSE_LINE_BYTES)
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(encoded)
+        controller.close()
+      },
+    })
+    await expect(async () => {
+      for await (const _line of sseLines(body)) void _line
+    }).rejects.toThrow(/buffer limit/)
+  })
 })
