@@ -183,6 +183,18 @@ fn preserves_future_function_markers_in_sheet_and_defined_names() {
         strip_future_function_markers("Budget_xlfn.Total+A1"),
         "Budget_xlfn.Total+A1"
     );
+    assert_eq!(
+        strip_future_function_markers("Budget_xlfn.Total(A1)+_xlfn.MINIFS(A1,A1,\">0\")"),
+        "Budget_xlfn.Total(A1)+MINIFS(A1,A1,\">0\")"
+    );
+    assert_eq!(
+        strip_future_function_markers("Budget_xlfn._xlws.FILTER(A1)"),
+        "Budget_xlfn._xlws.FILTER(A1)"
+    );
+    assert_eq!(
+        strip_future_function_markers("'Data_xlfn.Total'!_xlfn._xlws.SORT(A1)"),
+        "'Data_xlfn.Total'!SORT(A1)"
+    );
 }
 
 #[test]
