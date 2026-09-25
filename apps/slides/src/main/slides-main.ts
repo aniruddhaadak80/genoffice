@@ -554,6 +554,7 @@ const autosavePathFor = (filePath: string) =>
 function sessionDirty(session: Session): boolean {
   return (
     !!session.metaDirty ||
+    !!session.notesDirty ||
     session.opened.deck.slides.some(
       (s) => s.structureDirty || s.elements.some((el) => el.dirty || el.dirtyTransform),
     )
@@ -631,6 +632,11 @@ const autoSavePrefByWc = new Map<number, boolean>()
 
 ipcMain.on('slides:autosave-pref', (event, on: unknown) => {
   autoSavePrefByWc.set(event.sender.id, on === true)
+})
+
+ipcMain.on('slides:notes-draft-dirty', (event, dirty: unknown) => {
+  const session = sessions.get(event.sender.id)
+  if (session) session.notesDirty = dirty === true
 })
 
 ipcMain.on('slides:close-save-result', (event, ok: unknown) => {
@@ -4248,17 +4254,32 @@ export function registerSlidesIpc(): void {
   })
 
   // ── Speaker notes / comments (archive surgery, riding on snapshot undo and savePptx) ────
-  ipcMain.handle('slides:get-notes', (e, slideIndex: number) => {
+  ipcMain.handle('slides:get-notes', (e, slide: number | string) => {
     const session = sessions.get(e.sender.id)
-    const slide = session?.opened.deck.slides[slideIndex]
-    return session && slide ? getSlideNotes(session.opened.archive, slide.path) : ''
+    if (!session) return ''
+    const resolved =
+      typeof slide === 'string'
+        ? session.opened.deck.slides.find((candidate) => candidate.path === slide)
+        : session.opened.deck.slides[slide]
+    return resolved ? getSlideNotes(session.opened.archive, resolved.path) : ''
   })
 
   ipcMain.handle('slides:set-notes', (e, op: SetNotesOp) => {
     const session = sessions.get(e.sender.id)
     if (!session) return false
+    const slideIndex =
+      typeof op.partPath === 'string'
+        ? session.opened.deck.slides.findIndex((slide) => slide.path === op.partPath)
+        : op.slideIndex
+    if (
+      !Number.isInteger(slideIndex) ||
+      slideIndex < 0 ||
+      !session.opened.deck.slides[slideIndex]
+    ) {
+      return false
+    }
     const r = sessionTxn(session, {
-      ops: [{ op: 'setNotes', target: { slide: op.slideIndex }, text: op.text }],
+      ops: [{ op: 'setNotes', target: { slide: slideIndex }, text: op.text }],
     })
     if (r) session.metaDirty = true
     return r !== null
@@ -4367,6 +4388,7 @@ export function registerSlidesIpc(): void {
     if (!session) return false
     return (
       !!session.metaDirty ||
+      !!session.notesDirty ||
       session.opened.deck.slides.some(
         (s) => s.structureDirty || s.elements.some((el) => el.dirty || el.dirtyTransform),
       )

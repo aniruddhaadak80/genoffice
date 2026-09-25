@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { reconcileNotesDraft, remapNotesDraft, type NotesDraft } from '../src/renderer/notes-draft'
+import {
+  reconcileNotesDraft,
+  remapNotesDraft,
+  sameSlideIdentity,
+  type NotesDraft,
+} from '../src/renderer/notes-draft'
 
 const draft: NotesDraft = {
   index: 0,
@@ -24,6 +29,14 @@ describe('remapNotesDraft', () => {
       index: -1,
       conflict: true,
     })
+  })
+
+  it('does not treat an absent part path as a match', () => {
+    expect(remapNotesDraft({ ...draft, partPath: undefined }, [{}, {}])).toMatchObject({
+      index: -1,
+      conflict: true,
+    })
+    expect(sameSlideIdentity({ partPath: undefined }, {})).toBe(false)
   })
 })
 

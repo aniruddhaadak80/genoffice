@@ -63,6 +63,7 @@ export interface Session {
   aiSnapshots?: Map<number, HistorySnapshot>
   /** Edits that only touch archive entries (notes/comments; element-level dirty cannot detect them), reset after save */
   metaDirty?: boolean
+  notesDirty?: boolean
   /** Transform preview gesture in progress (the first preview already pushed an undo snapshot; later previews/final commit do not) */
   transformPreview?: boolean
   /** The part currently edited in master view (exception to the fidelity rule: only that part is written back) */

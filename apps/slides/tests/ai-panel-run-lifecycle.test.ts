@@ -195,6 +195,25 @@ describe('AiPanel agent run lifecycle (slides)', () => {
     )
   })
 
+  it('aborts the run when pre-run preparation rejects the document state', async () => {
+    const onBeforeRun = vi.fn(async () => false)
+
+    mount(
+      createElement(
+        AiPanel,
+        panelProps({
+          preset: { text: 'Polish this slide', nonce: 2, autoRun: true },
+          onBeforeRun,
+        }),
+      ),
+    )
+    await flushEffects()
+
+    expect(onBeforeRun).toHaveBeenCalledTimes(1)
+    expect(window.slidesApi.beginHistoryBatch).not.toHaveBeenCalled()
+    expect(agentHarness.run).not.toHaveBeenCalled()
+  })
+
   it('keeps readable images and continues the run when another attachment read rejects', async () => {
     const readAttachmentImage = vi.fn(async (path: string) => {
       if (path.endsWith('good.png')) return { ok: true, base64: 'AAAA', mime: 'image/png' }
