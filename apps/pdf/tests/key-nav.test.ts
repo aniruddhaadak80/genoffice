@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { navAction } from '../src/renderer/keyNav'
+import { navAction, shouldHandleDocumentUndo } from '../src/renderer/keyNav'
 
 describe('navAction', () => {
   it('steps a whole page on ArrowDown/ArrowUp when focus is in the thumbnail sidebar', () => {
@@ -34,5 +34,21 @@ describe('navAction', () => {
     expect(navAction('a', false)).toBeNull()
     expect(navAction('Enter', true)).toBeNull()
     expect(navAction('Tab', false)).toBeNull()
+  })
+})
+
+describe('shouldHandleDocumentUndo', () => {
+  it('leaves native undo alone in form controls', () => {
+    const input = document.createElement('input')
+    const textarea = document.createElement('textarea')
+    expect(shouldHandleDocumentUndo(input, 'z', true)).toBe(false)
+    expect(shouldHandleDocumentUndo(textarea, 'Z', true)).toBe(false)
+  })
+
+  it('keeps document undo for non-editable targets and other shortcuts', () => {
+    const target = document.createElement('div')
+    expect(shouldHandleDocumentUndo(target, 'z', true)).toBe(true)
+    expect(shouldHandleDocumentUndo(target, 'y', true)).toBe(true)
+    expect(shouldHandleDocumentUndo(document.createElement('input'), 'z', false)).toBe(true)
   })
 })
