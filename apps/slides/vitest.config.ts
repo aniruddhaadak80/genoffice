@@ -9,6 +9,15 @@ export default defineConfig({
   resolve: {
     alias: {
       // Subpath before the bare name: string aliases are prefix replacements
+      '@genoffice/electron-utils/headless-export': resolve(
+        here,
+        '../../packages/electron-utils/src/headless-export.ts',
+      ),
+      '@genoffice/electron-utils/drop-open': resolve(
+        here,
+        '../../packages/electron-utils/src/drop-open.ts',
+      ),
+      '@genoffice/electron-utils': resolve(here, '../../packages/electron-utils/src/index.ts'),
       '@genoffice/pptx-engine/table-grid': resolve(
         here,
         '../../packages/pptx-engine/src/table-grid.ts',

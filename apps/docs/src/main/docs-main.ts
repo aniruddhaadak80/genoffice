@@ -63,6 +63,7 @@ import {
   rendererUrl,
   MAX_REMOTE_IMAGE_BYTES,
   readBodyCapped,
+  RendererStreamRegistry,
 } from '@genoffice/electron-utils'
 import { configureMetricsCache, familyVerticalMetrics } from '@genoffice/font-metrics'
 import { createI18n, getUiLang, normalizeLang, setUiLang } from '@genoffice/i18n'
@@ -2894,7 +2895,7 @@ const TWIPS_PER_INCH = 1440
 
 const SETTINGS_PATH = () => userDataPath('ai-settings.json')
 
-const activeAiStreams = new Map<string, AbortController>()
+const activeAiStreams = new RendererStreamRegistry()
 
 /**
  * AI settings + chat/stream proxy handlers. Split out so the shell can
@@ -2970,8 +2971,7 @@ export function registerAiIpc(): void {
       send({ requestId, type: 'error', error: tm('errNoModel') })
       return
     }
-    const controller = new AbortController()
-    activeAiStreams.set(requestId, controller)
+    const controller = activeAiStreams.begin(event.sender, requestId)
     // wire-activity keepalive: lets the renderer's silence watchdog tell a slow turn from a dead one
     let lastPing = 0
     const ping = () => {
@@ -3014,12 +3014,13 @@ export function registerAiIpc(): void {
         })
       }
     } finally {
-      activeAiStreams.delete(requestId)
+      activeAiStreams.end(event.sender, requestId)
     }
   })
 
-  ipcMain.handle('ai:stream-cancel', (_event, requestId: string) => {
-    activeAiStreams.get(requestId)?.abort()
+  ipcMain.handle('ai:stream-cancel', (event, requestId: string) => {
+    if (typeof requestId !== 'string' || !requestId) return
+    activeAiStreams.cancel(event.sender, requestId)
   })
 
   // shared search tools (content + images): Serper with DuckDuckGo fallback (same source as slides/sheets)

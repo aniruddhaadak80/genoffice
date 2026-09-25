@@ -7,6 +7,11 @@
     // Pin resolution to this repo's workspace sources (avoids stale types when node_modules links point elsewhere)
     "baseUrl": ".",
     "paths": {
+      "@genoffice/electron-utils/headless-export": [
+        "../../packages/electron-utils/src/headless-export.ts"
+      ],
+      "@genoffice/electron-utils/drop-open": ["../../packages/electron-utils/src/drop-open.ts"],
+      "@genoffice/electron-utils": ["../../packages/electron-utils/src/index.ts"],
       "@genoffice/pptx-engine": ["../../packages/pptx-engine/src/index.ts"],
       "@genoffice/pptx-engine/table-grid": ["../../packages/pptx-engine/src/table-grid.ts"],
       "@genoffice/pptx-engine/identity": ["../../packages/pptx-engine/src/identity.ts"],

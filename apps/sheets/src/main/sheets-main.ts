@@ -53,6 +53,7 @@ import {
   installRendererProtocol,
   registerRendererScheme,
   rendererUrl,
+  RendererStreamRegistry,
 } from '@genoffice/electron-utils'
 import { createI18n, getUiLang, type Lang, normalizeLang, setUiLang } from '@genoffice/i18n'
 import { ProjectStore } from '@genoffice/project-store'
@@ -1560,7 +1561,6 @@ interface SheetsTabSession {
   readonly webContents: WebContents
   readonly client: XlsxSidecarClient
   readonly sessions: Map<string, SessionInfo>
-  readonly aiStreams: Map<string, AbortController>
   /// Chunked uploads of large saves' cell edits, pending their save request.
   readonly saveTransfers: SaveEditsTransferStore
 }
@@ -1574,6 +1574,7 @@ const MAX_REMOTE_IMAGE_BYTES = 20 * 1024 * 1024
 const MAX_CSV_IMPORT_BYTES = 32 * 1024 * 1024
 
 const sheetsTabs = new Map<number, SheetsTabSession>()
+const activeAiStreams = new RendererStreamRegistry()
 let activeSheetsWebContents: WebContents | null = null
 let pastedTempCleanupStarted = false
 
@@ -1627,7 +1628,6 @@ function registerSheetsSession(webContents: WebContents, client: XlsxSidecarClie
     webContents,
     client,
     sessions: new Map(),
-    aiStreams: new Map(),
     saveTransfers: new SaveEditsTransferStore(),
   })
   activeSheetsWebContents = webContents
@@ -3321,7 +3321,7 @@ export function registerSheetsAiIpc(): void {
   })
 
   ipcMain.handle(IPC_CHANNELS.aiStream, async (event, input: unknown) => {
-    const entry = sessionFor(event)
+    sessionFor(event)
     const request = aiStreamRequestSchema.parse(input)
     const { requestId, system, messages } = request
     const tools = request.tools ?? []
@@ -3348,8 +3348,7 @@ export function registerSheetsAiIpc(): void {
       send({ requestId, type: 'error', error: tm('errNoModel') })
       return
     }
-    const controller = new AbortController()
-    entry.aiStreams.set(requestId, controller)
+    const controller = activeAiStreams.begin(event.sender, requestId)
     // wire-activity keepalive: lets the renderer's silence watchdog tell a slow turn from a dead one
     let lastPing = 0
     const ping = () => {
@@ -3399,13 +3398,14 @@ export function registerSheetsAiIpc(): void {
         })
       }
     } finally {
-      entry.aiStreams.delete(requestId)
+      activeAiStreams.end(event.sender, requestId)
     }
   })
 
   ipcMain.handle(IPC_CHANNELS.aiStreamCancel, (event, requestId: unknown) => {
-    const entry = sessionFor(event)
-    entry.aiStreams.get(z.string().min(1).parse(requestId))?.abort()
+    sessionFor(event)
+    if (typeof requestId !== 'string' || !requestId) return
+    activeAiStreams.cancel(event.sender, requestId)
   })
 
   // Shared search tools (content + images): Serper with DuckDuckGo fallback
