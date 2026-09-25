@@ -157,6 +157,14 @@ function utf8Size(s: string): number {
   return n
 }
 
+function serializedLength(value: unknown): number {
+  try {
+    return JSON.stringify(value)?.length ?? 0
+  } catch {
+    return Number.POSITIVE_INFINITY
+  }
+}
+
 /** Approximate byte cost of one message (text + tool inputs/outputs + image base64) */
 function messageSize(m: AgentMessage): number {
   if (m.role === 'tool') {
@@ -553,6 +561,14 @@ export class AgentLoop<TSnapshot = unknown> {
         `The model response exceeded the cumulative ${maxTurnOutputChars} character limit`,
       )
     }
+    const chargeOutput = (length: number): boolean => {
+      if (this.turnOutputChars + length > maxTurnOutputChars) {
+        failOutput()
+        return false
+      }
+      this.turnOutputChars += length
+      return true
+    }
     this.handle = null
     const streamHandle = this.options.transport.stream(
       {
@@ -565,26 +581,17 @@ export class AgentLoop<TSnapshot = unknown> {
       },
       {
         onDelta: (text) => {
-          if (generation !== this.generation || settled) return
-          if (this.turnOutputChars + text.length > maxTurnOutputChars) {
-            failOutput()
-            return
-          }
-          this.turnOutputChars += text.length
+          if (generation !== this.generation || settled || !chargeOutput(text.length)) return
           this.turnText += text
           this.options.events?.onText?.(this.turnText)
         },
         onReasoning: (text) => {
-          if (generation !== this.generation || settled) return
-          if (this.turnOutputChars + text.length > maxTurnOutputChars) {
-            failOutput()
-            return
-          }
-          this.turnOutputChars += text.length
+          if (generation !== this.generation || settled || !chargeOutput(text.length)) return
           this.turnReasoning += text
         },
         onToolCall: (call) => {
           if (generation !== this.generation || settled) return
+          if (!chargeOutput(serializedLength(call.input))) return
           this.toolCalls.push(call)
         },
         onStopReason: (reason) => {

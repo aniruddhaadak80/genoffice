@@ -139,6 +139,32 @@ describe('AgentLoop', () => {
     expect(loop.busy).toBe(false)
   })
 
+  it('charges tool-call input payloads toward the cumulative output budget', async () => {
+    const transport = scriptedTransport([
+      (cb) => {
+        cb.onDelta('1234')
+        cb.onToolCall({ id: 't1', name: 'do_thing', input: { text: '123456' } })
+        cb.onDone()
+      },
+    ])
+    const onError = vi.fn()
+    const onToolStart = vi.fn()
+    const onDone = vi.fn()
+    const loop = new AgentLoop({
+      transport,
+      skill: makeSkill(),
+      maxTurnOutputChars: 10,
+      events: { onError, onToolStart, onDone },
+    })
+    loop.run('question')
+    await flush()
+    expect(transport.cancels).toBe(1)
+    expect(onError).toHaveBeenCalledWith(expect.stringContaining('cumulative 10 character limit'))
+    expect(onToolStart).not.toHaveBeenCalled()
+    expect(onDone).not.toHaveBeenCalled()
+    expect(loop.messages).toEqual([])
+  })
+
   it('executes tools and loops back to the model', async () => {
     const transport = scriptedTransport([
       (cb) => {
