@@ -233,7 +233,7 @@ describe('mergePagesBytes', () => {
       [100, 200],
     ])
     const out = await PDFDocument.load(await mergePagesBytes(bytes, mergeOpts(4)))
-    // 5 pages at 4 per sheet ΓåÆ 2 sheets, keeping the source page size
+    // 5 pages at 4 per sheet → 2 sheets, keeping the source page size
     expect(out.getPageCount()).toBe(2)
     expect(out.getPage(0).getWidth()).toBe(100)
     expect(out.getPage(0).getHeight()).toBe(200)
@@ -741,7 +741,7 @@ describe('applySaveRequest', () => {
     const bytes = await makePdf([[100, 100]])
     const saved = await apply(
       bytes,
-      request({ metadata: { title: 'My Title', author: 'Me', keywords: 'a, b∩╝¢c∩╝îd' } }),
+      request({ metadata: { title: 'My Title', author: 'Me', keywords: 'a, b；c，d' } }),
     )
     const out = await PDFDocument.load(saved)
     expect(out.getTitle()).toBe('My Title')
@@ -861,10 +861,10 @@ describe('applySaveRequest', () => {
 
     const saved = await apply(
       bytes,
-      request({ formValues: [{ name: 'cjk', kind: 'text', value: 'Σ╕¡µûçµ╡ïΦ»ò' }] }),
+      request({ formValues: [{ name: 'cjk', kind: 'text', value: '中文测试' }] }),
     )
     const out = await PDFDocument.load(saved)
-    expect(out.getForm().getTextField('cjk').getText()).toBe('Σ╕¡µûçµ╡ïΦ»ò')
+    expect(out.getForm().getTextField('cjk').getText()).toBe('中文测试')
     const needAppearances = out.getForm().acroForm.dict.get(PDFName.of('NeedAppearances'))
     expect(String(needAppearances)).toBe('true')
   })
@@ -889,7 +889,7 @@ describe('mergePagesBytes', () => {
       [100, 200],
     ])
     const out = await PDFDocument.load(await mergePagesBytes(bytes, mergeOpts(4)))
-    // 5 pages at 4 per sheet ΓåÆ 2 sheets, keeping the source page size
+    // 5 pages at 4 per sheet → 2 sheets, keeping the source page size
     expect(out.getPageCount()).toBe(2)
     expect(out.getPage(0).getWidth()).toBe(100)
     expect(out.getPage(0).getHeight()).toBe(200)
@@ -1397,7 +1397,7 @@ describe('applySaveRequest', () => {
     const bytes = await makePdf([[100, 100]])
     const saved = await apply(
       bytes,
-      request({ metadata: { title: 'My Title', author: 'Me', keywords: 'a, b∩╝¢c∩╝îd' } }),
+      request({ metadata: { title: 'My Title', author: 'Me', keywords: 'a, b；c，d' } }),
     )
     const out = await PDFDocument.load(saved)
     expect(out.getTitle()).toBe('My Title')
@@ -1517,10 +1517,10 @@ describe('applySaveRequest', () => {
 
     const saved = await apply(
       bytes,
-      request({ formValues: [{ name: 'cjk', kind: 'text', value: 'Σ╕¡µûçµ╡ïΦ»ò' }] }),
+      request({ formValues: [{ name: 'cjk', kind: 'text', value: '中文测试' }] }),
     )
     const out = await PDFDocument.load(saved)
-    expect(out.getForm().getTextField('cjk').getText()).toBe('Σ╕¡µûçµ╡ïΦ»ò')
+    expect(out.getForm().getTextField('cjk').getText()).toBe('中文测试')
     const needAppearances = out.getForm().acroForm.dict.get(PDFName.of('NeedAppearances'))
     expect(String(needAppearances)).toBe('true')
   })
