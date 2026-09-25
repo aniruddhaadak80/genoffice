@@ -6,6 +6,7 @@
 
 import { encodeXlsxEscapes } from './xlsx-escapes'
 import { ensureRelationshipNamespace } from './xlsx-namespace'
+import { nextFreeRelationshipId } from './xlsx-sheets'
 
 export class NoteEditError extends Error {}
 
@@ -70,14 +71,6 @@ function resolveRelTarget(worksheetPath: string, target: string): string {
     else if (part !== '.') base.push(part)
   }
   return base.join('/')
-}
-
-function nextFreeRid(relsXml: string): string {
-  let max = 0
-  for (const match of relsXml.matchAll(/ Id="rId(\d+)"/g)) {
-    max = Math.max(max, Number(match[1]))
-  }
-  return `rId${max + 1}`
 }
 
 async function nextFreePath(
@@ -260,7 +253,7 @@ export async function applySheetNotes(
   let commentsPath = existingCommentsPath
   if (commentsPath === null) {
     commentsPath = await nextFreePath(pkg, (index) => `xl/comments${index}.xml`)
-    const rid = nextFreeRid(relsXml)
+    const rid = nextFreeRelationshipId(relsXml)
     const target = `../${commentsPath.replace(/^xl\//, '')}`
     relsXml = appendRel(relsXml, rid, COMMENTS_REL_TYPE, target)
     relsChanged = true
@@ -280,7 +273,7 @@ export async function applySheetNotes(
     touchedEntries.add(existingVmlPath)
   } else {
     const vmlPath = await nextFreePath(pkg, (index) => `xl/drawings/vmlDrawing${index}.vml`)
-    const rid = nextFreeRid(relsXml)
+    const rid = nextFreeRelationshipId(relsXml)
     relsXml = appendRel(relsXml, rid, VML_REL_TYPE, `../drawings/${vmlPath.split('/').pop()}`)
     relsChanged = true
     pkg.add(vmlPath, `${VML_HEADER}${shapes}</xml>`)

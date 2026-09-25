@@ -53,7 +53,8 @@ import {
   classifyRemovedSheetRels,
   definedNamesReferenceSheet,
   definedNamesUseToken,
-  maxRelationshipId,
+  nextFreeRelationshipId,
+  nextFreeRelationshipIds,
   maxSheetIdInWorkbook,
   parseRelationships,
   parseSheetElements,
@@ -363,7 +364,7 @@ async function addDefaultStylesheet(
   const relationships = await pkg.readText(relationshipsPath)
   if (!relationships.includes(`Type="${STYLES_REL_TYPE}"`)) {
     const relationship =
-      `<Relationship Id="rId${maxRelationshipId(relationships) + 1}" ` +
+      `<Relationship Id="${nextFreeRelationshipId(relationships)}" ` +
       `Type="${STYLES_REL_TYPE}" Target="styles.xml"/>`
     pkg.write(
       relationshipsPath,
@@ -429,7 +430,7 @@ async function ensureDynamicArrayMetadata(
   const relationships = await pkg.readText(relationshipsPath)
   if (!relationships.includes(`Type="${METADATA_REL_TYPE}"`)) {
     const relationship =
-      `<Relationship Id="rId${maxRelationshipId(relationships) + 1}" ` +
+      `<Relationship Id="${nextFreeRelationshipId(relationships)}" ` +
       `Type="${METADATA_REL_TYPE}" Target="metadata.xml"/>`
     pkg.write(
       relationshipsPath,
@@ -1393,12 +1394,12 @@ async function allocateAddedSheets(
     if (match) nextPartNumber = Math.max(nextPartNumber, Number(match[1]) + 1)
   }
   const nextSheetId = maxSheetIdInWorkbook(workbookXml) + 1
-  const nextRelationshipId = maxRelationshipId(relationshipsXml) + 1
+  const relationshipIds = nextFreeRelationshipIds(relationshipsXml, names.length)
   return names.map((name, index) => ({
     name,
     path: `xl/worksheets/sheet${nextPartNumber + index}.xml`,
     sheetId: nextSheetId + index,
-    relationshipId: `rId${nextRelationshipId + index}`,
+    relationshipId: relationshipIds[index]!,
   }))
 }
 
