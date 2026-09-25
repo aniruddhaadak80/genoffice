@@ -6,6 +6,16 @@
 import type { DefaultFonts, HeaderFooter, SectionInfo, StyleUpsert } from '@genoffice/docx-engine'
 
 import type { PendingNumbering } from './doc-state'
+
+export async function runGuardedDocumentAction(
+  confirm: () => Promise<boolean>,
+  action: () => void | Promise<unknown>,
+): Promise<boolean> {
+  if (!(await confirm())) return false
+  await action()
+  return true
+}
+
 export interface DocDirtyState {
   dirtyRef: { current: boolean }
   sectionDirty: boolean

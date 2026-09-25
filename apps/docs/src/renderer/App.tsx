@@ -271,7 +271,7 @@ import { collectRevisions, gotoRevision, type TrackChangesStorage } from './edit
 import { NavPane } from './components/NavPane'
 import { Ruler } from './components/Ruler'
 import { docBodyFont, docHasCjk, docLineFactor, docThemeCss } from './doc-style-css'
-import { isDocDirty } from './doc-dirty'
+import { isDocDirty, runGuardedDocumentAction } from './doc-dirty'
 import {
   EMPTY_HF_VARIANTS,
   hfFromPart,
@@ -1850,6 +1850,21 @@ export function App() {
     if (outcome === 'failed' && !fileCtxRef.current.doc) await newFileImpl(fileCtxRef.current)
     return outcome
   }, [])
+  const resetFile = useCallback(() => newFileImpl(fileCtxRef.current), [])
+  const replaceOpenedFile = useCallback(
+    async (result: OpenDocxResult) => {
+      if (!result) return
+      if ('needsPassword' in result) {
+        await loadFile(result)
+        return
+      }
+      await runGuardedDocumentAction(
+        () => window.desktop.confirmDocumentReplace(),
+        () => loadFile(result),
+      )
+    },
+    [loadFile],
+  )
 
   // file renamed externally (renamed in the shell Home list) → sync the save path and title-bar file name (content unchanged)
   useEffect(
@@ -1892,9 +1907,9 @@ export function App() {
         // line explaining why (github.com/genspark-ai/genoffice issue #102).
         // 'password': the prompt is up; its cancel path lands on blank instead.
         const outcome = pending ? await loadFile(pending) : 'canceled'
-        if (outcome === 'canceled') await newFile()
+        if (outcome === 'canceled') await resetFile()
         if (aiContent && !pending) {
-          // fileCtxRef refreshes per render: wait until newFile's setDoc landed
+          // fileCtxRef refreshes per render: wait until resetFile's setDoc landed
           for (let i = 0; i < 100 && !fileCtxRef.current.doc; i++) {
             await new Promise((resolve) => setTimeout(resolve, 20))
           }
@@ -1905,27 +1920,26 @@ export function App() {
       .catch(() => {
         if (bootHandledRef.current) return
         bootHandledRef.current = true
-        void newFile().catch(() => {})
+        void resetFile().catch(() => {})
       })
     return unsubscribe
-    // newFile depends on editor (already in deps); we capture it by closure
-    // rather than listing it to avoid a forward-reference TypeScript error
-    // (newFile is declared after this effect in source order).
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editor, loadFile])
+  }, [editor, loadFile, resetFile])
 
   const openFile = useCallback(async () => {
-    await loadFile(await window.desktop.openDocx())
-  }, [loadFile])
+    await replaceOpenedFile(await window.desktop.openDocx())
+  }, [replaceOpenedFile])
 
   /** new document from the built-in blank template (AI can then generate into it) */
-  const newFile = useCallback(() => newFileImpl(fileCtxRef.current), [])
+  const newFile = useCallback(
+    () => runGuardedDocumentAction(() => window.desktop.confirmDocumentReplace(), resetFile),
+    [resetFile],
+  )
 
   const openRecent = useCallback(
     async (path: string) => {
-      await loadFile(await window.desktop.openDocxPath(path))
+      await replaceOpenedFile(await window.desktop.openDocxPath(path))
     },
-    [loadFile],
+    [replaceOpenedFile],
   )
 
   /** decrypt-and-open retry loop for the password prompt (wrong password stays in the dialog) */
@@ -1935,7 +1949,7 @@ export function App() {
     const res = await window.desktop.openDocxDecrypt(docPwdPrompt.path, docPwdPrompt.value)
     if (res.ok) {
       setDocPwdPrompt(null)
-      await loadFile(res.result)
+      await replaceOpenedFile(res.result)
       return
     }
     setDocPwdPrompt({
@@ -1949,7 +1963,7 @@ export function App() {
   const cancelDocPwd = () => {
     setDocPwdPrompt(null)
     // canceling a boot-time open leaves no document: land on blank, not "Opening…"
-    if (!fileCtxRef.current.doc) void newFile()
+    if (!fileCtxRef.current.doc) void resetFile()
   }
 
   /** apply the diff the Protect Document dialog produced (undefined field = unchanged) */
