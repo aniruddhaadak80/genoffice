@@ -1943,22 +1943,39 @@ function readShadingDecor(
   heightPt: number,
   stackSkip: number,
   vectorRegions: readonly Rect[],
+  rotation: number,
+  dx: number,
+  dy: number,
 ): ExtractedImage[] {
   const page = m._FPDF_LoadPage(doc, pageIndex)
   if (!page) return []
   try {
     const total = m._FPDFPage_CountObjects(page)
     const keep = new Map<number, Rect>()
+    const toDisplay =
+      rotation === 1 || rotation === 2 || rotation === 3
+        ? rotateToDisplay(rotation, widthPt, heightPt)
+        : null
+    const userWidth = rotation % 2 === 1 ? heightPt : widthPt
+    const userHeight = rotation % 2 === 1 ? widthPt : heightPt
     withAlloc(m, 4 * 4, (f4) => {
       for (let i = stackSkip; i < total; i++) {
         const obj = m._FPDFPage_GetObject(page, i)
         if (!obj || m._FPDFPageObj_GetType(obj) !== FPDF_PAGEOBJ_SHADING) continue
         if (!m._FPDFPageObj_GetBounds(obj, f4, f4 + 4, f4 + 8, f4 + 12)) continue
+        const rawBox: Rect = {
+          x0: m.HEAPF32[f4 >> 2]!,
+          y0: m.HEAPF32[(f4 >> 2) + 1]!,
+          x1: m.HEAPF32[(f4 >> 2) + 2]!,
+          y1: m.HEAPF32[(f4 >> 2) + 3]!,
+        }
+        shiftRect(rawBox, dx, dy)
+        toDisplay?.rect(rawBox)
         const box: Rect = {
-          x0: Math.max(0, m.HEAPF32[f4 >> 2]!),
-          y0: Math.max(0, m.HEAPF32[(f4 >> 2) + 1]!),
-          x1: Math.min(widthPt, m.HEAPF32[(f4 >> 2) + 2]!),
-          y1: Math.min(heightPt, m.HEAPF32[(f4 >> 2) + 3]!),
+          x0: Math.max(0, rawBox.x0),
+          y0: Math.max(0, rawBox.y0),
+          x1: Math.min(widthPt, rawBox.x1),
+          y1: Math.min(heightPt, rawBox.y1),
         }
         const w = box.x1 - box.x0
         const h = box.y1 - box.y0
@@ -1981,26 +1998,29 @@ function readShadingDecor(
       const obj = m._FPDFPage_GetObject(page, i)
       if (obj && m._FPDFPage_RemoveObject(page, obj)) m._FPDFPageObj_Destroy(obj)
     }
-    const bw = Math.max(1, Math.round(widthPt * DECOR_RENDER_SCALE))
-    const bh = Math.max(1, Math.round(heightPt * DECOR_RENDER_SCALE))
+    const bw = Math.max(1, Math.round(userWidth * DECOR_RENDER_SCALE))
+    const bh = Math.max(1, Math.round(userHeight * DECOR_RENDER_SCALE))
     const bitmap = m._FPDFBitmap_Create(bw, bh, 1)
     if (!bitmap) return []
     try {
       m._FPDFBitmap_FillRect(bitmap, 0, 0, bw, bh, 0x00000000)
       m._FPDF_RenderPageBitmap(bitmap, page, 0, 0, bw, bh, 0, 0)
-      const px = bitmapToRgba(m, bitmap)
+      let px = bitmapToRgba(m, bitmap)
       if (!px) return []
+      if (rotation === 1 || rotation === 2 || rotation === 3) {
+        px = rotateRgbaQuarter(px, rotation)
+      }
       const out: ExtractedImage[] = []
       for (const [z, box] of keep) {
         // crop the object's bounds out of the page render (device y is down)
         const cx0 = Math.max(0, Math.floor(box.x0 * DECOR_RENDER_SCALE))
         const cy0 = Math.max(0, Math.floor((heightPt - box.y1) * DECOR_RENDER_SCALE))
         const cw = Math.min(
-          bw - cx0,
+          px.width - cx0,
           Math.max(1, Math.ceil((box.x1 - box.x0) * DECOR_RENDER_SCALE)),
         )
         const ch = Math.min(
-          bh - cy0,
+          px.height - cy0,
           Math.max(1, Math.ceil((box.y1 - box.y0) * DECOR_RENDER_SCALE)),
         )
         if (cw <= 0 || ch <= 0) continue
@@ -2815,8 +2835,10 @@ export function extractPage(
           heightPt,
           bgActive ? bgStack.count : 0,
           vectorRegions,
+          rotation,
+          dx,
+          dy,
         )
-    if (shifted) for (const img of decorImages) shiftRect(img.box, dx, dy)
 
     return {
       index: pageIndex,

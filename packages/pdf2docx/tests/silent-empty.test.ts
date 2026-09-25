@@ -345,4 +345,35 @@ describe('P27 T5: /Rotate page normalization', () => {
     // and the bitmap turned with it
     expect(img.pixelHeight).toBeGreaterThan(img.pixelWidth)
   })
+
+  it('places rotated shading decor in display space after CropBox shift', async () => {
+    const shading =
+      '6 0 obj\n<< /ShadingType 2 /ColorSpace /DeviceRGB /Coords [150 650 250 700] ' +
+      '/Function << /FunctionType 2 /Domain [0 1] /C0 [1 0 0] /C1 [0 0 1] /N 1 >> ' +
+      '/Extend [false false] >>\nendobj\n'
+    let content = 'BT /F1 12 Tf\n'
+    BODY_LINES.forEach((line, i) => {
+      content += `0 1 -1 0 ${100 + i * 20} 100 Tm (${line}) Tj\n`
+    })
+    content += 'ET\nq 150 650 100 50 re W n /Sh1 sh Q\n'
+    const pdf = rawPdf([
+      '1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n',
+      '2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n',
+      '3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /CropBox [20 30 592 762] ' +
+        '/Rotate 90 /Resources << /Font << /F1 4 0 R >> /Shading << /Sh1 6 0 R >> >> ' +
+        '/Contents 5 0 R >>\nendobj\n',
+      '4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n',
+      contentObj(5, content),
+      shading,
+    ])
+    const pdfium = await loadPdfium()
+    const page = withPdfDocument(pdfium, pdf, (doc: number) => extractPage(pdfium, doc, 0))
+    expect(page.decorImages).toHaveLength(1)
+    const decor = page.decorImages![0]!
+    expect(decor.box.x0).toBeCloseTo(620, 0)
+    expect(decor.box.x1).toBeCloseTo(670, 0)
+    expect(decor.box.y0).toBeCloseTo(342, 0)
+    expect(decor.box.y1).toBeCloseTo(442, 0)
+    expect(decor.pixelHeight).toBeGreaterThan(decor.pixelWidth)
+  })
 })
