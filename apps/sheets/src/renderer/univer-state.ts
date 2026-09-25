@@ -38,6 +38,15 @@ export async function commitActiveCellEditor(
   return editor.endEditingAsync(true)
 }
 
+export async function runAfterCellEditorCommit(
+  editor: ActiveCellEditor | null | undefined,
+  action: () => void | Promise<unknown>,
+): Promise<boolean> {
+  if (!(await commitActiveCellEditor(editor))) return false
+  await action()
+  return true
+}
+
 /// Column intervals (inclusive) of one row whose cells fed a wrap measure.
 export type WrapMeasureCoverage = Array<readonly [number, number]>
 

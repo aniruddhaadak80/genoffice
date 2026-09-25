@@ -9,6 +9,7 @@ import { closeGuardDecision } from '../src/main/close-guard'
 import {
   commitActiveCellEditor,
   pendingEditsForClose,
+  runAfterCellEditorCommit,
   type ActiveCellEditor,
 } from '../src/renderer/univer-state'
 
@@ -48,6 +49,37 @@ describe('pendingEditsForClose', () => {
     expect(pendingEditsForClose(0, true)).toBe(1)
     expect(pendingEditsForClose(3, true)).toBe(4)
     expect(pendingEditsForClose(3, false)).toBe(3)
+  })
+})
+
+describe('runAfterCellEditorCommit', () => {
+  it('commits before a save, reopen, or replacement action', async () => {
+    const calls: string[] = []
+    const editor: ActiveCellEditor = {
+      isCellEditing: () => true,
+      endEditingAsync: async () => {
+        calls.push('commit')
+        return true
+      },
+    }
+
+    await expect(
+      runAfterCellEditorCommit(editor, () => {
+        calls.push('transition')
+      }),
+    ).resolves.toBe(true)
+    expect(calls).toEqual(['commit', 'transition'])
+  })
+
+  it('does not run a transition after a failed commit', async () => {
+    const transition = vi.fn()
+    const editor: ActiveCellEditor = {
+      isCellEditing: () => true,
+      endEditingAsync: async () => false,
+    }
+
+    await expect(runAfterCellEditorCommit(editor, transition)).resolves.toBe(false)
+    expect(transition).not.toHaveBeenCalled()
   })
 })
 

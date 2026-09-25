@@ -697,6 +697,11 @@ export function App(): React.JSX.Element {
   /// Latest MCP bridge handlers (assigned each render; see the install below).
   const mcpSheetHandlersRef = useRef<McpSheetHandlers | null>(null)
   const closeSaveRef = useRef<() => Promise<void>>(() => Promise.resolve())
+  const commitActiveEditor = useCallback(async (): Promise<boolean> => {
+    const editor = univerRef.current?.univerAPI.getActiveWorkbook() as
+      ActiveCellEditor | null | undefined
+    return commitActiveCellEditor(editor).catch(() => false)
+  }, [])
   const refreshSelectionFormatRef = useRef<() => void>(() => {})
   const chartEditRef = useRef<(chartPath: string, edit: ChartEditData) => void>(() => {})
   const chartVectorRef = useRef<(chartPath: string, range: string) => Promise<ChartVectorRead>>(
@@ -3168,7 +3173,10 @@ export function App(): React.JSX.Element {
    * — auto-apply never bypasses the "workbook changed since preview" check.
    * When apply fails, the preview card stays up as a manual fallback.
    */
-  function autoApplySafePlan(plan: ChangePlan): Promise<ApplyOutcome> {
+  async function autoApplySafePlan(plan: ChangePlan): Promise<ApplyOutcome> {
+    if (!(await commitActiveEditor())) {
+      return { ok: false, reason: t('appApplyTxFailed') }
+    }
     const opCount =
       plan.cellChanges.length +
       plan.formatChanges.length +
@@ -3404,50 +3412,54 @@ export function App(): React.JSX.Element {
   }
 
   function handleUndo(steps?: number): void {
-    const count =
-      typeof steps === 'number' && Number.isFinite(steps) ? Math.max(1, Math.floor(steps)) : 1
-    const fromAiBatch = typeof steps === 'number'
-    const clearInlineUndo = () => {
-      if (!fromAiBatch) return
-      patchLastAssistant(({ autoApplied: _autoApplied, ...entry }) => entry)
-    }
-    // Mirror ⌘Z: interactive grid edits live on Univer's undo stack even in a
-    // blank in-memory workbook, so drain that stack first; the adapter's
-    // revision history (AI plan applies) is the fallback once it is empty.
-    if (lazyWorkbookRef.current || univerHist.canUndo) {
-      const api = univerRef.current?.univerAPI
-      if (!api) return
-      void (async () => {
+    void (async () => {
+      if (!(await commitActiveEditor())) return
+      const count =
+        typeof steps === 'number' && Number.isFinite(steps) ? Math.max(1, Math.floor(steps)) : 1
+      const fromAiBatch = typeof steps === 'number'
+      const clearInlineUndo = () => {
+        if (!fromAiBatch) return
+        patchLastAssistant(({ autoApplied: _autoApplied, ...entry }) => entry)
+      }
+      // Mirror ⌘Z: interactive grid edits live on Univer's undo stack even in a
+      // blank in-memory workbook, so drain that stack first; the adapter's
+      // revision history (AI plan applies) is the fallback once it is empty.
+      if (lazyWorkbookRef.current || univerHist.canUndo) {
+        const api = univerRef.current?.univerAPI
+        if (!api) return
         for (let step = 0; step < count; step += 1) await api.undo()
         clearInlineUndo()
-      })()
-      return
-    }
-    try {
-      let receipt = adapterRef.current.undo()
-      for (let step = 1; step < count; step += 1) receipt = adapterRef.current.undo()
-      // Rebuild instead of patching: undo can remove cells and reverse
-      // structural changes, neither of which syncUniver can express.
-      loadSnapshotIntoUniver(
-        univerRef.current,
-        adapterRef.current.getSnapshot(),
-        'new-workbook',
-        'Untitled',
-      )
-      queueDemoVisualInstallForActiveSheet()
-      setRevision(receipt.revision)
-      setPreview(null)
-      setMessage(t('appUndoCommitted', { revision: receipt.revision }))
-      clearInlineUndo()
-    } catch (error: unknown) {
-      setMessage(error instanceof Error ? error.message : t('appUndoFailed'))
-    }
+        return
+      }
+      try {
+        let receipt = adapterRef.current.undo()
+        for (let step = 1; step < count; step += 1) receipt = adapterRef.current.undo()
+        // Rebuild instead of patching: undo can remove cells and reverse
+        // structural changes, neither of which syncUniver can express.
+        loadSnapshotIntoUniver(
+          univerRef.current,
+          adapterRef.current.getSnapshot(),
+          'new-workbook',
+          'Untitled',
+        )
+        queueDemoVisualInstallForActiveSheet()
+        setRevision(receipt.revision)
+        setPreview(null)
+        setMessage(t('appUndoCommitted', { revision: receipt.revision }))
+        clearInlineUndo()
+      } catch (error: unknown) {
+        setMessage(error instanceof Error ? error.message : t('appUndoFailed'))
+      }
+    })()
   }
 
   /// QAT Redo: workbook history via Univer, same path as the app menu's ⇧⌘Z
   /// (the demo adapter has no redo, matching the menu's behavior).
   function handleRedo(): void {
-    void univerRef.current?.univerAPI.redo()
+    void (async () => {
+      if (!(await commitActiveEditor())) return
+      await univerRef.current?.univerAPI.redo()
+    })()
   }
 
   function disposePageBreakLayers(sheetId: string): void {
@@ -3770,7 +3782,11 @@ export function App(): React.JSX.Element {
     return state.hyperlinkTargets.get(sheetId)?.get(`${row}:${column}`) ?? null
   }
 
-  function openLazyWorkbook(opened: WorkbookFile, opts?: { continueChat?: boolean }): void {
+  async function openLazyWorkbook(
+    opened: WorkbookFile,
+    opts?: { continueChat?: boolean },
+  ): Promise<boolean> {
+    if (!(await commitActiveEditor())) return false
     if (opts?.continueChat) chatContinuesRef.current = true
     const selected: WorkbookFile = {
       ...opened,
@@ -4052,6 +4068,7 @@ export function App(): React.JSX.Element {
         }
       })
     }
+    return true
   }
 
   async function handleInspectWorkbook(): Promise<void> {
@@ -4066,7 +4083,10 @@ export function App(): React.JSX.Element {
         setMessage(t('appOpenCanceled'))
         return
       }
-      openLazyWorkbook(selected)
+      if (!(await openLazyWorkbook(selected))) {
+        setMessage(t('appOpenFailed'))
+        return
+      }
       setEmptyCsvNotice(selected.emptyCsv === true)
       setMessage(selected.emptyCsv ? '' : t('appOpened', { name: selected.name }))
     } catch (error: unknown) {
@@ -4081,13 +4101,11 @@ export function App(): React.JSX.Element {
     quiet = false,
     explicitTarget?: { path: string; overwrite: boolean },
   ): Promise<SaveOutcome> {
+    if (!(await commitActiveEditor())) return { ok: false }
     return handleSaveImpl(saveContext(), mode, quiet, explicitTarget)
   }
   closeSaveRef.current = async () => {
-    const editor = univerRef.current?.univerAPI.getActiveWorkbook() as
-      ActiveCellEditor | null | undefined
-    const committed = await commitActiveCellEditor(editor).catch(() => false)
-    if (!committed) {
+    if (!(await commitActiveEditor())) {
       window.desktopApi?.reportCloseSaveResult?.(false)
       return
     }
@@ -4131,9 +4149,9 @@ export function App(): React.JSX.Element {
       if (active instanceof HTMLTextAreaElement || active instanceof HTMLInputElement) {
         document.execCommand(action)
       } else if (action === 'undo') {
-        void univerRef.current?.univerAPI.undo()
+        handleUndo()
       } else {
-        void univerRef.current?.univerAPI.redo()
+        handleRedo()
       }
     } else {
       void handleSave(action)
