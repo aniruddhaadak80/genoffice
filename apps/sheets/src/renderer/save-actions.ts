@@ -8,6 +8,11 @@
 import type { WorkbookFile, WorkbookFilterState } from '../shared/desktop-api'
 import {
   isSheetRemoved,
+  journalRevision,
+  journalSize,
+  pendingEdits,
+  saveBaseline,
+  type SaveBaseline,
   toSaveChartEdits,
   toSaveBulkConstantFills,
   toSaveEdits,
@@ -20,6 +25,7 @@ import {
   toSaveTableAdds,
   toSaveVisualAdds,
   toSaveVisualEdits,
+  type EditJournal,
 } from './edit-journal'
 import { activeCsvSheet, handleExportCsv, serializeActiveSheetCsv } from './csv-export'
 import type { CellState } from '@genoffice/xlsx-gateway/domain/workbook.types'
@@ -45,7 +51,7 @@ export interface SaveContext {
   setMessage: (message: string) => void
   /** `continueChat`: the reopen is a session swap over the same document, so
       the AI conversation carries on rather than rehydrating from the store. */
-  openLazyWorkbook: (opened: WorkbookFile, opts?: { continueChat?: boolean }) => void
+  openLazyWorkbook: (opened: WorkbookFile, opts?: OpenOptions) => void
   /** live cell readout, for the cached values of formulas an MCP batch wrote (optional in tests) */
   readCells?: (addresses: string[], sheetId: string) => Record<string, CellState>
   /** Saving swaps the session and reinstalls the workbook, which resets the
@@ -78,6 +84,25 @@ export interface SaveOutcome {
 }
 
 /**
+ * Reopen options. `carryJournal` hands the next session edits a write could not
+ * land, instead of starting it on an empty journal: the main process retires
+ * the old session on every save, so a pending edit has to move to the new one
+ * or it is lost.
+ */
+export interface OpenOptions {
+  continueChat?: boolean
+  carryJournal?: EditJournal
+  onInitialRangeLoaded?: () => void
+}
+
+/**
+ * A save replays the edits that landed while its write was in flight, and each
+ * replay can itself be overtaken. Cap the passes so a user typing continuously
+ * cannot spin the flow; the last pass keeps the remainder pending instead.
+ */
+const MAX_REPLAY_PASSES = 3
+
+/**
  * mode 'recovery': assemble the very same payload but hand it to the
  * crash-recovery writer instead of the save pipeline — no dialogs, no status
  * messages, no session swap, the opened file untouched.
@@ -91,6 +116,7 @@ export async function handleSave(
   mode: 'save' | 'save-as' | 'recovery',
   quiet = false,
   explicitTarget?: { path: string; overwrite: boolean },
+  pass = 0,
 ): Promise<SaveOutcome> {
   const state = ctx.lazyWorkbookRef.current
   // Captured at save start (the Ctrl+S moment): the post-save session swap
@@ -387,6 +413,20 @@ export async function handleSave(
   }
   try {
     ctx.setMessage(t('appSavingEdits', { count: total }))
+    // What this request carries. Anything the journal records from here until
+    // the reply is an edit the write never saw, and the main process retires
+    // this session when the write lands.
+    const base = saveBaseline(state.editJournal)
+    // A split save holds additions back for its second phase, so nothing in
+    // those buckets reached this write and the difference must keep them all.
+    const baseline: SaveBaseline = splitSave
+      ? {
+          ...base,
+          tableAdds: heldTables.length > 0 ? 0 : base.tableAdds,
+          pivotAdds: heldPivots.length > 0 ? 0 : base.pivotAdds,
+        }
+      : base
+    const revAtSave = journalRevision(state.editJournal)
     const result = await window.desktopApi.saveWorkbookEdits({
       sessionId: state.file.sessionId,
       mode,
@@ -442,6 +482,40 @@ export async function handleSave(
       }
       ctx.setMessage(t('appSaveCanceled'))
       return { ok: false }
+    }
+    if (journalRevision(state.editJournal) !== revAtSave) {
+      // An edit was committed while the write was in flight. Swapping now would
+      // install a fresh journal and drop it, so write the difference first and
+      // only swap once the file actually holds it.
+      const pending = pendingEdits(state.editJournal, baseline)
+      const pendingCount = journalSize(pending)
+      if (pendingCount > 0) {
+        if (pass < MAX_REPLAY_PASSES) {
+          const replayCtx: SaveContext = {
+            ...ctx,
+            lazyWorkbookRef: {
+              current: {
+                ...state,
+                file: { ...state.file, sessionId: result.file.sessionId },
+                editJournal: pending,
+              },
+            },
+          }
+          const replayed = await handleSave(replayCtx, mode, quiet, explicitTarget, pass + 1)
+          if (replayed.ok) return replayed
+        }
+        // Out of replay passes, or the replay itself failed: move to the
+        // session that now holds the file and keep the rest pending, so the
+        // next save writes it instead of losing it.
+        const stillPending = t(pendingCount === 1 ? 'appUnsavedEditOne' : 'appUnsavedEditMany', {
+          count: pendingCount,
+        })
+        ctx.stashViewRestore(viewAtSave)
+        ctx.openLazyWorkbook(result.file, { continueChat: true, carryJournal: pending })
+        ctx.setMessage(stillPending)
+        if (!quiet) showToast(stillPending)
+        return { ok: false, ...(result.file.path !== undefined ? { path: result.file.path } : {}) }
+      }
     }
     if (!splitSave) {
       // Cross-save undo: carry the Univer undo stack over the session swap.

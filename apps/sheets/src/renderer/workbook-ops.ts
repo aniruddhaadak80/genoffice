@@ -591,6 +591,7 @@ export function renameChartRefsForSheet(
       ...(edit.series === undefined ? {} : { series: edit.series.map(renameSeries) }),
       ...(edit.seriesSet === undefined ? {} : { seriesSet: edit.seriesSet.map(renameSeries) }),
     })
+    state.editJournal.rev += 1
   }
 }
 
