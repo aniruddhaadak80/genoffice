@@ -1367,18 +1367,56 @@ pub(crate) fn strip_future_function_markers(formula: &str) -> String {
     if !formula.contains("_xlfn.") && !formula.contains("_xlws.") {
         return formula.to_owned();
     }
-    formula
-        .split('"')
-        .enumerate()
-        .map(|(index, segment)| {
-            if index % 2 == 1 {
-                segment.to_owned()
-            } else {
-                segment.replace("_xlfn.", "").replace("_xlws.", "")
+    let bytes = formula.as_bytes();
+    let mut out = String::with_capacity(formula.len());
+    let mut copied_from = 0;
+    let mut index = 0;
+    while index < bytes.len() {
+        if bytes[index] == b'"' || bytes[index] == b'\'' {
+            let quote = bytes[index];
+            index += 1;
+            while index < bytes.len() {
+                if bytes[index] == quote {
+                    if bytes.get(index + 1) == Some(&quote) {
+                        index += 2;
+                    } else {
+                        index += 1;
+                        break;
+                    }
+                } else {
+                    index += 1;
+                }
             }
-        })
-        .collect::<Vec<_>>()
-        .join("\"")
+            continue;
+        }
+        let marker_len = if bytes[index..].starts_with(b"_xlfn.") {
+            6
+        } else if bytes[index..].starts_with(b"_xlws.") {
+            6
+        } else {
+            0
+        };
+        if marker_len > 0 {
+            let mut end = index + marker_len;
+            while end < bytes.len()
+                && (bytes[end].is_ascii_alphanumeric() || bytes[end] == b'_' || bytes[end] == b'.')
+            {
+                end += 1;
+            }
+            while end < bytes.len() && bytes[end].is_ascii_whitespace() {
+                end += 1;
+            }
+            if end > index + marker_len && bytes.get(end) == Some(&b'(') {
+                out.push_str(&formula[copied_from..index]);
+                copied_from = index + marker_len;
+                index = copied_from;
+                continue;
+            }
+        }
+        index += 1;
+    }
+    out.push_str(&formula[copied_from..]);
+    out
 }
 
 /// `ref` of a `<f t="array">` element; None for ordinary formulas.
