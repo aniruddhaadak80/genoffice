@@ -1,8 +1,8 @@
 /**
  * Speaker notes tests (Task 3):
  *  1. Read notes (pptx that has a notesSlide)
- *  2. Write new notes (blank deck, no notesSlide ΓåÆ part auto-created)
- *  3. Write to a real pptx fixture ΓåÆ save+reopen roundtrip
+ *  2. Write new notes (blank deck, no notesSlide → part auto-created)
+ *  3. Write to a real pptx fixture → save+reopen roundtrip
  *  4. Iron rule: notesSlide bytes of slides without written notes stay unchanged
  */
 import { describe, it, expect } from 'vitest'
@@ -73,7 +73,7 @@ describe('speaker notes', () => {
     )
   })
 
-  it('save ΓåÆ reopen persists notes (notesSlide part auto-created)', async () => {
+  it('save → reopen persists notes (notesSlide part auto-created)', async () => {
     const opened = await openPptx(await createBlankPptx())
     setSlideNotes(opened, 0, 'Introduce yourself first & special chars <test>')
     const reopened = await openPptx(await savePptx(opened))
@@ -86,7 +86,7 @@ describe('speaker notes', () => {
     expect(reopened.archive.has('ppt/notesMasters/notesMaster1.xml')).toBe(true)
   })
 
-  it('real pptx fixture ΓåÆ write notes ΓåÆ save+reopen correct', async () => {
+  it('real pptx fixture → write notes → save+reopen correct', async () => {
     const opened = await openPptx(fx('01_standard_business.pptx'))
     setSlideNotes(opened, 0, 'Speaker notes for the first slide')
     const reopened = await openPptx(await savePptx(opened))
