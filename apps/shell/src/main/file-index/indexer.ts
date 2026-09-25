@@ -2,7 +2,7 @@ import { Worker } from 'node:worker_threads'
 import type { Extracted } from './extract'
 import type { WorkerRequest, WorkerResponse } from './extract-worker'
 import { isSupportedTreeFile } from '../folder-tree'
-import { statOrNull, type ScannedFile } from './scan'
+import { SCAN_MAX_FILES, SCAN_TIME_BUDGET_MS, statOrNull, type ScannedFile } from './scan'
 import type { FileIndexStore } from './store'
 
 export interface IndexProgress {
@@ -11,6 +11,7 @@ export interface IndexProgress {
   /** files waiting for extraction */
   pending: number
   scanning: boolean
+  truncated: boolean
 }
 
 export interface IndexerSources {
@@ -39,6 +40,7 @@ export class FileIndexer {
   private scanRequested = false
   private rescanTimer: NodeJS.Timeout | null = null
   private lastScanAt = 0
+  private scanTruncated = false
   private stopped = false
 
   constructor(
@@ -48,7 +50,12 @@ export class FileIndexer {
   ) {}
 
   progress(): IndexProgress {
-    return { indexed: this.store.count(), pending: this.queue.length, scanning: this.scanning }
+    return {
+      indexed: this.store.count(),
+      pending: this.queue.length,
+      scanning: this.scanning,
+      truncated: this.scanTruncated,
+    }
   }
 
   /** schedule a scan soon; repeated calls within the debounce window fold into one */
@@ -73,16 +80,32 @@ export class FileIndexer {
       return
     }
     this.scanning = true
+    this.scanTruncated = false
     try {
       const seen = new Map<string, ScannedFile>()
+      const deadline = Date.now() + SCAN_TIME_BUDGET_MS
       let walked = true
+      let complete = true
       for (const root of this.sources.roots()) {
-        const res = await this.ask({ id: 0, type: 'scan', root })
-        // a crashed worker answers with an extract error; dropping the index on that would empty search
-        if (res.type === 'scan') for (const f of res.files) seen.set(f.path, f)
-        else walked = false
+        const maxFiles = SCAN_MAX_FILES - seen.size
+        const timeBudgetMs = deadline - Date.now()
+        if (maxFiles <= 0 || timeBudgetMs <= 0) {
+          complete = false
+          this.scanTruncated = true
+          break
+        }
+        const res = await this.ask({ id: 0, type: 'scan', root, maxFiles, timeBudgetMs })
+        if (res.type === 'scan') {
+          for (const file of res.files) seen.set(file.path, file)
+          if (res.truncated) {
+            complete = false
+            this.scanTruncated = true
+          }
+        } else {
+          walked = false
+        }
       }
-      if (walked) this.diff(seen)
+      if (walked) this.diff(seen, complete)
     } finally {
       this.scanning = false
     }
@@ -94,16 +117,18 @@ export class FileIndexer {
   }
 
   /** bring the store in step with what the walk saw; extra paths are stat-ed here */
-  private diff(seen: Map<string, ScannedFile>): void {
+  private diff(seen: Map<string, ScannedFile>, complete: boolean): void {
     for (const p of this.sources.extraPaths()) {
       if (seen.has(p) || !isSupportedTreeFile(p)) continue
       const st = statOrNull(p)
       if (st) seen.set(p, st)
     }
     const known = this.store.listAll()
-    const gone: string[] = []
-    for (const path of known.keys()) if (!seen.has(path)) gone.push(path)
-    this.store.remove(gone)
+    if (complete) {
+      const gone: string[] = []
+      for (const path of known.keys()) if (!seen.has(path)) gone.push(path)
+      this.store.remove(gone)
+    }
     for (const f of seen.values()) {
       const k = known.get(f.path)
       if (k && k.status !== 'error' && k.mtimeMs === f.mtimeMs && k.sizeBytes === f.sizeBytes) {

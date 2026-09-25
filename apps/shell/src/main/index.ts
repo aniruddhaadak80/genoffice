@@ -3467,7 +3467,11 @@ function registerHomeIpc(): void {
     const query = (raw && typeof raw === 'object' ? raw : {}) as Partial<FileSearchQuery>
     const indexer = ensureFileIndexer()
     if (!indexer || !fileIndexStore) {
-      return { hits: [], total: 0, index: { indexed: 0, pending: 0, scanning: false } }
+      return {
+        hits: [],
+        total: 0,
+        index: { indexed: 0, pending: 0, scanning: false, truncated: false },
+      }
     }
     // an open search box is the moment a stale index shows; rescan at most once a minute
     indexer.refreshIfStale(60_000)

@@ -7,21 +7,27 @@ import { extractText } from './extract'
 import { scanFiles } from './scan'
 
 export type WorkerRequest =
-  { id: number; type: 'extract'; path: string } | { id: number; type: 'scan'; root: string }
+  | { id: number; type: 'extract'; path: string }
+  | { id: number; type: 'scan'; root: string; maxFiles: number; timeBudgetMs: number }
 
 export type WorkerResponse =
   | { id: number; type: 'extract'; result: Awaited<ReturnType<typeof extractText>> }
-  | { id: number; type: 'scan'; files: ReturnType<typeof scanFiles> }
+  | { id: number; type: 'scan'; files: ReturnType<typeof scanFiles>['files']; truncated: boolean }
 
 parentPort?.on('message', async (req: WorkerRequest) => {
   if (req.type === 'extract') {
     const result = await extractText(req.path)
     parentPort?.postMessage({ id: req.id, type: 'extract', result } satisfies WorkerResponse)
   } else {
+    const result = scanFiles(req.root, {
+      maxFiles: req.maxFiles,
+      timeBudgetMs: req.timeBudgetMs,
+    })
     parentPort?.postMessage({
       id: req.id,
       type: 'scan',
-      files: scanFiles(req.root),
+      files: result.files,
+      truncated: result.truncated,
     } satisfies WorkerResponse)
   }
 })
