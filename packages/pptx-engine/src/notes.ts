@@ -1,8 +1,8 @@
 /**
- * Speaker notes (notesSlide) read/write ΓÇö archive surgery, same approach as
+ * Speaker notes (notesSlide) read/write — archive surgery, same approach as
  * duplicateSlide.
  *
- * - Read: slide rels ΓåÆ notesSlide part ΓåÆ body placeholder <a:t> text (\n-separated).
+ * - Read: slide rels → notesSlide part → body placeholder <a:t> text (\n-separated).
  * - Write: patch the existing notesSlide's body txBody; if there is no notesSlide,
  *   create one (creating a notesMaster too if needed and registering it in
  *   presentation.xml).
@@ -78,7 +78,7 @@ export function getSlideNotes(archive: PackageArchive, slidePath: string): strin
   return paras.join('\n')
 }
 
-/** text (\n-separated) ΓåÆ notes txBody. */
+/** text (\n-separated) → notes txBody. */
 function buildNotesTxBody(text: string): string {
   const lines = text.split('\n')
   const paras = lines.every((l) => l === '')
