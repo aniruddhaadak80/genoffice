@@ -24,12 +24,6 @@ export async function atomicWriteFile(filePath: string, data: Uint8Array): Promi
       }
     }
   } catch (error) {
-    const retryable = RETRYABLE_RENAME_CODES.has((error as NodeJS.ErrnoException).code ?? '')
-    if (retryable) {
-      await writeFile(filePath, data)
-      await unlink(tmp).catch(() => {})
-      return
-    }
     await unlink(tmp).catch(() => {})
     throw error
   }
