@@ -173,6 +173,20 @@ describe('preview document', () => {
     )
   })
 
+  it('ignores inert template head and base content', async () => {
+    const { buildPreviewDocument } = await import('../src/main/preview-document')
+    const base = 'html-asset://local/docs/'
+    const inert =
+      '<template data-x=">"><head data-kind=">"><base href="https://inert/"></head></template>'
+    const document = `${inert}<html><head data-x=">"><title>x</title></head></html>`
+    expect(buildPreviewDocument(document, base)).toBe(
+      `${inert}<html><head data-x=">"><base href="${base}"><title>x</title></head></html>`,
+    )
+    expect(buildPreviewDocument(`${inert}<p>frag</p>`, base)).toBe(
+      `<base href="${base}">${inert}<p>frag</p>`,
+    )
+  })
+
   it('injects a base tag into head only when the author has none', async () => {
     const { buildPreviewDocument, assetBaseHref } = await import('../src/main/preview-document')
     const base = assetBaseHref('/Users/h/My Docs')
