@@ -9,23 +9,41 @@ import type { KeyboardEvent as ReactKeyboardEvent } from 'react'
 
 const FOCUSABLE = 'button, input, textarea, select, [tabindex]:not([tabindex="-1"])'
 
-export function useModalKeys(onClose: () => void, options?: { restoreFocus?: boolean }) {
+export interface ModalKeysOptions {
+  /** return focus to whatever had it when the modal opened */
+  readonly restoreFocus?: boolean
+  /** CSS selector for the control to focus on open; defaults to the first field or button */
+  readonly initialFocus?: string
+}
+
+export function useModalKeys(onClose: () => void, options?: ModalKeysOptions) {
   const ref = useRef<HTMLDivElement>(null)
   const restoreFocus = options?.restoreFocus ?? false
+  const initialFocus = options?.initialFocus
+  // Captured once, on the first commit that has a mounted backdrop: an effect
+  // that re-runs must not record the modal's own control as the restore target.
+  const previousRef = useRef<HTMLElement | null>(null)
+  const capturedRef = useRef(false)
 
   useEffect(() => {
     const el = ref.current
     if (!el) return
-    const previous =
-      restoreFocus && document.activeElement instanceof HTMLElement ? document.activeElement : null
+    if (!capturedRef.current) {
+      capturedRef.current = true
+      if (restoreFocus && document.activeElement instanceof HTMLElement) {
+        previousRef.current = document.activeElement
+      }
+    }
     if (!el.contains(document.activeElement)) {
-      const first = el.querySelector<HTMLElement>('input, textarea, select, button')
+      const target = initialFocus ? el.querySelector<HTMLElement>(initialFocus) : null
+      const first = target ?? el.querySelector<HTMLElement>('input, textarea, select, button')
       ;(first ?? el).focus()
     }
     return () => {
+      const previous = previousRef.current
       if (previous && previous.isConnected) previous.focus()
     }
-  }, [restoreFocus])
+  }, [restoreFocus, initialFocus])
 
   const onKeyDown = (e: ReactKeyboardEvent) => {
     if (e.key === 'Escape') {

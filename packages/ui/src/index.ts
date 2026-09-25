@@ -87,6 +87,7 @@ export {
 } from './image-dialogs'
 export { CROP_EDGE_LABELS } from './strings-crop-edges'
 export { ImageViewer, type ImageViewerLabels } from './image-viewer'
+export { IMAGE_VIEWER_TITLES } from './strings-image-viewer'
 export { trapTab, useModalKeys } from './modal-keys'
 export {
   removeBackground,
