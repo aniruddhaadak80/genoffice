@@ -29,6 +29,16 @@ describe('applyHyperlinkEdits', () => {
     expect(patch.relsXml).toContain('Target="https://example.com/a&amp;b" TargetMode="External"')
   })
 
+  it('allocates a fresh id when an existing numeric id exceeds the safe integer range', () => {
+    const rels = RELS.replace('rId3', 'rId9007199254740992')
+    const patch = applyHyperlinkEdits(WORKSHEET, rels, [
+      { row: 0, column: 0, target: 'https://new.example' },
+    ])
+    expect(patch.worksheetXml).toContain('r:id="rId1"')
+    expect(patch.relsXml).toContain('Id="rId1"')
+    expect(patch.relsXml).toContain('Id="rId9007199254740992"')
+  })
+
   it('expands a self-closing relationships root before adding a link', () => {
     const patch = applyHyperlinkEdits(
       WORKSHEET,
@@ -38,7 +48,6 @@ describe('applyHyperlinkEdits', () => {
     expect(patch.relsXml).toContain('<Relationship Id="rId1"')
     expect(patch.relsXml).toContain('</Relationships>')
   })
-
   it('writes an internal anchor as a location attribute with no rel', () => {
     const patch = applyHyperlinkEdits(WORKSHEET, null, [
       { row: 1, column: 1, target: "#'My Sheet'!B2" },
@@ -56,7 +65,7 @@ describe('applyHyperlinkEdits', () => {
     const patch = applyHyperlinkEdits(withLink, RELS, [
       { row: 0, column: 0, target: 'https://new.example' },
     ])
-    // The old rel is dropped first, freeing its id space — rId1 is reused.
+    // The old rel is dropped first, freeing its id space ΓÇö rId1 is reused.
     expect(patch.worksheetXml).toContain('<hyperlink ref="A1" r:id="rId1"/>')
     expect(patch.relsXml).not.toContain('https://old.example')
     expect(patch.relsXml).toContain('Id="rId1" Type=')
