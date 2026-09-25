@@ -271,7 +271,7 @@ import { collectRevisions, gotoRevision, type TrackChangesStorage } from './edit
 import { NavPane } from './components/NavPane'
 import { Ruler } from './components/Ruler'
 import { docBodyFont, docHasCjk, docLineFactor, docThemeCss } from './doc-style-css'
-import { isDocDirty, runGuardedDocumentAction } from './doc-dirty'
+import { isDocDirty, runGuardedCandidate, runGuardedDocumentAction } from './doc-dirty'
 import {
   EMPTY_HF_VARIANTS,
   hfFromPart,
@@ -1851,17 +1851,10 @@ export function App() {
     return outcome
   }, [])
   const resetFile = useCallback(() => newFileImpl(fileCtxRef.current), [])
-  const replaceOpenedFile = useCallback(
+  const commitOpenedFile = useCallback(
     async (result: OpenDocxResult) => {
       if (!result) return
-      if ('needsPassword' in result) {
-        await loadFile(result)
-        return
-      }
-      await runGuardedDocumentAction(
-        () => window.desktop.confirmDocumentReplace(),
-        () => loadFile(result),
-      )
+      await loadFile(result)
     },
     [loadFile],
   )
@@ -1886,7 +1879,7 @@ export function App() {
   useEffect(() => {
     if (!editor) return
     const unsubscribe = window.desktop.onOpenDocx((result) => {
-      void loadFile(result)
+      void commitOpenedFile(result)
     })
     // With no pending file the window lands directly in the editor on a blank document
     // (the AI panel carries the generate-from-prompt flow). StrictMode runs the mount
@@ -1923,11 +1916,17 @@ export function App() {
         void resetFile().catch(() => {})
       })
     return unsubscribe
-  }, [editor, loadFile, resetFile])
+  }, [commitOpenedFile, editor, loadFile, resetFile])
 
-  const openFile = useCallback(async () => {
-    await replaceOpenedFile(await window.desktop.openDocx())
-  }, [replaceOpenedFile])
+  const openFile = useCallback(
+    () =>
+      runGuardedCandidate(
+        () => window.desktop.confirmDocumentReplace(),
+        () => window.desktop.openDocx(),
+        commitOpenedFile,
+      ),
+    [commitOpenedFile],
+  )
 
   /** new document from the built-in blank template (AI can then generate into it) */
   const newFile = useCallback(
@@ -1936,20 +1935,28 @@ export function App() {
   )
 
   const openRecent = useCallback(
-    async (path: string) => {
-      await replaceOpenedFile(await window.desktop.openDocxPath(path))
-    },
-    [replaceOpenedFile],
+    (path: string) =>
+      runGuardedCandidate(
+        () => window.desktop.confirmDocumentReplace(),
+        () => window.desktop.openDocxPath(path),
+        commitOpenedFile,
+      ),
+    [commitOpenedFile],
   )
 
   /** decrypt-and-open retry loop for the password prompt (wrong password stays in the dialog) */
   const submitDocPwd = async () => {
     if (!docPwdPrompt || docPwdPrompt.busy || !docPwdPrompt.value) return
     setDocPwdPrompt({ ...docPwdPrompt, busy: true, errorKey: '' })
+    const confirmed = await window.desktop.confirmDocumentReplace()
+    if (!confirmed) {
+      setDocPwdPrompt((current) => (current ? { ...current, busy: false } : current))
+      return
+    }
     const res = await window.desktop.openDocxDecrypt(docPwdPrompt.path, docPwdPrompt.value)
     if (res.ok) {
       setDocPwdPrompt(null)
-      await replaceOpenedFile(res.result)
+      await commitOpenedFile(res.result)
       return
     }
     setDocPwdPrompt({
