@@ -3383,6 +3383,8 @@ function colorNodeXml(fillNode: any): string | undefined {
 
 // ── Text ─────────────────────────────────────────────────────────────
 
+const MAX_PARAGRAPH_LEVEL = 8
+
 function parseTextBody(
   txBody: any,
   ctx: ParseContext,
@@ -3512,7 +3514,11 @@ function parseParagraph(
     r: 'right',
     just: 'justify',
   }
-  const level = pPr['@_lvl'] ? parseInt(pPr['@_lvl'], 10) : undefined
+  const levelRaw = pPr['@_lvl'] != null ? parseInt(String(pPr['@_lvl']), 10) : undefined
+  const level =
+    levelRaw == null || !Number.isFinite(levelRaw)
+      ? undefined
+      : Math.min(MAX_PARAGRAPH_LEVEL, Math.max(0, levelRaw))
   // Inherited default style for this level (shape lstStyle → layout ph → master ph → master txStyles)
   const dflt = mergeTextStyleChain(chain, level ?? 0)
   // The paragraph's own <a:pPr><a:defRPr> sits between the runs and that chain:
