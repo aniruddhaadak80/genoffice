@@ -38,11 +38,28 @@ describe('navAction', () => {
 })
 
 describe('shouldHandleDocumentUndo', () => {
-  it('leaves native undo alone in form controls', () => {
-    const input = document.createElement('input')
-    const textarea = document.createElement('textarea')
-    expect(shouldHandleDocumentUndo(input, 'z', true)).toBe(false)
-    expect(shouldHandleDocumentUndo(textarea, 'Z', true)).toBe(false)
+  it('leaves native undo alone in text-entry controls', () => {
+    for (const type of ['email', 'password', 'search', 'tel', 'text', 'url']) {
+      const input = document.createElement('input')
+      input.type = type
+      expect(shouldHandleDocumentUndo(input, 'z', true), type).toBe(false)
+    }
+    expect(shouldHandleDocumentUndo(document.createElement('textarea'), 'Z', true)).toBe(false)
+    const editable = document.createElement('div')
+    Object.defineProperty(editable, 'isContentEditable', { value: true })
+    expect(shouldHandleDocumentUndo(editable, 'z', true)).toBe(false)
+  })
+
+  it('keeps document undo for choice, non-text, and read-only controls', () => {
+    for (const type of ['checkbox', 'number', 'radio', 'range']) {
+      const input = document.createElement('input')
+      input.type = type
+      expect(shouldHandleDocumentUndo(input, 'z', true), type).toBe(true)
+    }
+    expect(shouldHandleDocumentUndo(document.createElement('select'), 'z', true)).toBe(true)
+    const readOnly = document.createElement('input')
+    readOnly.readOnly = true
+    expect(shouldHandleDocumentUndo(readOnly, 'z', true)).toBe(true)
   })
 
   it('keeps document undo for non-editable targets and other shortcuts', () => {
