@@ -1,6 +1,15 @@
 import { spawnSync } from 'node:child_process'
-import { accessSync, constants, lstatSync, readlinkSync, symlinkSync, unlinkSync } from 'node:fs'
-import { join, win32 } from 'node:path'
+import {
+  accessSync,
+  constants,
+  lstatSync,
+  mkdirSync,
+  readlinkSync,
+  symlinkSync,
+  unlinkSync,
+} from 'node:fs'
+import { homedir } from 'node:os'
+import { dirname, isAbsolute, join, win32 } from 'node:path'
 
 /**
  * Making `genoffice` reachable from a terminal. The launcher ships inside the app
@@ -17,6 +26,10 @@ export interface InstallOptions {
   /** directories to try, first writable wins (defaults per platform) */
   candidateDirs?: string[]
   env?: NodeJS.ProcessEnv
+  /** test seam for the home directory the user-level candidates hang off */
+  home?: string
+  /** test seam for the symlink write (Windows without Developer Mode cannot create one) */
+  createLink?: (target: string, link: string) => void
   /** test seam for the Windows registry edit */
   runPowerShell?: (script: string) => { ok: boolean; stdout: string }
 }
@@ -38,18 +51,46 @@ export interface InstallOutcome {
  * directory is reported as unwritable (creating it needs root), not skipped.
  * `/opt/homebrew/bin` is only a fallback because shells see it solely through
  * `brew shellenv`.
+ *
+ * A user without write access to /usr/local/bin still needs the command, so
+ * linux also walks the directories the user owns, in the order shells find them
+ * on PATH. macOS keeps its pair: `~/.local/bin` and `~/bin` are on neither the
+ * default PATH nor a shellenv there, so linking into them would not make
+ * `genoffice` runnable.
  */
-export function defaultCandidateDirs(platform: NodeJS.Platform): string[] {
+export function defaultCandidateDirs(
+  platform: NodeJS.Platform,
+  env: NodeJS.ProcessEnv = process.env,
+  home: string = homedir(),
+): string[] {
   if (platform === 'darwin') return ['/usr/local/bin', '/opt/homebrew/bin']
-  if (platform === 'linux') return ['/usr/local/bin']
+  if (platform === 'linux') return ['/usr/local/bin', ...userOwnedBinDirs(env, home)]
   return []
+}
+
+/**
+ * User-owned bin directories, most specific first: an explicit XDG_BIN_HOME,
+ * then the two every Linux login profile already puts on PATH. Duplicates (a
+ * home-relative XDG_BIN_HOME, a home of '/') collapse, and a relative
+ * XDG_BIN_HOME is ignored rather than resolved against an unknown cwd.
+ */
+export function userOwnedBinDirs(
+  env: NodeJS.ProcessEnv = process.env,
+  home: string = homedir(),
+): string[] {
+  const dirs: string[] = []
+  const xdg = (env.XDG_BIN_HOME ?? '').trim()
+  if (xdg && isAbsolute(xdg)) dirs.push(xdg)
+  if (home) dirs.push(join(home, '.local', 'bin'), join(home, 'bin'))
+  return [...new Set(dirs)]
 }
 
 export function installCliLink(opts: InstallOptions): InstallOutcome {
   const platform = opts.platform ?? process.platform
   if (platform === 'win32') return installWindowsPath(opts)
   if (platform !== 'darwin' && platform !== 'linux') return { status: 'unsupported' }
-  const dirs = opts.candidateDirs ?? defaultCandidateDirs(platform)
+  const owned = ownedBinDirs(opts)
+  const dirs = opts.candidateDirs ?? defaultCandidateDirs(platform, opts.env, opts.home)
   const manual = manualCommand(opts.launcher)
   let occupied: string | undefined
   for (const dir of dirs) {
@@ -63,10 +104,10 @@ export function installCliLink(opts: InstallOptions): InstallOutcome {
       occupied = link
       continue
     }
-    if (!writable(dir)) continue
+    if (!ensureWritableDir(dir, owned)) continue
     try {
       if (state !== 'missing') unlinkSync(link)
-      symlinkSync(opts.launcher, link)
+      ;(opts.createLink ?? symlinkSync)(opts.launcher, link)
       return { status: 'linked', location: link }
     } catch {
       continue
@@ -81,7 +122,8 @@ export function inspectCliLink(opts: InstallOptions): InstallOutcome {
   const platform = opts.platform ?? process.platform
   if (platform === 'win32') return inspectWindowsPath(opts)
   if (platform !== 'darwin' && platform !== 'linux') return { status: 'unsupported' }
-  const dirs = opts.candidateDirs ?? defaultCandidateDirs(platform)
+  const owned = ownedBinDirs(opts)
+  const dirs = opts.candidateDirs ?? defaultCandidateDirs(platform, opts.env, opts.home)
   const manual = manualCommand(opts.launcher)
   let occupied: string | undefined
   // same walk installCliLink does: an occupied name is skipped, the first free writable dir wins
@@ -96,13 +138,51 @@ export function inspectCliLink(opts: InstallOptions): InstallOutcome {
       continue
     }
     if (writable(dir)) return { status: 'missing', location: link, manual }
+    // a user-level directory installCliLink would create: name it as the spot a
+    // terminal finds, and hand over a command that needs no elevation
+    if (owned.has(dir) && creatable(dir)) {
+      return { status: 'missing', location: link, manual: userManualCommand(opts.launcher, dir) }
+    }
   }
   if (occupied) return { status: 'occupied', location: occupied, manual }
   return { status: 'unwritable', location: join(dirs[0] ?? '/usr/local/bin', 'genoffice'), manual }
 }
 
+/** The user-level candidates this run may create, from the env and home it was given. */
+function ownedBinDirs(opts: InstallOptions): ReadonlySet<string> {
+  return new Set(userOwnedBinDirs(opts.env, opts.home ?? homedir()))
+}
+
 function manualCommand(launcher: string): string {
   return `sudo mkdir -p /usr/local/bin && sudo ln -sf "${launcher}" /usr/local/bin/genoffice`
+}
+
+function userManualCommand(launcher: string, dir: string): string {
+  return `mkdir -p "${dir}" && ln -sf "${launcher}" "${join(dir, 'genoffice')}"`
+}
+
+/** Only a user-level candidate is created here; a system path is never made for us. */
+function ensureWritableDir(dir: string, owned: ReadonlySet<string>): boolean {
+  if (writable(dir)) return true
+  if (!owned.has(dir) || !creatable(dir)) return false
+  try {
+    mkdirSync(dir, { recursive: true })
+  } catch {
+    return false
+  }
+  return writable(dir)
+}
+
+/** Whether mkdir -p would succeed here: the nearest existing ancestor is writable. */
+function creatable(dir: string): boolean {
+  let probe = dir
+  for (let depth = 0; depth < 8; depth += 1) {
+    if (writable(probe)) return true
+    const parent = dirname(probe)
+    if (parent === probe) return false
+    probe = parent
+  }
+  return false
 }
 
 function linkState(path: string, launcher: string): 'missing' | 'ours' | 'file' | 'foreign' {
