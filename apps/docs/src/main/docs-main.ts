@@ -2287,7 +2287,10 @@ export function openExternalDocx(filePath: string | null): void {
     pendingOpenPath = filePath
     return
   }
-  void loadDocx(filePath, win.webContents.id)
+  void (async () => {
+    if (rendererReady && !(await requestDocsClose(win.webContents, win))) return
+    return loadDocx(filePath, win.webContents.id)
+  })()
     .then((result) => {
       if (!result || win.isDestroyed()) return
       if (win.isMinimized()) win.restore()
