@@ -1,3 +1,7 @@
+export interface SlideIdentity {
+  partPath?: string
+}
+
 export interface NotesDraft {
   index: number
   partPath: string | undefined
@@ -11,11 +15,24 @@ export interface NotesDraftReconciliation {
   conflict: boolean
 }
 
+export function slidePartPath(slide: SlideIdentity): string | undefined {
+  return typeof slide.partPath === 'string' && slide.partPath.length > 0
+    ? slide.partPath
+    : undefined
+}
+
+export function sameSlideIdentity(left: SlideIdentity, right: SlideIdentity): boolean {
+  const leftPath = slidePartPath(left)
+  return leftPath !== undefined && leftPath === slidePartPath(right)
+}
+
 export function remapNotesDraft(
   draft: NotesDraft,
-  slides: ReadonlyArray<{ partPath?: string }>,
+  slides: ReadonlyArray<SlideIdentity>,
 ): NotesDraft {
-  const index = slides.findIndex((slide) => slide.partPath === draft.partPath)
+  const partPath = slidePartPath(draft)
+  if (!partPath) return { ...draft, index: -1, conflict: true }
+  const index = slides.findIndex((slide) => slidePartPath(slide) === partPath)
   if (index === draft.index) return draft
   return { ...draft, index, conflict: draft.conflict || index < 0 }
 }

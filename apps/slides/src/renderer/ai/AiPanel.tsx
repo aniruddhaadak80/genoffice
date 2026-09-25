@@ -271,7 +271,7 @@ interface AiPanelProps {
   /** Callback to update the path after AI generation lands on disk (title bar sync) */
   onPathChange?: (path: string) => void
   /** Flush pending editor state (e.g. the speaker-notes draft) right before an AI run edits the deck, so a stale draft cannot overwrite what the run writes */
-  onBeforeRun?: () => Promise<void> | void
+  onBeforeRun?: () => Promise<boolean | void> | boolean | void
   /** Generation progress callback (for the canvas top progress bar) */
   onDeckProgress?: (event: DeckProgressEvent | null) => void
   /** Absolute path of the currently open file (for chat history persistence) */
@@ -1659,10 +1659,14 @@ export function AiPanel({
             modelInstruction += `\n\n(Attached image: the current rendering of this slide, slideIndex ${currentRef.current}. Use it to spot visual issues the element inventory can't show.)`
           }
         }
-        // Clear the flag before run: loop.run sets running synchronously, leaving no re-entry window
-        runStartingRef.current = false
-        await onBeforeRunRef.current?.()
+        const beforeRun = await onBeforeRunRef.current?.()
+        if (beforeRun === false) {
+          runStartingRef.current = false
+          setBusy(false)
+          return
+        }
         if (await window.slidesApi.beginHistoryBatch()) historyBatchActiveRef.current = true
+        runStartingRef.current = false
         loop.run(modelInstruction, images)
       })
       .catch(() => {
@@ -1698,7 +1702,10 @@ export function AiPanel({
       setBusy(true)
       queueRunResolverRef.current = resolve
       void Promise.resolve(onBeforeRunRef.current?.())
-        .then(() => window.slidesApi.beginHistoryBatch())
+        .then((ok) => {
+          if (ok === false) throw new Error('pre-run preparation failed')
+          return window.slidesApi.beginHistoryBatch()
+        })
         .then((ok) => {
           if (ok) historyBatchActiveRef.current = true
           runStartingRef.current = false

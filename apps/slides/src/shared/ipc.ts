@@ -939,6 +939,7 @@ export interface EditConnectorEndpointsOp {
 /** Overwrite-write speaker notes (\n splits paragraphs). */
 export interface SetNotesOp {
   slideIndex: number
+  partPath?: string
   text: string
 }
 
@@ -1604,9 +1605,10 @@ export interface SlidesApi {
     op: MoveSlidesOp,
   ) => Promise<{ slides: RenderSlide[]; sections: SectionInfo[] } | null>
   /** Plain text of the current page's speaker notes ('' when there are none) */
-  getNotes: (slideIndex: number) => Promise<string>
+  getNotes: (slide: number | string) => Promise<string>
   /** Overwrite-write notes (into the pptx's notesSlide part); returns success */
   setNotes: (op: SetNotesOp) => Promise<boolean>
+  notifyNotesDraftDirty: (dirty: boolean) => void
   /** All comments on a page (in add order) */
   getComments: (slideIndex: number) => Promise<SlideComment[]>
   /** Add a comment; returns the page's updated comment list, null on failure */
