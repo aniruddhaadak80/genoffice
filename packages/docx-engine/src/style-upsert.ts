@@ -136,10 +136,13 @@ interface Child {
 type Attrs = Map<string, string>
 
 function parseTag(xml: string): { name: string; attrs: Attrs; selfClosing: boolean } {
-  const m = /^<([A-Za-z0-9:._-]+)((?:\s+[^\s=>]+="[^"]*")*)\s*(\/?)>/.exec(xml)
+  const m = /^<([A-Za-z0-9:._-]+)((?:\s+[^\s=/>]+\s*=\s*(?:"[^"]*"|'[^']*'))*)\s*(\/?)>/.exec(xml)
   if (!m) throw new Error(`style-upsert: not an element: ${xml.slice(0, 40)}`)
   const attrs: Attrs = new Map()
-  for (const a of m[2]!.matchAll(/([^\s=>]+)="([^"]*)"/g)) attrs.set(a[1]!, a[2]!)
+  for (const a of m[2]!.matchAll(/([^\s=/>]+)\s*=\s*(?:"([^"]*)"|'([^']*)')/g)) {
+    const value = a[2] !== undefined ? a[2]! : a[3]!.replace(/"/g, '&quot;')
+    attrs.set(a[1]!, value)
+  }
   return { name: m[1]!, attrs, selfClosing: m[3] === '/' }
 }
 
@@ -344,6 +347,18 @@ export function mergeStyleXml(existing: string | null, up: StyleUpsert): string 
     children.set('w:rPr', inner.size ? `<w:rPr>${inner.toXml()}</w:rPr>` : null)
   }
   return tag('w:style', attrs, children.toXml())
+}
+
+export function upsertStyleXml(xml: string, up: StyleUpsert): string {
+  const escapedId = up.styleId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const existing = new RegExp(
+    `<w:style\\b[^>]*\\bw:styleId=(["'])${escapedId}\\1[^>]*(?:\\/>|>[\\s\\S]*?<\\/w:style>)`,
+  )
+  const match = existing.exec(xml)
+  const styleXml = mergeStyleXml(match?.[0] ?? null, up)
+  return match
+    ? xml.replace(existing, () => styleXml)
+    : xml.replace('</w:styles>', `${styleXml}</w:styles>`)
 }
 
 /** Patch only the requested default font slots, preserving all other defaults. */
