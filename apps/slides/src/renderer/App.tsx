@@ -684,16 +684,13 @@ export function App() {
             (candidate) => slidePartPath(candidate) === pending.partPath,
           )
           if (index < 0) return fail()
-          let ok = false
-          try {
-            ok = await window.slidesApi.setNotes({
+          const ok = await window.slidesApi
+            .setNotes({
               slideIndex: index,
               partPath: pending.partPath,
               text: pending.text,
             })
-          } catch {
-            ok = false
-          }
+            .catch(() => false)
           if (!ok) {
             const failed = t('appStatusSaveFailed', { error: t('appUnknownError') })
             setStatus(failed)
