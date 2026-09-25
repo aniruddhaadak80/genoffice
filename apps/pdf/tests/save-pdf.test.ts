@@ -13,6 +13,7 @@ import {
   PDFRawStream,
   decodePDFRawStream,
   degrees,
+  rgb,
 } from 'pdf-lib'
 import { getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs'
 import {
