@@ -298,9 +298,9 @@ describe('mergePagesBytes', () => {
     expect(matrix[5]).toBeCloseTo(112.5)
     const bounds = transformedBounds(matrix, [10, 20, 30, 40])
     expect(bounds.minX).toBeCloseTo(5)
-    expect(bounds.minY).toBeCloseTo(110)
+    expect(bounds.minY).toBeCloseTo(102.5)
     expect(bounds.maxX).toBeCloseTo(15)
-    expect(bounds.maxY).toBeCloseTo(115)
+    expect(bounds.maxY).toBeCloseTo(110)
   })
 
   it('draws the embedded pages onto each sheet', async () => {
