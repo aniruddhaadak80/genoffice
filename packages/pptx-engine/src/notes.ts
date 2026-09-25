@@ -71,7 +71,9 @@ export function getSlideNotes(archive: PackageArchive, slidePath: string): strin
   const tx = /<p:txBody>([\s\S]*?)<\/p:txBody>/.exec(body.xml)?.[1]
   if (!tx) return ''
   const paras = [...tx.matchAll(/<a:p>([\s\S]*?)<\/a:p>/g)].map((p) =>
-    [...p[1]!.matchAll(/<a:t(?:\s[^>]*[^\/>])?>([\s\S]*?)<\/a:t>/g)].map((t) => unescapeXml(t[1]!)).join(''),
+    [
+      ...p[1]!.matchAll(/<a:t(?:\s[^>]*[^\/>])?>([\s\S]*?)<\/a:t>/g),
+    ].map((t) => unescapeXml(t[1]!)).join(''),
   )
   // Drop trailing empty paragraphs (PowerPoint templates often carry an empty placeholder paragraph)
   while (paras.length && paras[paras.length - 1] === '') paras.pop()
