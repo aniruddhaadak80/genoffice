@@ -140,6 +140,26 @@ describe('buildSnippet', () => {
     ])
   })
 
+  it('maps whole-string normalization across decomposed graphemes', () => {
+    const text = 'Cafe\u0301 report'
+    expect(markText(text, ['café'])).toEqual([
+      { text: 'Cafe\u0301', hit: true },
+      { text: ' report', hit: false },
+    ])
+    expect(buildSnippet(text, ['café'])!.filter((part) => part.hit)).toEqual([
+      { text: 'Cafe\u0301', hit: true },
+    ])
+  })
+
+  it('uses whole-string Greek case context when mapping hits', () => {
+    expect(markText('ΟΣ', ['ος'])).toEqual([{ text: 'ΟΣ', hit: true }])
+    expect(markText('ΣΣ', ['σ'])).toEqual([
+      { text: 'Σ', hit: true },
+      { text: 'Σ', hit: false },
+    ])
+    expect(containsAny('ΟΣ', ['ος'])).toBe(true)
+  })
+
   it('matches case-insensitively and returns null without a hit', () => {
     expect(buildSnippet('Quarterly REPORT', ['report'])![1]).toEqual({ text: 'REPORT', hit: true })
     expect(buildSnippet('nothing here', ['report'])).toBeNull()
