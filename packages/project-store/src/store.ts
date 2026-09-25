@@ -10,7 +10,7 @@
  *
  * Design principles:
  * - No Electron dependency; the userData path is injected by the caller
- * - All write failures warn silently, never throw (append path)
+ * - A failed chat append is reported to the caller and keeps the buffered messages
  * - JSONL parsing is line-by-line tolerant: bad lines are skipped, no crash
  * - seq is maintained by the store layer: auto-incremented on each appendChatMessage
  */
@@ -125,6 +125,27 @@ function writeJson(filePath: string, data: unknown): void {
   renameSync(tmpPath, filePath)
 }
 
+function toJsonl(records: readonly ChatMessage[]): string {
+  return records.map((r) => JSON.stringify(r) + '\n').join('')
+}
+
+/** Thrown when a chat message could not be persisted; the pending buffer is left intact. */
+export class ChatAppendError extends Error {
+  constructor(
+    readonly projectId: string,
+    readonly chatId: string,
+    options?: { cause?: unknown },
+  ) {
+    super(`Chat message not persisted to ${projectId}/${chatId}`, options)
+    this.name = 'ChatAppendError'
+  }
+}
+
+interface ReservedSeq {
+  seq: number
+  prev: number | null
+}
+
 // ────────────────────────────────────────────────────────────
 // ProjectStore class
 // ────────────────────────────────────────────────────────────
@@ -169,20 +190,28 @@ export class ProjectStore {
     return `${projectId}:${chatId}`
   }
 
-  private nextSeq(projectId: string, chatId: string): number {
+  private reserveSeq(projectId: string, chatId: string): ReservedSeq {
     const key = this.seqKey(projectId, chatId)
     const cur = this.seqCounters.get(key)
     if (cur !== undefined) {
       const next = cur + 1
       this.seqCounters.set(key, next)
-      return next
+      return { seq: next, prev: cur }
     }
     // Initialization: scan the existing file for the max seq
     const existing = this.loadChat(projectId, chatId, 10_000)
     const maxSeq = existing.reduce((m, msg) => Math.max(m, msg.seq), -1)
     const next = maxSeq + 1
     this.seqCounters.set(key, next)
-    return next
+    return { seq: next, prev: maxSeq >= 0 ? maxSeq : null }
+  }
+
+  /** Undoes reserveSeq so a retry of a failed append reuses the same seq */
+  private rollbackSeq(projectId: string, chatId: string, reserved: ReservedSeq): void {
+    const key = this.seqKey(projectId, chatId)
+    if (this.seqCounters.get(key) !== reserved.seq) return
+    if (reserved.prev === null) this.seqCounters.delete(key)
+    else this.seqCounters.set(key, reserved.prev)
   }
 
   // ── Index read/write ──────────────────────────────────────
@@ -334,26 +363,29 @@ export class ProjectStore {
    */
   private readonly pendingFirstWrite = new Map<string, ChatMessage[]>()
 
-  /** Flushes buffered opening messages to disk (materialized before rebind: once the file is saved, the opening messages should be kept). */
-  private flushPending(projectId: string, chatId: string): void {
+  /** Flushes buffered opening messages to disk (materialized before rebind: once the file is saved, the opening messages should be kept). Returns false when the write failed and the buffer was kept. */
+  private flushPending(projectId: string, chatId: string): boolean {
     // Validate before any IO so traversal ids throw instead of being swallowed below
     assertSafeId(projectId, 'projectId')
     assertSafeId(chatId, 'chatId')
     const key = this.seqKey(projectId, chatId)
     const buf = this.pendingFirstWrite.get(key)
-    this.pendingFirstWrite.delete(key)
-    if (!buf || buf.length === 0) return
+    if (!buf || buf.length === 0) return true
     try {
       ensureDir(this.chatsDir(projectId))
-      const lines = buf.map((r) => JSON.stringify(r) + '\n').join('')
-      appendFileSync(this.chatPath(projectId, chatId), lines, 'utf8')
+      appendFileSync(this.chatPath(projectId, chatId), toJsonl(buf), 'utf8')
+      this.pendingFirstWrite.delete(key)
+      return true
     } catch (err) {
       console.warn('[project-store] flushPending failed:', err)
+      return false
     }
   }
 
   /**
-   * Appends one message to the JSONL. Write failures warn silently, never throw.
+   * Appends one message to the JSONL. A write failure is reported as a
+   * ChatAppendError and leaves the buffered opening messages in memory, so the
+   * caller's only copy of them survives and a retry persists all of them.
    * seq is auto-assigned by the store layer (monotonically increasing).
    * When the record file doesn't exist yet, non-assistant messages are buffered;
    * the file is created and flushed only when the first assistant message arrives.
@@ -366,8 +398,12 @@ export class ProjectStore {
     // Validate ids before the IO try block so traversal attempts throw fail-closed
     assertSafeId(projectId, 'projectId')
     assertSafeId(chatId, 'chatId')
+    const key = this.seqKey(projectId, chatId)
+    const bufferedBefore = this.pendingFirstWrite.get(key)
+    let reserved: ReservedSeq | undefined
     try {
-      const seq = this.nextSeq(projectId, chatId)
+      reserved = this.reserveSeq(projectId, chatId)
+      const seq = reserved.seq
       const ts = msg.ts ?? nowIso()
       const text =
         msg.text.length > TEXT_MAX_CHARS
@@ -393,29 +429,34 @@ export class ProjectStore {
         }
       }
 
-      const key = this.seqKey(projectId, chatId)
       if (msg.role !== 'assistant' && !existsSync(this.chatPath(projectId, chatId))) {
-        const buf = this.pendingFirstWrite.get(key) ?? []
+        const buf = bufferedBefore ? [...bufferedBefore] : []
         buf.push(record)
         // Bound the in-memory buffer: overflow materializes the file early
         // instead of dropping user messages.
         if (buf.length >= MAX_PENDING_OPENING_MESSAGES) {
           ensureDir(this.chatsDir(projectId))
+          appendFileSync(this.chatPath(projectId, chatId), toJsonl(buf), 'utf8')
           this.pendingFirstWrite.delete(key)
-          const lines = buf.map((r) => JSON.stringify(r) + '\n').join('')
-          appendFileSync(this.chatPath(projectId, chatId), lines, 'utf8')
           return
         }
         this.pendingFirstWrite.set(key, buf)
         return
       }
       ensureDir(this.chatsDir(projectId))
-      const buf = this.pendingFirstWrite.get(key) ?? []
+      appendFileSync(
+        this.chatPath(projectId, chatId),
+        toJsonl([...(bufferedBefore ?? []), record]),
+        'utf8',
+      )
       this.pendingFirstWrite.delete(key)
-      const lines = [...buf, record].map((r) => JSON.stringify(r) + '\n').join('')
-      appendFileSync(this.chatPath(projectId, chatId), lines, 'utf8')
     } catch (err) {
+      // The append never landed: keep the pre-call buffer and give the seq back
+      if (bufferedBefore && bufferedBefore.length > 0)
+        this.pendingFirstWrite.set(key, bufferedBefore)
+      if (reserved) this.rollbackSeq(projectId, chatId, reserved)
       console.warn('[project-store] appendChatMessage failed:', err)
+      throw new ChatAppendError(projectId, chatId, { cause: err })
     }
   }
 
