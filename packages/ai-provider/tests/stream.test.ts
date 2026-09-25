@@ -259,12 +259,18 @@ describe('streamForProvider: terminal framing', () => {
   )
 
   it('treats reasoning-only output as emitted when checking terminal framing', async () => {
-    const body = sseStream([
-      'data: {"choices":[{"delta":{"reasoning_content":"thinking"}}]}',
-    ])
+    const body = sseStream(['data: {"choices":[{"delta":{"reasoning_content":"thinking"}}]}'])
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(okResponse(body)))
     await expect(
-      streamForProvider('openai', { apiKey: 'k', model: 'gpt-4.1-mini' }, 'sys', [], [], 100, collector().cb),
+      streamForProvider(
+        'openai',
+        { apiKey: 'k', model: 'gpt-4.1-mini' },
+        'sys',
+        [],
+        [],
+        100,
+        collector().cb,
+      ),
     ).rejects.toThrow(/model stream ended before a finish_reason or \[DONE\] marker/)
   })
 })
