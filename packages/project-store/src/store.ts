@@ -137,6 +137,30 @@ function readChatTail(filePath: string): string {
   }
 }
 
+function parseChatRecords(raw: string): ChatMessage[] {
+  const messages: ChatMessage[] = []
+  for (const line of raw.split('\n')) {
+    if (!line.trim()) continue
+    try {
+      const msg = JSON.parse(line) as ChatMessage
+      if (
+        typeof msg.seq === 'number' &&
+        typeof msg.role === 'string' &&
+        typeof msg.text === 'string'
+      ) {
+        messages.push(msg)
+      }
+    } catch {
+      continue
+    }
+  }
+  return messages
+}
+
+function readAllChatRecords(filePath: string): ChatMessage[] {
+  return parseChatRecords(readFileSync(filePath, 'utf8'))
+}
+
 function readJson<T>(filePath: string): T | null {
   try {
     if (!existsSync(filePath)) return null
@@ -462,24 +486,7 @@ export class ProjectStore {
     const filePath = this.chatPath(projectId, chatId)
     const messages: ChatMessage[] = [...pending]
     try {
-      if (existsSync(filePath)) {
-        const raw = readChatTail(filePath)
-        const lines = raw.split('\n').filter((l) => l.trim())
-        for (const line of lines) {
-          try {
-            const msg = JSON.parse(line) as ChatMessage
-            if (
-              typeof msg.seq === 'number' &&
-              typeof msg.role === 'string' &&
-              typeof msg.text === 'string'
-            ) {
-              messages.push(msg)
-            }
-          } catch {
-            // skip bad lines
-          }
-        }
-      }
+      if (existsSync(filePath)) messages.push(...parseChatRecords(readChatTail(filePath)))
       // Sort by seq and take the most recent entries (safeLimit is always >= 1)
       messages.sort((a, b) => a.seq - b.seq)
       return messages.slice(-safeLimit)
@@ -539,9 +546,9 @@ export class ProjectStore {
         if (!existsSync(newPath)) {
           renameSync(oldPath, newPath)
         } else {
-          const existing = this.loadChat(toProjectId, toId, 10_000)
+          const existing = readAllChatRecords(newPath)
           let seq = existing.reduce((m, msg) => Math.max(m, msg.seq), -1) + 1
-          const moved = this.loadChat(fromProjectId, fromId, 10_000)
+          const moved = readAllChatRecords(oldPath)
           const lines = moved.map((m) => JSON.stringify({ ...m, seq: seq++ }) + '\n').join('')
           if (lines) appendFileSync(newPath, lines, 'utf8')
           unlinkSync(oldPath)

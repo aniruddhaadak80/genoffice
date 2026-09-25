@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { ProjectStore } from '../src/store.js'
@@ -295,6 +295,36 @@ describe('rebindChat', () => {
 
     store.appendChatMessage('default', newId, { role: 'assistant', text: 'after' })
     expect(store.loadChat('default', newId).map((m) => m.seq)).toEqual([0, 1, 2, 3])
+  })
+
+  it('preserves every source record when merging a chat longer than the display cap', () => {
+    const sourceId = 'unsaved-long'
+    const targetId = 'existing-long'
+    store.appendChatMessage('default', targetId, { role: 'assistant', text: 'target' })
+    store.appendChatMessage('default', sourceId, { role: 'assistant', text: 'seed' })
+    const chatsDir = join(tmpDir, 'projects', 'default', 'chats')
+    const sourcePath = join(chatsDir, `${sourceId}.jsonl`)
+    const targetPath = join(chatsDir, `${targetId}.jsonl`)
+    const source = Array.from({ length: 10_001 }, (_, index) =>
+      JSON.stringify({
+        seq: index,
+        ts: new Date(index).toISOString(),
+        role: index % 2 === 0 ? 'user' : 'assistant',
+        text: `source-${index}`,
+      }),
+    )
+    writeFileSync(sourcePath, `${source.join('\n')}\n`, 'utf8')
+
+    store.rebindChat('default', sourceId, targetId)
+
+    const merged = readFileSync(targetPath, 'utf8')
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line))
+    expect(merged).toHaveLength(10_002)
+    expect(merged[1]?.text).toBe('source-0')
+    expect(merged.at(-1)?.text).toBe('source-10000')
+    expect(existsSync(sourcePath)).toBe(false)
   })
 })
 
