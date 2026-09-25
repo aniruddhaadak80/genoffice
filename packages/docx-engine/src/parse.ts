@@ -586,6 +586,8 @@ export async function parseDocx(
       documentXml,
       bodyInnerStart: scan.innerStart,
       bodyInnerEnd: scan.innerEnd,
+      bodyContentStart: scan.bodyContentStart,
+      bodyContentEnd: scan.bodyContentEnd,
     },
     extras: {
       elements,
