@@ -10,6 +10,12 @@ import { AiPanel, GensparkMark } from './ai/AiPanel'
 import { AiAskPopover, type AskAnchorRect } from './AiAskPopover'
 import { loadSavedAnnots } from './annotation-catalog'
 import {
+  createAnnotCountCache,
+  createOcrQueue,
+  createSearchIndexCache,
+  type AnnotCounts,
+} from './lazy-scan'
+import {
   OcrTextLayer,
   buildOcrPageData,
   isScannedEntry,
@@ -82,7 +88,7 @@ import {
 import { StampDialog } from './StampDialog'
 import { buildStamps } from './stamps'
 import type { HeaderFooterConfig, WatermarkConfig } from './stamps'
-import { buildSearchIndex, searchInIndex } from './search'
+import { buildPageEntry, searchInIndex } from './search'
 import type { SearchIndex, SearchMatch } from './search'
 import { mapDocFont, type DocFontStyle } from './doc-font'
 import { groupPageBlocks, reflowOverflows, type TextBlock } from './text-block'
@@ -291,6 +297,10 @@ export default function App() {
   const { lang, t } = useI18n()
   const collapse = useRibbonCollapse('genoffice-pdf-ribbon-collapsed')
   const [doc, setDoc] = useState<PDFDocumentProxy | null>(null)
+  /** The live document, readable from async work that must not rebind when the
+      renderer swaps documents under it. */
+  const docRef = useRef<PDFDocumentProxy | null>(null)
+  docRef.current = doc
   const [filePath, setFilePath] = useState('')
   const [status, setStatus] = useState<'loading' | 'error' | 'empty' | 'password' | 'ready'>(
     'loading',
@@ -761,27 +771,9 @@ export default function App() {
   const [askPop, setAskPop] = useState<{ rect: AskAnchorRect; excerpt: string } | null>(null)
   /** Whole-document saved-annotation counts per original page for the AI context
       (scanned once per doc; kept per-page so deleted pages can be excluded) */
-  const [aiAnnotCounts, setAiAnnotCounts] = useState<{
-    threads: number[]
-    markups: number[]
-  } | null>(null)
+  const [aiAnnotCounts, setAiAnnotCounts] = useState<AnnotCounts | null>(null)
   useEffect(() => {
     setAiAnnotCounts(null)
-    if (!doc) return
-    let stale = false
-    void (async () => {
-      const threads: number[] = []
-      const markupCounts: number[] = []
-      for (let i = 0; i < doc.numPages && !stale; i++) {
-        const a = await loadSavedAnnots(doc, i)
-        threads.push(a.notes.filter((n) => n.inReplyTo === null).length)
-        markupCounts.push(a.markups.length)
-      }
-      if (!stale) setAiAnnotCounts({ threads, markups: markupCounts })
-    })()
-    return () => {
-      stale = true
-    }
   }, [doc])
   const [selected, setSelected] = useState<AnnotSelection | null>(null)
   /** Transparency presets fold-out inside the image selection popup */
@@ -845,9 +837,12 @@ export default function App() {
   docFontsRef.current = docFonts
   /** OCR results for scanned pages, keyed by original page index (reset per doc) */
   const [ocrPages, setOcrPages] = useState<Map<number, OcrPageData>>(new Map())
-  const searchIndexRef = useRef<{ doc: PDFDocumentProxy; promise: Promise<SearchIndex> } | null>(
-    null,
-  )
+  /** Whole-document text index, built on first use and then shared by every
+      caller (search, text editing, AI, the OCR scan) so it is extracted once. */
+  const searchIndexCache = useMemo(() => createSearchIndexCache(), [])
+  const annotCountCache = useMemo(() => createAnnotCountCache(loadSavedAnnots), [])
+  /** Set when the platform reports no OCR engine, so the scan stops queueing. */
+  const ocrUnavailableRef = useRef(false)
   const warnedXfaPathRef = useRef('')
   const searchJumpRef = useRef<{ matches: SearchMatch[]; cur: number } | null>(null)
 
@@ -897,9 +892,6 @@ export default function App() {
   /** Latest geometry for async pipelines that must not rebind on rotation (OCR) */
   const pageGeomRef = useRef(pageGeom)
   pageGeomRef.current = pageGeom
-  /** Current original page index, readable without rebinding the OCR pass on scroll */
-  const currentOrigIdxRef = useRef(0)
-  currentOrigIdxRef.current = visList[currentPage - 1] ?? 0
 
   /** Page display size (width/height swapped under rotation) */
   const dispSize = useCallback(
@@ -1890,53 +1882,67 @@ export default function App() {
       AI tools address them like born-digital text. */
   const getSearchIndex = useCallback((): Promise<SearchIndex> | null => {
     if (!doc) return null
-    if (searchIndexRef.current?.doc !== doc) {
-      searchIndexRef.current = { doc, promise: buildSearchIndex(doc) }
-    }
-    const base = searchIndexRef.current.promise
+    const base = searchIndexCache.get(doc)
     if (ocrPages.size === 0) return base
     return base.then((idx) => idx.map((entry, i) => ocrPages.get(i)?.entry ?? entry))
-  }, [doc, ocrPages])
+  }, [doc, ocrPages, searchIndexCache])
 
-  // Auto-OCR for scanned pages (issue #119): once the base index shows pages with
-  // no extractable text, recognize them sequentially in the background, starting
-  // at the current page. Boxes are stored in PDF space, so later zooms/rotations
-  // reproject.
+  /** OCR text for one page, patching the page's index entry. Boxes are stored in
+      PDF space, so later zooms/rotations reproject instead of re-recognizing. */
+  const ocrPage = useCallback(
+    async (origIdx: number): Promise<void> => {
+      if (!doc || ocrUnavailableRef.current) return
+      // An index already under way answers the same question without a second
+      // extraction; otherwise read just this page's text.
+      const pending = searchIndexCache.peek(doc)
+      const entry = pending
+        ? await pending.then((idx) => idx[origIdx] ?? null).catch(() => null)
+        : await buildPageEntry(doc, origIdx + 1).catch(() => null)
+      if (!entry || !isScannedEntry(entry)) return
+      // one geometry snapshot for render and box conversion: a rotation between
+      // the two awaits must not remap boxes through different axes
+      const geom = pageGeomRef.current(origIdx)
+      const png = await renderPageForOcr(doc, origIdx, geom)
+      if (!png) return
+      let lines: PdfOcrLine[] | null
+      try {
+        lines = await window.pdfApi.ocrPage(png)
+      } catch {
+        return // this page failed; the rest may still recognize
+      }
+      if (lines === null) {
+        // no engine on this platform: stop queueing recognition work
+        ocrUnavailableRef.current = true
+        return
+      }
+      // a document swap mid-recognition makes these boxes describe the old file
+      if (docRef.current !== doc) return
+      const data = buildOcrPageData(lines, geom)
+      if (data) setOcrPages((prev) => new Map(prev).set(origIdx, data))
+    },
+    [doc, searchIndexCache],
+  )
+  const ocrQueue = useMemo(() => createOcrQueue(ocrPage), [ocrPage])
+
+  /** OCR results belong to one document; drop them when the file changes and
+      stop the queue that was feeding the previous one. */
   useEffect(() => {
     setOcrPages(new Map())
-    if (!doc || sizes.length !== doc.numPages) return
-    let stale = false
-    void (async () => {
-      const index = await buildSearchIndex(doc).catch(() => null)
-      if (!index || stale) return
-      const scanned = index
-        .map((entry, i) => (isScannedEntry(entry) ? i : -1))
-        .filter((i) => i >= 0)
-      const from = scanned.findIndex((i) => i >= currentOrigIdxRef.current)
-      const ordered = from > 0 ? [...scanned.slice(from), ...scanned.slice(0, from)] : scanned
-      for (const origIdx of ordered) {
-        if (stale) return
-        // one geometry snapshot for render and box conversion: a rotation between
-        // the two awaits must not remap boxes through different axes
-        const geom = pageGeomRef.current(origIdx)
-        const png = await renderPageForOcr(doc, origIdx, geom)
-        if (stale || !png) continue
-        let lines: PdfOcrLine[] | null
-        try {
-          lines = await window.pdfApi.ocrPage(png)
-        } catch {
-          continue // this page failed; the rest may still recognize
-        }
-        if (lines === null) return // no engine on this platform: stop trying
-        if (stale) return
-        const data = buildOcrPageData(lines, geom)
-        if (data) setOcrPages((prev) => new Map(prev).set(origIdx, data))
-      }
-    })()
-    return () => {
-      stale = true
-    }
-  }, [doc, sizes.length])
+    ocrUnavailableRef.current = false
+    ocrQueue.reset()
+    return () => ocrQueue.stop()
+  }, [doc, ocrQueue])
+
+  /** Auto-OCR for scanned pages (issue #119), driven by the pages actually on
+      screen: only a page the reader has reached is worth recognizing, so opening
+      a long document no longer extracts and recognizes the whole file. */
+  useEffect(() => {
+    if (!doc || ocrUnavailableRef.current || sizes.length !== doc.numPages) return
+    const wanted: number[] = []
+    for (const r of visibleRows) for (const i of rows[r] ?? []) wanted.push(i)
+    if (wanted.length === 0) return
+    ocrQueue.push(wanted)
+  }, [doc, sizes.length, visibleRows, rows, ocrQueue])
 
   /** Paragraph boxes are keyed to the loaded doc; drop them on save-reload */
   useEffect(() => {
@@ -5259,6 +5265,19 @@ export default function App() {
       : ''
   }
 
+  /** Count the file's saved annotations the first time the AI asks for context,
+      so opening a document does not read every page's annotations. */
+  const ensureAiAnnotCounts = useCallback((): void => {
+    if (!doc) return
+    if (annotCountCache.peek(doc)) return
+    void annotCountCache
+      .get(doc)
+      .then((counts) => {
+        if (docRef.current === doc) setAiAnnotCounts(counts)
+      })
+      .catch(() => undefined)
+  }, [doc, annotCountCache])
+
   /** One context line about the document's annotations; '' when there are none.
       Deleted pages and per-annotation deletions are excluded, matching what
       read_annotations actually returns. */
@@ -5281,6 +5300,7 @@ export default function App() {
     // scan still running: "unknown" must not read as "none" — a run started right
     // after open would otherwise never hear the file carries review feedback
     if (!aiAnnotCounts) {
+      ensureAiAnnotCounts()
       return 'Whether the file contains notes/markups has not been determined yet; use read_annotations to check when the user asks about review feedback.'
     }
     let savedThreads = 0
