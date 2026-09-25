@@ -303,6 +303,9 @@ async function openAiCompatibleTurn(
     }
   }
   flushTools()
+  if (!sawFinish && !sawDone && emitted) {
+    throw new Error('The model stream ended before a finish_reason or [DONE] marker')
+  }
   // e.g. finish_reason=content_filter with no output, or a stream with no
   // message framing at all (gateway soft-failure) — surface both instead of an
   // empty success; a genuine empty turn still carries finish_reason=stop
