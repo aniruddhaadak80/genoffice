@@ -37,11 +37,14 @@ import {
   runHeadlessRendererExport,
 } from '@genoffice/electron-utils/headless-export'
 import {
+  commitActiveCellEditor,
   installJournalSuppressionUndoFilter,
   installLoadAutoHeightGate,
   journalSuppression,
   lazySheetMeta,
   lazySheetScreenExtent,
+  pendingEditsForClose,
+  type ActiveCellEditor,
   type ActiveWorkbook,
   type LazyWorkbookState,
   type UniverRuntime,
@@ -77,6 +80,7 @@ import {
 } from '@univerjs/core'
 import { FormulaExecutedStateType } from '@univerjs/engine-formula'
 import { IFindReplaceService } from '@univerjs/find-replace'
+import { IEditorBridgeService } from '@univerjs/sheets-ui'
 import { UniverSheetsConditionalFormattingPreset } from '@univerjs/preset-sheets-conditional-formatting'
 import UniverPresetSheetsConditionalFormattingEnUS from '@univerjs/preset-sheets-conditional-formatting/locales/en-US'
 import '@univerjs/preset-sheets-conditional-formatting/lib/index.css'
@@ -459,6 +463,7 @@ export function App(): React.JSX.Element {
   const [univerHist, setUniverHist] = useState({ canUndo: false, canRedo: false })
   /// True while Univer's in-cell editor is open (AutoSave must not save-reload then).
   const editingCellRef = useRef(false)
+  const cellEditorDirtyRef = useRef(false)
   const visualDisposablesRef = useRef<{ dispose(): void }[]>([])
   const traceArrowsRef = useRef<{ disposables: { dispose(): void }[]; nextId: number }>({
     disposables: [],
@@ -517,7 +522,9 @@ export function App(): React.JSX.Element {
   }, [workbookFile, recomputeSheetContent])
   // The close guard lives in the main process; keep it fed with the badge count.
   useEffect(() => {
-    window.desktopApi?.notifyPendingEdits?.(pendingEdits)
+    window.desktopApi?.notifyPendingEdits?.(
+      pendingEditsForClose(pendingEdits, cellEditorDirtyRef.current),
+    )
   }, [pendingEdits])
   const [autoSave, setAutoSave] = useAutoSavePref('ai-sheets-auto-save', window.desktopApi)
   // Ref mirror for callbacks captured when an AI run starts
@@ -1853,19 +1860,33 @@ export function App(): React.JSX.Element {
         setZoomPercent(Math.round(worksheet.getZoom() * 100))
       },
     )
+    const syncCellEditorDirty = (dirty: boolean): void => {
+      cellEditorDirtyRef.current = dirty
+      const state = lazyWorkbookRef.current
+      window.desktopApi?.notifyPendingEdits?.(
+        pendingEditsForClose(state ? journalSize(state.editJournal) : 0, dirty),
+      )
+    }
+    const cellEditorBridge = runtime.univer.__getInjector().get(IEditorBridgeService)
     // In-cell editor open/closed, read by the AutoSave tick: saving reloads
     // the workbook and would wipe an in-progress edit.
     const editStartDisposable = runtime.univerAPI.addEvent(
       runtime.univerAPI.Event.SheetEditStarted,
       () => {
         editingCellRef.current = true
+        syncCellEditorDirty(false)
         setAiSelectionAskAnchor(null)
       },
+    )
+    const editChangingDisposable = runtime.univerAPI.addEvent(
+      runtime.univerAPI.Event.SheetEditChanging,
+      () => syncCellEditorDirty(cellEditorBridge.getEditorDirty()),
     )
     const editEndDisposable = runtime.univerAPI.addEvent(
       runtime.univerAPI.Event.SheetEditEnded,
       () => {
         editingCellRef.current = false
+        syncCellEditorDirty(false)
       },
     )
     const sheetDisposable = runtime.univerAPI.addEvent(
@@ -2909,6 +2930,7 @@ export function App(): React.JSX.Element {
       scrollDisposable.dispose()
       zoomDisposable.dispose()
       editStartDisposable.dispose()
+      editChangingDisposable.dispose()
       editEndDisposable.dispose()
       sheetDisposable.dispose()
       editDisposable.dispose()
@@ -4062,6 +4084,13 @@ export function App(): React.JSX.Element {
     return handleSaveImpl(saveContext(), mode, quiet, explicitTarget)
   }
   closeSaveRef.current = async () => {
+    const editor = univerRef.current?.univerAPI.getActiveWorkbook() as
+      ActiveCellEditor | null | undefined
+    const committed = await commitActiveCellEditor(editor).catch(() => false)
+    if (!committed) {
+      window.desktopApi?.reportCloseSaveResult?.(false)
+      return
+    }
     const state = lazyWorkbookRef.current
     if (!state || journalSize(state.editJournal) === 0) {
       window.desktopApi?.reportCloseSaveResult?.(true)

@@ -22,6 +22,22 @@ export type ActiveWorkbook = NonNullable<
 >
 export type UniverWorksheet = NonNullable<ReturnType<ActiveWorkbook['getActiveSheet']>>
 
+export interface ActiveCellEditor {
+  isCellEditing(): boolean
+  endEditingAsync(save?: boolean): Promise<boolean>
+}
+
+export function pendingEditsForClose(journalSize: number, editorDirty: boolean): number {
+  return journalSize + (editorDirty ? 1 : 0)
+}
+
+export async function commitActiveCellEditor(
+  editor: ActiveCellEditor | null | undefined,
+): Promise<boolean> {
+  if (!editor?.isCellEditing()) return true
+  return editor.endEditingAsync(true)
+}
+
 /// Column intervals (inclusive) of one row whose cells fed a wrap measure.
 export type WrapMeasureCoverage = Array<readonly [number, number]>
 
