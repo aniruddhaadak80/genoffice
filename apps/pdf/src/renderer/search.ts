@@ -43,36 +43,40 @@ interface RawTextItem {
 /** Concatenate text per page + record each item's char range and PDF-space box (built once, cached per doc by caller) */
 export async function buildSearchIndex(doc: PDFDocumentProxy): Promise<SearchIndex> {
   const entries: PageEntry[] = []
-  for (let n = 1; n <= doc.numPages; n++) {
-    const page = await doc.getPage(n)
-    const content = await page.getTextContent()
-    let text = ''
-    const items: IndexedItem[] = []
-    for (const it of content.items as RawTextItem[]) {
-      if (typeof it.str !== 'string') continue
-      if (it.str.length > 0 && it.transform) {
-        const h = it.height || Math.hypot(it.transform[2] ?? 0, it.transform[3] ?? 0)
-        // Rotation tilts the baseline (b ≠ 0). A non-zero c alone is horizontal
-        // shear — synthetic italics — which stays horizontally set and must keep
-        // participating in block grouping.
-        const rot = Math.abs(it.transform[1] ?? 0) > h * 1e-3
-        items.push({
-          start: text.length,
-          end: text.length + it.str.length,
-          x: it.transform[4] ?? 0,
-          y: it.transform[5] ?? 0,
-          w: it.width ?? 0,
-          h,
-          ...(rot ? { rot: true } : {}),
-          ...(typeof it.fontName === 'string' ? { font: it.fontName } : {}),
-        })
-        text += it.str
-      }
-      if (it.hasEOL) text += '\n'
-    }
-    entries.push({ text, lower: foldCase(text), items })
-  }
+  for (let n = 1; n <= doc.numPages; n++) entries.push(await buildPageEntry(doc, n))
   return entries
+}
+
+/** Index entries for one page. Extracting a single page is what lets the OCR
+    pass ask "is this page scanned?" without pulling text for the whole document. */
+export async function buildPageEntry(doc: PDFDocumentProxy, n: number): Promise<PageEntry> {
+  const page = await doc.getPage(n)
+  const content = await page.getTextContent()
+  let text = ''
+  const items: IndexedItem[] = []
+  for (const it of content.items as RawTextItem[]) {
+    if (typeof it.str !== 'string') continue
+    if (it.str.length > 0 && it.transform) {
+      const h = it.height || Math.hypot(it.transform[2] ?? 0, it.transform[3] ?? 0)
+      // Rotation tilts the baseline (b ≠ 0). A non-zero c alone is horizontal
+      // shear — synthetic italics — which stays horizontally set and must keep
+      // participating in block grouping.
+      const rot = Math.abs(it.transform[1] ?? 0) > h * 1e-3
+      items.push({
+        start: text.length,
+        end: text.length + it.str.length,
+        x: it.transform[4] ?? 0,
+        y: it.transform[5] ?? 0,
+        w: it.width ?? 0,
+        h,
+        ...(rot ? { rot: true } : {}),
+        ...(typeof it.fontName === 'string' ? { font: it.fontName } : {}),
+      })
+      text += it.str
+    }
+    if (it.hasEOL) text += '\n'
+  }
+  return { text, lower: foldCase(text), items }
 }
 
 /** Case-insensitive full-text search; rects linearly interpolated within items by char ratio (approximate; bounding box for rotated glyphs) */
