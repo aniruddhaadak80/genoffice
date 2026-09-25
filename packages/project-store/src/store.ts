@@ -192,9 +192,7 @@ function mergeChatFiles(oldPath: string, newPath: string): number {
   if (movedLines) {
     const target = readFileSync(newPath)
     const boundary =
-      target.length > 0 && target[target.length - 1] !== 0x0a
-        ? Buffer.from('\n')
-        : Buffer.alloc(0)
+      target.length > 0 && target[target.length - 1] !== 0x0a ? Buffer.from('\n') : Buffer.alloc(0)
     const tmpPath = `${newPath}.${randomBytes(6).toString('hex')}.tmp`
     try {
       writeFileSync(tmpPath, Buffer.concat([target, boundary, Buffer.from(movedLines, 'utf8')]))
@@ -202,8 +200,7 @@ function mergeChatFiles(oldPath: string, newPath: string): number {
     } catch (error) {
       try {
         unlinkSync(tmpPath)
-      } catch {
-      }
+      } catch {}
       throw error
     }
   }
