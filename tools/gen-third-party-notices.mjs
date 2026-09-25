@@ -369,6 +369,12 @@ https://www.unicode.org/Public/17.0.0/ucd/EquivalentUnifiedIdeograph.txt
 `
 out += readFileSync(join(ROOT, 'LICENSE-UNICODE.txt'), 'utf8').trim() + '\n'
 
+for (const term of ['@embedpdf/pdfium', 'Copyright 2014 PDFium Authors', 'Apache License']) {
+  if (!out.includes(term)) {
+    throw new Error(`generated third-party notice is missing PDFium term: ${term}`)
+  }
+}
+
 const dest = join(ROOT, 'apps/shell/build/THIRD-PARTY-NOTICES.txt')
 mkdirSync(dirname(dest), { recursive: true })
 writeFileSync(dest, out)
