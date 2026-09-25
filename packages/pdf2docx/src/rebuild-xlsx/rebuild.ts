@@ -577,12 +577,6 @@ export async function rebuildXlsx(
   )
   // an empty workbook is invalid — a PDF with zero pages still ships one sheet
   if (sheets.length === 0) sheets.push({ name: 'Page 1', cells: [] })
-  const warnings: string[] = []
-  sheets = sheets.map((sheet) => {
-    const normalized = normalizeSheetSpec(sheet)
-    warnings.push(...normalized.warnings.map((warning) => `${sheet.name}: ${warning}`))
-    return normalized.sheet
-  })
   const pageWidthPt = pages[0]?.widthPt ?? 612
   const headerFooter = headerFooterOf(furnitureHf, pageWidthPt)
   // slots that skip the document's first page (cover sheets) stay off sheet 1
@@ -606,6 +600,13 @@ export async function rebuildXlsx(
       }
     }
   }
+
+  const warnings: string[] = []
+  sheets = sheets.map((sheet) => {
+    const normalized = normalizeSheetSpec(sheet)
+    warnings.push(...normalized.warnings.map((warning) => `${sheet.name}: ${warning}`))
+    return normalized.sheet
+  })
 
   const hasTable = pages.some((p) => p.blocks.some((b) => b.kind === 'table'))
   const hasOkPage = pages.some((p) => !p.scanned && !p.degraded)
