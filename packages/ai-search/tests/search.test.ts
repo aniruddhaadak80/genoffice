@@ -10,6 +10,7 @@ beforeAll(() => {
 
 const realFetch = globalThis.fetch
 afterEach(() => {
+  vi.useRealTimers()
   globalThis.fetch = realFetch
   delete process.env.SERPER_API_KEY
   delete process.env.PARALLEL_API_KEY
@@ -142,6 +143,49 @@ describe('DuckDuckGo fallback error surfacing', () => {
     expect(r.method).toBe('error')
     expect(r.results).toHaveLength(0)
     expect(r.error).toContain('duckduckgo')
+  })
+
+  it('web: aborts a stalled response body and falls back', async () => {
+    vi.useFakeTimers()
+    let serperSignal: AbortSignal | undefined
+    let markBodyStarted = (): void => {}
+    const bodyStarted = new Promise<void>((resolve) => {
+      markBodyStarted = resolve
+    })
+    globalThis.fetch = vi.fn(async (url: any, init: any) => {
+      if (String(url) === 'https://google.serper.dev/search') {
+        const signal = (serperSignal = init.signal as AbortSignal)
+        return {
+          ok: true,
+          status: 200,
+          headers: new Map(),
+          json: () => {
+            markBodyStarted()
+            return new Promise((_resolve, reject) => {
+              const rejectOnAbort = () => reject(signal.reason)
+              if (signal.aborted) rejectOnAbort()
+              else signal.addEventListener('abort', rejectOnAbort, { once: true })
+            })
+          },
+        } as any
+      }
+      return {
+        ok: true,
+        status: 200,
+        headers: new Map(),
+        text: async () => '<a class="result__a" href="/l/?uddg=https%3A%2F%2Fx.com">X</a>',
+      } as any
+    }) as any
+
+    const pending = webSearch('q', 3, { useGsk: false, serperKey: 'test-key' })
+    await bodyStarted
+    expect(serperSignal).toBeInstanceOf(AbortSignal)
+    await vi.advanceTimersByTimeAsync(15000)
+    const result = await pending
+
+    expect(result.method).toBe('duckduckgo')
+    expect(result.results[0]?.url).toBe('https://x.com')
+    expect(globalThis.fetch).toHaveBeenCalledTimes(2)
   })
 
   it('web: stays a plain empty result when the backend responds with nothing', async () => {
