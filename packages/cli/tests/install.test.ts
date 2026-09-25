@@ -33,7 +33,7 @@ describe('installCliLink', () => {
     const launcher = join(dir, 'new-app', 'cli', 'genoffice')
     mkdirSync(join(dir, 'new-app', 'cli'), { recursive: true })
     writeFileSync(launcher, '')
-    symlinkSync(join(dir, 'old-app', 'cli', 'genoffice'), join(bin, 'genoffice'))
+    symlinkSync(join(dir, 'old-app', 'resources', 'cli', 'genoffice'), join(bin, 'genoffice'))
     expect(inspectCliLink({ launcher, platform: 'linux', candidateDirs: [bin] }).status).toBe(
       'missing',
     )
@@ -88,6 +88,28 @@ describe('installCliLink', () => {
       expect(r.manual).toContain(launcher)
       expect(seen.status).toBe('unwritable')
     }
+  })
+
+  it('does not claim a foreign cli/genoffice symlink', () => {
+    const dir = tempDir()
+    const bin = join(dir, 'bin')
+    mkdirSync(bin)
+    const launcher = join(dir, 'app', 'resources', 'cli', 'genoffice')
+    mkdirSync(join(dir, 'app', 'resources', 'cli'), { recursive: true })
+    writeFileSync(launcher, '')
+    const foreignTarget = join(dir, 'vendor', 'cli', 'genoffice')
+    const link = join(bin, 'genoffice')
+    symlinkSync(foreignTarget, link)
+
+    expect(installCliLink({ launcher, platform: 'linux', candidateDirs: [bin] })).toEqual({
+      status: 'occupied',
+      location: link,
+      manual: expect.any(String),
+    })
+    expect(readlinkSync(link)).toBe(foreignTarget)
+    expect(inspectCliLink({ launcher, platform: 'linux', candidateDirs: [bin] }).status).toBe(
+      'occupied',
+    )
   })
 
   it('reports a missing /usr/local/bin as unwritable instead of skipping it', () => {

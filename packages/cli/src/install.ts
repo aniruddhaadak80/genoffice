@@ -116,9 +116,8 @@ function linkState(path: string, launcher: string): 'missing' | 'ours' | 'file' 
   }
 }
 
-/** Only launchers we shipped (<app resources>/cli/genoffice, any version or install dir) may be replaced. */
 function isOurLauncher(target: string): boolean {
-  return /[\\/]cli[\\/]genoffice$/.test(target)
+  return /[\\/]resources[\\/]cli[\\/]genoffice$/i.test(target)
 }
 
 function writable(dir: string): boolean {
