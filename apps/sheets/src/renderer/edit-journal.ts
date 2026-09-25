@@ -200,6 +200,10 @@ export interface EditJournal {
       relayout?: WorkbookPivotAdd
     }
   >
+  /// Bumped by every recorder below, so a save can tell "the journal is exactly
+  /// what I sent" from "an edit landed while my write was in flight". The save
+  /// flow compares it around the IPC call and replays the difference.
+  rev: number
 }
 
 /// One printed header or footer: Excel's left/center/right sections. Text
@@ -287,14 +291,125 @@ export function createEditJournal(): EditJournal {
     noteDirty: new Set(),
     pivotCacheRefresh: new Set(),
     pivotRefreshUpdates: new Map(),
+    rev: 0,
+  }
+}
+
+/// Monotonic edit counter for the save race check (see EditJournal.rev).
+export function journalRevision(journal: EditJournal): number {
+  return journal.rev
+}
+
+/**
+ * What a save had already sent when it started, so the difference can be
+ * replayed after the write returns.
+ *
+ * Only the buckets whose replay is NOT idempotent are measured: structural and
+ * sheet ops, and the additive visuals/tables/pivots/sparklines would apply
+ * twice if a replay re-sent them. Every other bucket is an absolute write or a
+ * declarative snapshot of live state, so a replay may carry it whole.
+ */
+export interface SaveBaseline {
+  /// Cell entries already sent. Recorder merges replace the entry object rather
+  /// than mutating it, so identity tells a re-edited cell from an untouched one.
+  readonly cells: Set<JournalEntry>
+  /// sheetId → structural op count already sent.
+  readonly structuralOps: Map<string, number>
+  readonly visualAdds: number
+  readonly tableAdds: number
+  readonly pivotAdds: number
+  readonly sparklineAdds: number
+  readonly sheets: {
+    readonly added: Set<string>
+    readonly removed: Set<string>
+    readonly renamed: Set<string>
+    readonly hidden: Set<string>
+    readonly orderDirty: boolean
+  }
+}
+
+export function saveBaseline(journal: EditJournal): SaveBaseline {
+  const cells = new Set<JournalEntry>()
+  for (const sheetEntries of journal.cells.values()) {
+    for (const entry of sheetEntries.values()) cells.add(entry)
+  }
+  const structuralOps = new Map<string, number>()
+  for (const [sheetId, ops] of journal.structuralOps) structuralOps.set(sheetId, ops.length)
+  return {
+    cells,
+    structuralOps,
+    visualAdds: journal.visualAdds.length,
+    tableAdds: journal.tableAdds.length,
+    pivotAdds: journal.pivotAdds.length,
+    sparklineAdds: journal.sparklineAdds.length,
+    sheets: {
+      added: new Set(journal.sheets.added.keys()),
+      removed: new Set(journal.sheets.removed),
+      renamed: new Set(journal.sheets.renamed.keys()),
+      hidden: new Set(journal.sheets.hidden.keys()),
+      orderDirty: journal.sheets.orderDirty,
+    },
+  }
+}
+
+/**
+ * The part of the journal a write that is already in flight never carried.
+ * Replaying this instead of the whole journal is what keeps a replayed row
+ * insert from shifting the sheet twice.
+ */
+export function pendingEdits(journal: EditJournal, baseline: SaveBaseline): EditJournal {
+  const cells = new Map<string, Map<string, JournalEntry>>()
+  for (const [sheetId, sheetEntries] of journal.cells) {
+    const fresh = new Map<string, JournalEntry>()
+    for (const [key, entry] of sheetEntries) {
+      if (!baseline.cells.has(entry)) fresh.set(key, entry)
+    }
+    if (fresh.size > 0) cells.set(sheetId, fresh)
+  }
+  const structuralOps = new Map<string, StructuralJournalOp[]>()
+  for (const [sheetId, ops] of journal.structuralOps) {
+    const sent = baseline.structuralOps.get(sheetId) ?? 0
+    if (ops.length > sent) structuralOps.set(sheetId, ops.slice(sent))
+  }
+  const added = new Map(
+    [...journal.sheets.added].filter(([sheetId]) => !baseline.sheets.added.has(sheetId)),
+  )
+  const removed = new Set(
+    [...journal.sheets.removed].filter((id) => !baseline.sheets.removed.has(id)),
+  )
+  const renamed = new Map(
+    [...journal.sheets.renamed].filter(([sheetId]) => !baseline.sheets.renamed.has(sheetId)),
+  )
+  const hidden = new Map(
+    [...journal.sheets.hidden].filter(([sheetId]) => !baseline.sheets.hidden.has(sheetId)),
+  )
+  return {
+    ...journal,
+    cells,
+    structuralOps,
+    visualAdds: journal.visualAdds.slice(baseline.visualAdds),
+    tableAdds: journal.tableAdds.slice(baseline.tableAdds),
+    pivotAdds: journal.pivotAdds.slice(baseline.pivotAdds),
+    sparklineAdds: journal.sparklineAdds.slice(baseline.sparklineAdds),
+    sheets: {
+      added,
+      removed,
+      renamed,
+      hidden,
+      // The order is a declarative final tab list, so re-sending the flag is
+      // safe; only carry it when this window is what set it.
+      orderDirty: journal.sheets.orderDirty && !baseline.sheets.orderDirty,
+    },
   }
 }
 
 export function recordNoteChange(journal: EditJournal, sheetId: string): void {
+  journal.rev += 1
   journal.noteDirty.add(sheetId)
 }
 
 export function recordPivotCacheRefresh(journal: EditJournal, cachePath: string): void {
+  journal.rev += 1
   journal.pivotCacheRefresh.add(cachePath)
 }
 
@@ -308,6 +423,7 @@ export function recordPivotRefreshUpdate(
   newOutputRef: string,
   relayout?: WorkbookPivotAdd,
 ): void {
+  journal.rev += 1
   journal.pivotRefreshUpdates.set(cachePath, {
     sheetId,
     newOutputRef,
@@ -320,6 +436,7 @@ export function recordPageSetup(
   sheetId: string,
   patch: PageSetupJournalState,
 ): void {
+  journal.rev += 1
   const state = journal.pageSetup.get(sheetId) ?? {}
   journal.pageSetup.set(sheetId, { ...state, ...patch })
 }
@@ -334,6 +451,7 @@ export function toSavePageSetupStates(
 }
 
 export function recordDefinedNamesChange(journal: EditJournal): void {
+  journal.rev += 1
   journal.definedNames.dirty = true
 }
 
@@ -342,10 +460,12 @@ export function recordWorkbookProtection(
   desired: boolean,
   original: boolean,
 ): void {
+  journal.rev += 1
   journal.workbookProtection.desired = desired === original ? null : desired
 }
 
 export function recordProtectedRangesChange(journal: EditJournal, sheetId: string): void {
+  journal.rev += 1
   journal.protectedRangesDirty.add(sheetId)
 }
 
@@ -354,6 +474,7 @@ export function recordThemeColors(
   name: string,
   values: readonly string[],
 ): void {
+  journal.rev += 1
   journal.theme.colors = { name, values: [...values] }
 }
 
@@ -363,6 +484,7 @@ export function recordThemeFonts(
   major: string,
   minor: string,
 ): void {
+  journal.rev += 1
   journal.theme.fonts = { name, major, minor }
 }
 
@@ -372,15 +494,18 @@ export function recordSheetProtection(
   desired: boolean,
   original: boolean,
 ): void {
+  journal.rev += 1
   if (desired === original) journal.sheetProtection.delete(sheetId)
   else journal.sheetProtection.set(sheetId, desired)
 }
 
 export function recordCfChange(journal: EditJournal, sheetId: string): void {
+  journal.rev += 1
   journal.cfDirty.add(sheetId)
 }
 
 export function recordDvChange(journal: EditJournal, sheetId: string): void {
+  journal.rev += 1
   journal.dvDirty.add(sheetId)
 }
 
@@ -391,6 +516,7 @@ export function recordHyperlinkEdit(
   column: number,
   target: string | null,
 ): void {
+  journal.rev += 1
   const links = journal.hyperlinks.get(sheetId) ?? new Map<string, string | null>()
   links.set(`${row}:${column}`, target)
   journal.hyperlinks.set(sheetId, links)
@@ -419,10 +545,12 @@ export function toSaveHyperlinkEdits(journal: EditJournal): WorkbookHyperlinkEdi
 }
 
 export function recordFilterChange(journal: EditJournal, sheetId: string): void {
+  journal.rev += 1
   journal.filterDirty.add(sheetId)
 }
 
 export function recordSheetInsert(journal: EditJournal, sheetId: string, name: string): void {
+  journal.rev += 1
   // A re-insert of a previously removed sheet (undo of the removal) just
   // clears the mark; its journal entries were kept and stay valid.
   if (journal.sheets.removed.delete(sheetId)) return
@@ -430,6 +558,7 @@ export function recordSheetInsert(journal: EditJournal, sheetId: string, name: s
 }
 
 export function recordSheetRemove(journal: EditJournal, sheetId: string): void {
+  journal.rev += 1
   journal.sheets.removed.add(sheetId)
 }
 
@@ -442,6 +571,7 @@ export function recordSheetDuplicate(
   name: string,
   sourceSheetId: string,
 ): void {
+  journal.rev += 1
   if (journal.sheets.removed.delete(sheetId)) return
   journal.sheets.added.set(sheetId, { name, sourceSheetId })
   const sourceCells = journal.cells.get(sourceSheetId)
@@ -492,6 +622,7 @@ export function recordSheetRename(
   name: string,
   originalName: string | undefined,
 ): void {
+  journal.rev += 1
   const added = journal.sheets.added.get(sheetId)
   if (added) {
     // Keep the duplicate provenance: dropping sourceSheetId here made a
@@ -509,6 +640,7 @@ export function isSheetRemoved(journal: EditJournal, sheetId: string): boolean {
 }
 
 export function recordSheetOrderChange(journal: EditJournal): void {
+  journal.rev += 1
   journal.sheets.orderDirty = true
 }
 
@@ -518,6 +650,7 @@ export function recordSheetHidden(
   hidden: boolean,
   originallyHidden: boolean,
 ): void {
+  journal.rev += 1
   if (hidden === originallyHidden) journal.sheets.hidden.delete(sheetId)
   else journal.sheets.hidden.set(sheetId, hidden)
 }
@@ -565,6 +698,7 @@ export function recordChartEdit(
   chartPath: string,
   edit: Omit<WorkbookChartEdit, 'chartPath'>,
 ): void {
+  journal.rev += 1
   let previous = journal.chartEdits.get(chartPath)
   if (edit.seriesSet && previous) {
     // A full series replacement invalidates any earlier per-index series
@@ -627,6 +761,7 @@ function mergeSeriesEdits(
 }
 
 export function recordTableAdd(journal: EditJournal, table: WorkbookTableAdd): void {
+  journal.rev += 1
   journal.tableAdds.push(table)
 }
 
@@ -641,6 +776,7 @@ export function updateTableAdd(
     columnNames?: readonly string[]
   },
 ): boolean {
+  journal.rev += 1
   const index = journal.tableAdds.findIndex(
     (t) => t.sheetId === sheetId && t.name.toLowerCase() === name.toLowerCase(),
   )
@@ -655,6 +791,7 @@ export function updateTableAdd(
 }
 
 export function recordPivotAdd(journal: EditJournal, pivot: WorkbookPivotAdd): void {
+  journal.rev += 1
   journal.pivotAdds.push(pivot)
 }
 
@@ -667,10 +804,12 @@ export interface SparklineAddEntry {
 }
 
 export function recordSparklineAdd(journal: EditJournal, entry: SparklineAddEntry): void {
+  journal.rev += 1
   journal.sparklineAdds.push(entry)
 }
 
 export function removeSparklineAdd(journal: EditJournal, id: string): boolean {
+  journal.rev += 1
   const index = journal.sparklineAdds.findIndex((entry) => entry.id === id)
   if (index < 0) return false
   journal.sparklineAdds.splice(index, 1)
@@ -696,6 +835,7 @@ export function toSaveSparklineAdds(journal: EditJournal): {
 /// Removes a session-added table (convert-to-range semantics: the baked
 /// cells stay). False for file-native tables — they are view-only.
 export function removeTableAdd(journal: EditJournal, sheetId: string, name: string): boolean {
+  journal.rev += 1
   const index = journal.tableAdds.findIndex(
     (table) => table.sheetId === sheetId && table.name.toLowerCase() === name.toLowerCase(),
   )
@@ -731,6 +871,7 @@ export function toSavePivotAdds(journal: EditJournal): WorkbookPivotAdd[] {
 }
 
 export function recordVisualAdd(journal: EditJournal, visual: WorkbookVisualObject): void {
+  journal.rev += 1
   journal.visualAdds.push(visual)
 }
 
@@ -756,6 +897,7 @@ export function recordVisualEdit(
     frameSize?: { width: number; height: number }
   },
 ): boolean {
+  journal.rev += 1
   if (visual.drawingPath === undefined || visual.drawingIndex === undefined) return false
   const previous = journal.visualEdits.get(visual.id)
   // A removal wins over any earlier move; a later move revives nothing.
@@ -775,6 +917,7 @@ export function recordVisualEdit(
 
 /// Drops a session visual outright (its object only exists in the journal).
 export function removeVisualAdd(journal: EditJournal, visualId: string): boolean {
+  journal.rev += 1
   const index = journal.visualAdds.findIndex((visual) => visual.id === visualId)
   if (index < 0) return false
   journal.visualAdds.splice(index, 1)
@@ -789,6 +932,7 @@ export function updateVisualAdd(
   visualId: string,
   changes: { anchor?: WorkbookVisualObject['anchor']; text?: string; fillColor?: string },
 ): boolean {
+  journal.rev += 1
   const index = journal.visualAdds.findIndex((visual) => visual.id === visualId)
   const current = journal.visualAdds[index]
   if (!current) return false
@@ -1226,6 +1370,7 @@ export function removeStructuralOp(
   sheetId: string,
   op: StructuralJournalOp,
 ): void {
+  journal.rev += 1
   const ops = journal.structuralOps.get(sheetId)
   if (!ops) return
   const index = ops.lastIndexOf(op)
@@ -1240,6 +1385,7 @@ export function recordStructuralOp(
   op: StructuralJournalOp,
   sheetName?: string,
 ): void {
+  journal.rev += 1
   const ops = journal.structuralOps.get(sheetId) ?? []
   // Undo of a just-recorded insert arrives as its exact inverse remove: cancel the
   // pair instead of stacking two shifting ops. Otherwise a refused insert (e.g. the
@@ -1421,6 +1567,7 @@ export function recordBulkConstantFill(
   journal: EditJournal,
   fill: WorkbookBulkConstantFill,
 ): BulkConstantFillRecord {
+  journal.rev += 1
   const entry: JournalBulkConstantFill =
     'journalId' in fill && typeof fill.journalId === 'number'
       ? (fill as JournalBulkConstantFill)
@@ -1469,6 +1616,7 @@ export function restoreJournalCells(
   sheetId: string,
   entries: readonly JournalEntry[],
 ): void {
+  journal.rev += 1
   if (entries.length === 0) return
   let cells = journal.cells.get(sheetId)
   if (!cells) {
@@ -1479,6 +1627,7 @@ export function restoreJournalCells(
 }
 
 export function removeBulkConstantFill(journal: EditJournal, fill: WorkbookBulkConstantFill): void {
+  journal.rev += 1
   const fills = journal.bulkConstantFills.get(fill.sheetId)
   if (!fills) return
   const journalId =
@@ -1644,6 +1793,7 @@ export function recordNeutralStyleEdit(
   column: number,
   delta: WorkbookStyleEdit,
 ): void {
+  journal.rev += 1
   let sheetEntries = journal.cells.get(sheetId)
   const previous = sheetEntries?.get(`${row}:${column}`)
   const entry: JournalEntry = previous
@@ -1667,6 +1817,7 @@ function mergeIntoJournal(
   const previous = sheetEntries?.get(`${row}:${column}`)
   const entry = mergeCellIntoEntry(previous, row, column, cell)
   if (!entry) return null
+  journal.rev += 1
   if (!sheetEntries) {
     sheetEntries = new Map()
     journal.cells.set(sheetId, sheetEntries)

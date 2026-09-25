@@ -339,7 +339,12 @@ import {
 import { handleExportCsv as handleExportCsvImpl, type CsvExportContext } from './csv-export'
 import { effectivePageBreaks, installPageBreakPreview } from './page-break-preview'
 import { mapProtectedRanges } from './protected-ranges'
-import { handleSave as handleSaveImpl, type SaveContext, type SaveOutcome } from './save-actions'
+import {
+  handleSave as handleSaveImpl,
+  type OpenOptions,
+  type SaveContext,
+  type SaveOutcome,
+} from './save-actions'
 import {
   applyChartEdit as applyChartEditImpl,
   applyShapeEdit as applyShapeEditImpl,
@@ -3748,7 +3753,7 @@ export function App(): React.JSX.Element {
     return state.hyperlinkTargets.get(sheetId)?.get(`${row}:${column}`) ?? null
   }
 
-  function openLazyWorkbook(opened: WorkbookFile, opts?: { continueChat?: boolean }): void {
+  function openLazyWorkbook(opened: WorkbookFile, opts?: OpenOptions): void {
     if (opts?.continueChat) chatContinuesRef.current = true
     const selected: WorkbookFile = {
       ...opened,
@@ -3811,7 +3816,9 @@ export function App(): React.JSX.Element {
         selected.sheets.filter((sheet) => sheet.showFormulas).map((sheet) => sheet.id),
       ),
       formulaMode: gridCellCount <= FORMULA_MODE_MAX_CELLS,
-      editJournal: createEditJournal(),
+      // A save that could not land every edit hands the difference over, so the
+      // reopened session still owns them instead of starting clean.
+      editJournal: opts?.carryJournal ?? createEditJournal(),
       flags: { preloadComplete: false, preloadRunning: false },
       closure: { status: 'idle', pinned: new Map() },
       formulaText: new Map(),

@@ -2110,6 +2110,7 @@ export function restoreVisualJournal(
     if (snapshot.chartEdit === undefined) state.editJournal.chartEdits.delete(chartPath)
     else state.editJournal.chartEdits.set(chartPath, snapshot.chartEdit)
   }
+  state.editJournal.rev += 1
 }
 
 /// Values for a chart data range, robust to streaming: journal edits win,

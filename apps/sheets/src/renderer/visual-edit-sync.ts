@@ -355,12 +355,14 @@ export function applyChartEdit(ctx: VisualSyncContext, editKey: string, edit: Ch
       undo: () => {
         if (before === undefined) state.editJournal.chartEdits.delete(editKey)
         else state.editJournal.chartEdits.set(editKey, before)
+        state.editJournal.rev += 1
         ctx.refreshLazyVisuals(state)
         queueChartRefResync(ctx, state, editKey)
       },
       redo: () => {
         if (after === undefined) state.editJournal.chartEdits.delete(editKey)
         else state.editJournal.chartEdits.set(editKey, after)
+        state.editJournal.rev += 1
         ctx.refreshLazyVisuals(state)
         queueChartRefResync(ctx, state, editKey)
       },
@@ -457,6 +459,7 @@ export function applyShapeEdit(
       // Pending edits on a deleted chart would patch a removed part.
       if (visual.chartPath !== undefined) {
         state.editJournal.chartEdits.delete(visual.chartPath)
+        state.editJournal.rev += 1
       }
     }
     clearVisualSelection(visualId)
