@@ -95,7 +95,7 @@ export type FromInspectorBody =
       text: string
     }
   | { type: 'gx:textEditCommit'; sid: number; textNodeIndex: number; newText: string }
-  /** rich inline edit (text mixed with <strong> / <a> / <br> children): the whole inner HTML, data-sid stripped */
+  /** rich inline edit (text mixed with <strong> / <a> / <br> children): the whole inner HTML, data-gx-sid stripped */
   | { type: 'gx:htmlEditCommit'; sid: number; html: string }
   | { type: 'gx:textEditCancel' }
   | {
