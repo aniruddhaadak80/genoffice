@@ -114,13 +114,17 @@ export function buildSourceMap(editor: Editor, doc: PmNode, source: string): Sou
 
   const tokens = splitAbsorbedBlankLines(rawTokens)
   const nonSpace = tokens.map((t) => t.type !== 'space')
-  // a block parsed alone still needs the `[id]: url` definitions, or `![alt][id]` stays text
   const definitions = tokens
     .filter((t) => t.type === 'def')
-    .map((t) => t.raw.trimEnd())
-    .join('\n')
+    .map((t) => ({
+      raw: t.raw.trimEnd(),
+      identifier: (t.identifier ?? /^ {0,3}\[([^\]\n]+)\]:/.exec(t.raw)?.[1] ?? '').toLowerCase(),
+    }))
+  if (definitions.some((definition) => definition.identifier === '')) return null
   const units: Unit[] = [{ core: '', glue: '', space: false, first: 0, count: 0, style: {} }]
   const types: string[] = []
+  let parseWork = 0
+  const parseBudget = source.length * 4 + 64 * 1024
   for (let i = 0; i < tokens.length; i++) {
     const token = tokens[i]!
     let produced: string[]
@@ -135,10 +139,17 @@ export function buildSourceMap(editor: Editor, doc: PmNode, source: string): Sou
     } else {
       let parsed
       const core = token.raw.replace(TRAILING_BLANK_LINES, '')
-      const alone =
-        definitions && token.type !== 'def' && core.includes(']')
-          ? `${core}\n\n${definitions}`
-          : core
+      const lowerCore = core.toLowerCase()
+      const referencedDefinitions =
+        token.type === 'def'
+          ? ''
+          : definitions
+              .filter((definition) => lowerCore.includes(definition.identifier))
+              .map((definition) => definition.raw)
+              .join('\n')
+      const alone = referencedDefinitions ? `${core}\n\n${referencedDefinitions}` : core
+      parseWork += alone.length
+      if (parseWork > parseBudget) return null
       try {
         parsed = manager.parse(alone).content ?? []
       } catch {
