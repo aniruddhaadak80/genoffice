@@ -195,6 +195,16 @@ describe('cross-sheet reference rewriting', () => {
     expect(shifted).toContain('<f>SUM(Data!A7:A12)+Data!$A$10+A5</f>')
   })
 
+  it('matches sheet qualifiers case-insensitively', () => {
+    const cased = otherSheet
+      .replace('Data!A5:A10', 'data!A5:A10')
+      .replace('Data!$A$8', "'dAtA'!$A$8")
+    const shifted = shiftCrossSheetFormulas(cased, SHEET, [
+      { kind: 'insert-rows', index: 2, count: 2 },
+    ])
+    expect(shifted).toContain("<f>SUM(data!A7:A12)+'dAtA'!$A$10+A5</f>")
+  })
+
   it('skips self-closing shared formulas and still shifts the formula after them', () => {
     // `<f t="shared" si="0"/>` is not an opening tag: matching it once
     // swallowed everything up to the next `</f>` and re-escaped it (suppliers

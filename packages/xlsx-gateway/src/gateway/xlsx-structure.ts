@@ -1600,7 +1600,7 @@ export function qualifierMatches(qualifier: string, sheetName: string): boolean 
   const unquoted = qualifier.startsWith("'")
     ? qualifier.slice(1, -1).replaceAll("''", "'")
     : qualifier
-  return unquoted === sheetName
+  return unquoted.toLowerCase() === sheetName.toLowerCase()
 }
 
 function parseA1(ref: string): { row: number; column: number } | null {
