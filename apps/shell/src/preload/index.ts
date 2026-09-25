@@ -74,7 +74,7 @@ function asRecentPage(result: unknown): RecentPage {
 const EMPTY_SEARCH: FileSearchPage = {
   hits: [],
   total: 0,
-  index: { indexed: 0, pending: 0, scanning: false },
+  index: { indexed: 0, pending: 0, scanning: false, truncated: false },
 }
 
 function asSearchPage(result: unknown): FileSearchPage {

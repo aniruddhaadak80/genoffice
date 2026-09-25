@@ -141,6 +141,7 @@ export interface FileSearchPage {
     indexed: number
     pending: number
     scanning: boolean
+    truncated: boolean
   }
 }
 
