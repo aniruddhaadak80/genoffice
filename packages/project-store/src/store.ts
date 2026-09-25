@@ -144,6 +144,21 @@ function hashPathKey(key: string): string {
   return createHash('sha256').update(key).digest('hex').slice(0, 16)
 }
 
+/**
+ * Identity of the file currently at a path: inode plus creation time. Both are
+ * needed because a deleted file's inode can be reused; mtime and size are
+ * deliberately not used, since saving a document changes them without making it
+ * a different file.
+ */
+function fileIncarnation(filePath: string): string {
+  try {
+    const st = statSync(filePath)
+    return `${st.ino}:${st.birthtimeMs}`
+  } catch {
+    return 'absent'
+  }
+}
+
 function readJson<T>(filePath: string): T | null {
   try {
     if (!existsSync(filePath)) return null
@@ -396,6 +411,42 @@ export class ProjectStore {
     return files.some((f) => canonicalPathKey(f) === key)
   }
 
+  /** Chat id for a path whose file identity changed, so it cannot collide with the old one. */
+  private static chatIdForIncarnation(filePath: string, incarnation: string): string {
+    return hashPathKey(`${canonicalPathKey(filePath)} ${incarnation}`)
+  }
+
+  /**
+   * The chat id for a path, registering it on first use and minting a new one
+   * when the path now holds a different file than the mapping was made for, so a
+   * reused path never inherits the previous document's transcript. Mutates index;
+   * callers must hold the lock.
+   */
+  private chatIdForPathLocked(index: ProjectIndex, filePath: string, projectId: string): string {
+    const key = canonicalPathKey(filePath)
+    const incarnation = fileIncarnation(filePath)
+    const mappedKey = this.findMapKey(index.chatIdByPath, filePath)
+    const incarnationKey = this.findMapKey(index.fileIncarnationByPath, filePath)
+    const recorded =
+      incarnationKey !== undefined ? index.fileIncarnationByPath![incarnationKey] : undefined
+    const register = (chatId: string): string => {
+      index.chatIdByPath = { ...(index.chatIdByPath ?? {}), [key]: chatId }
+      index.fileIncarnationByPath = {
+        ...(index.fileIncarnationByPath ?? {}),
+        [key]: incarnation,
+      }
+      return chatId
+    }
+
+    if (mappedKey === undefined) return register(this.fallbackChatId(projectId, filePath))
+    const existing = index.chatIdByPath![mappedKey]!
+    // A mapping written before identities were tracked keeps its chat and adopts
+    // the file it finds, so upgrading does not discard anyone's history.
+    if (recorded === undefined) return register(existing)
+    if (recorded === incarnation) return existing
+    return register(ProjectStore.chatIdForIncarnation(filePath, incarnation))
+  }
+
   // ── seq counters (in-memory cache, initialized from JSONL line count on first read) ──
 
   /** projectId:chatId → current max seq */
@@ -546,10 +597,12 @@ export class ProjectStore {
 
   /** Gets the chatId from the mapping; falls back to the path hash without registering. */
   chatIdForPath(filePath: string, projectId?: string): string {
-    const index = this.readIndex()
-    const key = this.findMapKey(index.chatIdByPath, filePath)
-    if (key !== undefined) return index.chatIdByPath![key]!
-    return this.fallbackChatId(projectId, filePath)
+    return this.withLock(() => {
+      const index = this.readIndex()
+      const chatId = this.chatIdForPathLocked(index, filePath, projectId ?? 'default')
+      this.writeIndex(index)
+      return chatId
+    })
   }
 
   /**
@@ -562,10 +615,7 @@ export class ProjectStore {
     const projectId = this.resolveProjectForFile(filePath)
     return this.withLock(() => {
       const index = this.readIndex()
-      const mappedKey = this.findMapKey(index.chatIdByPath, filePath)
-      if (mappedKey !== undefined) return { projectId, chatId: index.chatIdByPath![mappedKey]! }
-      const chatId = this.fallbackChatId(projectId, filePath)
-      index.chatIdByPath = { ...(index.chatIdByPath ?? {}), [canonicalPathKey(filePath)]: chatId }
+      const chatId = this.chatIdForPathLocked(index, filePath, projectId)
       this.writeIndex(index)
       return { projectId, chatId }
     })
@@ -607,7 +657,15 @@ export class ProjectStore {
           ? index.chatIdByPath![chatKey]!
           : this.fallbackChatId(pidKey !== undefined ? index.fileMap[pidKey] : undefined, oldPath)
       if (chatKey !== undefined) delete index.chatIdByPath![chatKey]
+      // The renamed file keeps its history, so the mapping moves to the new key
+      // carrying the identity the new path now has rather than the old one.
+      const oldIncarnationKey = this.findMapKey(index.fileIncarnationByPath, oldPath)
+      if (oldIncarnationKey !== undefined) delete index.fileIncarnationByPath![oldIncarnationKey]
       index.chatIdByPath = { ...(index.chatIdByPath ?? {}), [newKey]: chatId }
+      index.fileIncarnationByPath = {
+        ...(index.fileIncarnationByPath ?? {}),
+        [newKey]: fileIncarnation(newPath),
+      }
       this.writeIndex(index)
     })
   }
@@ -1102,14 +1160,23 @@ export class ProjectStore {
    */
   getProjectTimeline(projectId: string, limit = 20): TimelineEntry[] {
     const boundedLimit = normalizeTimelineLimit(limit)
-    const index = this.readIndex()
+    const index = this.withLock(() => {
+      const current = this.readIndex()
+      // Resolving through the store keeps a reused path from being attributed the
+      // transcript of the file that used to live there.
+      for (const [filePath, pid] of Object.entries(current.fileMap)) {
+        if (pid === projectId) this.chatIdForPathLocked(current, filePath, projectId)
+      }
+      this.writeIndex(current)
+      return current
+    })
     // Build the reverse chatId → filePath map (files in this project only); mapping wins, old data falls back to the path hash
     const chatToFile = new Map<string, string>()
     for (const [filePath, pid] of Object.entries(index.fileMap)) {
       if (pid === projectId) {
-        const chatId = this.fallbackChatId(projectId, filePath)
         const chatKey = this.findMapKey(index.chatIdByPath, filePath)
-        chatToFile.set(chatKey !== undefined ? index.chatIdByPath![chatKey]! : chatId, filePath)
+        const chatId = chatKey !== undefined ? index.chatIdByPath![chatKey]! : ''
+        if (chatId) chatToFile.set(chatId, filePath)
       }
     }
 
