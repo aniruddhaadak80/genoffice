@@ -940,6 +940,7 @@ export interface EditConnectorEndpointsOp {
 export interface SetNotesOp {
   slideIndex: number
   partPath?: string
+  baseText?: string
   text: string
 }
 

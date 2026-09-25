@@ -4278,6 +4278,13 @@ export function registerSlidesIpc(): void {
     ) {
       return false
     }
+    if (
+      op.baseText !== undefined &&
+      getSlideNotes(session.opened.archive, session.opened.deck.slides[slideIndex].path) !==
+        op.baseText
+    ) {
+      return false
+    }
     const r = sessionTxn(session, {
       ops: [{ op: 'setNotes', target: { slide: slideIndex }, text: op.text }],
     })

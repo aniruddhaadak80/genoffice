@@ -688,6 +688,7 @@ export function App() {
             .setNotes({
               slideIndex: index,
               partPath: pending.partPath,
+              baseText: pending.baseText,
               text: pending.text,
             })
             .catch(() => false)
