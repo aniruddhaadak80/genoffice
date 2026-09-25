@@ -52,8 +52,10 @@ export type CellValue = { kind: 'text'; text: string } | { kind: 'number'; value
 export const MAX_XLSX_ROWS = 1_048_576
 export const MAX_XLSX_COLUMNS = 16_384
 export const MAX_XLSX_CELL_TEXT = 32_767
+export const MAX_XLSX_CELL_LINE_FEEDS = 253
 export const MAX_XLSX_COLUMN_WIDTH = 255
 export const MAX_XLSX_ROW_HEIGHT_PT = 409
+export const MAX_XLSX_HEADER_FOOTER_TEXT = 255
 
 export interface SheetCell {
   /** 0-based */
@@ -268,13 +270,31 @@ function validSheetIndex(value: number, limit: number): boolean {
   return Number.isInteger(value) && value >= 0 && value < limit
 }
 
-function truncateCellText(value: string): string {
-  if (value.length <= MAX_XLSX_CELL_TEXT) return value
-  let end = MAX_XLSX_CELL_TEXT
+function truncateText(value: string, limit: number): string {
+  if (value.length <= limit) return value
+  let end = limit
   const high = value.charCodeAt(end - 1)
   const low = value.charCodeAt(end)
   if (high >= 0xd800 && high <= 0xdbff && low >= 0xdc00 && low <= 0xdfff) end--
   return value.slice(0, end)
+}
+
+function normalizeCellText(value: string): {
+  text: string
+  truncated: boolean
+  lineFeedsRemoved: boolean
+} {
+  const truncatedText = truncateText(value, MAX_XLSX_CELL_TEXT)
+  let lineFeeds = 0
+  const text = truncatedText.replaceAll('\n', (lineFeed) => {
+    lineFeeds += 1
+    return lineFeeds <= MAX_XLSX_CELL_LINE_FEEDS ? lineFeed : ''
+  })
+  return {
+    text,
+    truncated: truncatedText !== value,
+    lineFeedsRemoved: text !== truncatedText,
+  }
 }
 
 function parseAddress(value: string): { row: number; col: number } | undefined {
@@ -310,6 +330,8 @@ export interface SheetNormalizationResult {
 export function normalizeSheetSpec(input: SheetSpec): SheetNormalizationResult {
   let droppedCells = false
   let truncatedText = false
+  let removedCellLineFeeds = false
+  let truncatedHeaderFooter = false
   let adjustedWidths = false
   let adjustedHeights = false
   let droppedHeights = false
@@ -325,13 +347,17 @@ export function normalizeSheetSpec(input: SheetSpec): SheetNormalizationResult {
       droppedCells = true
       continue
     }
-    if (cell.value?.kind === 'text' && cell.value.text.length > MAX_XLSX_CELL_TEXT) {
-      truncatedText = true
-      cells.push({
-        ...cell,
-        value: { kind: 'text', text: truncateCellText(cell.value.text) },
-      })
-      continue
+    if (cell.value?.kind === 'text') {
+      const normalized = normalizeCellText(cell.value.text)
+      if (normalized.truncated) truncatedText = true
+      if (normalized.lineFeedsRemoved) removedCellLineFeeds = true
+      if (normalized.text !== cell.value.text) {
+        cells.push({
+          ...cell,
+          value: { kind: 'text', text: normalized.text },
+        })
+        continue
+      }
     }
     cells.push(cell)
   }
@@ -374,6 +400,26 @@ export function normalizeSheetSpec(input: SheetSpec): SheetNormalizationResult {
     return false
   })
 
+  let headerFooter: SheetSpec['headerFooter']
+  if (input.headerFooter) {
+    const oddHeader =
+      input.headerFooter.oddHeader === undefined
+        ? undefined
+        : truncateText(input.headerFooter.oddHeader, MAX_XLSX_HEADER_FOOTER_TEXT)
+    const oddFooter =
+      input.headerFooter.oddFooter === undefined
+        ? undefined
+        : truncateText(input.headerFooter.oddFooter, MAX_XLSX_HEADER_FOOTER_TEXT)
+    if (oddHeader !== input.headerFooter.oddHeader || oddFooter !== input.headerFooter.oddFooter) {
+      truncatedHeaderFooter = true
+    }
+    headerFooter = {
+      ...input.headerFooter,
+      ...(oddHeader === undefined ? {} : { oddHeader }),
+      ...(oddFooter === undefined ? {} : { oddFooter }),
+    }
+  }
+
   const warnings: string[] = []
   if (droppedCells) {
     warnings.push(
@@ -382,6 +428,14 @@ export function normalizeSheetSpec(input: SheetSpec): SheetNormalizationResult {
   }
   if (truncatedText) {
     warnings.push(`Excel limits: truncated cell text to ${MAX_XLSX_CELL_TEXT} characters`)
+  }
+  if (removedCellLineFeeds) {
+    warnings.push(`Excel limits: removed cell line feeds beyond ${MAX_XLSX_CELL_LINE_FEEDS}`)
+  }
+  if (truncatedHeaderFooter) {
+    warnings.push(
+      `Excel limits: truncated header/footer text to ${MAX_XLSX_HEADER_FOOTER_TEXT} characters`,
+    )
   }
   if (adjustedWidths) {
     warnings.push(`Excel limits: clamped column widths to ${MAX_XLSX_COLUMN_WIDTH} characters`)
@@ -405,6 +459,7 @@ export function normalizeSheetSpec(input: SheetSpec): SheetNormalizationResult {
       ...(colWidths ? { colWidths } : {}),
       ...(rowHeightsPt ? { rowHeightsPt } : {}),
       ...(merges ? { merges } : {}),
+      ...(headerFooter ? { headerFooter } : {}),
     },
     warnings,
   }
