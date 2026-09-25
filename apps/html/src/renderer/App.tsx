@@ -435,8 +435,8 @@ export default function App() {
   const flushDraftsRef = useRef<(() => void) | null>(null)
   /** land live style pokes and open panel drafts in the source before anything reads, saves or edits it */
   const flushPending = useCallback(() => {
-    flushStylesRef.current?.()
     flushDraftsRef.current?.()
+    flushStylesRef.current?.()
   }, [])
 
   /** apply a toolbar/inspector batch; the selection follows the edited element (or clears when it is gone) */

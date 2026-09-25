@@ -185,10 +185,22 @@ export function StylePanel(p: Props) {
     if (p.textRun !== null) p.onText(v)
   })
   const altCommitRef = useRef<() => void>(() => {})
-  const [css, setCss] = useState('')
+  const {
+    value: css,
+    setValue: setCss,
+    commitRef: cssCommitRef,
+  } = useDraft('', (value) => {
+    const trimmed = value.trim()
+    if (trimmed) p.onCustomCss(trimmed)
+  })
+  const commitCss = () => {
+    cssCommitRef.current()
+    if (css.trim()) setCss('')
+  }
   const flushDrafts = () => {
     textCommitRef.current()
     altCommitRef.current()
+    commitCss()
   }
   p.draftRef.current = flushDrafts
   const draftRef = p.draftRef
@@ -199,12 +211,6 @@ export function StylePanel(p: Props) {
     },
     [draftRef],
   )
-  const commitCss = () => {
-    if (css.trim()) {
-      p.onCustomCss(css.trim())
-      setCss('')
-    }
-  }
 
   return (
     <aside className="hx-panel" aria-label={t('stylePanel')}>
