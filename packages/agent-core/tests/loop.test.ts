@@ -114,6 +114,31 @@ describe('AgentLoop', () => {
     expect('images' in (loop.messages[0] as object)).toBe(true)
   })
 
+  it('enforces a cumulative text and reasoning budget per turn', async () => {
+    const transport = scriptedTransport([
+      (cb) => {
+        cb.onReasoning?.('12345')
+        cb.onDelta('12345')
+        cb.onDelta('x')
+      },
+    ])
+    const onError = vi.fn()
+    const onDone = vi.fn()
+    const loop = new AgentLoop({
+      transport,
+      skill: makeSkill(),
+      maxTurnOutputChars: 10,
+      events: { onError, onDone },
+    })
+    loop.run('question')
+    await flush()
+    expect(transport.cancels).toBe(1)
+    expect(onError).toHaveBeenCalledWith(expect.stringContaining('cumulative 10 character limit'))
+    expect(onDone).not.toHaveBeenCalled()
+    expect(loop.messages).toEqual([])
+    expect(loop.busy).toBe(false)
+  })
+
   it('executes tools and loops back to the model', async () => {
     const transport = scriptedTransport([
       (cb) => {
