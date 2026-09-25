@@ -18,9 +18,12 @@
 import { createHash } from 'node:crypto'
 import {
   appendFileSync,
+  closeSync,
   existsSync,
   mkdirSync,
+  openSync,
   readFileSync,
+  readSync,
   renameSync,
   statSync,
   unlinkSync,
@@ -73,6 +76,7 @@ function ensureDir(dir: string): void {
 const DEFAULT_CHAT_LIMIT = 200
 // Upper bound for loadChat limit to avoid unbounded reads
 const MAX_CHAT_LIMIT = 10_000
+const MAX_CHAT_FILE_READ_BYTES = 8 * 1024 * 1024
 /** Max project name chars: prevents MB names bloating index.json/project.json. */
 export const MAX_PROJECT_NAME_CHARS = 128
 /** Default timeline entries; upper bound avoids loading every chat fully. */
@@ -106,6 +110,31 @@ function normalizeChatLimit(limit: number): number {
   if (floored < 1) return 1
   if (floored > MAX_CHAT_LIMIT) return MAX_CHAT_LIMIT
   return floored
+}
+
+function readChatTail(filePath: string): string {
+  const size = statSync(filePath).size
+  if (size === 0) return ''
+  const partialTail = size > MAX_CHAT_FILE_READ_BYTES
+  const length = partialTail ? MAX_CHAT_FILE_READ_BYTES - 1 : size
+  const buffer = Buffer.allocUnsafe(length)
+  const fd = openSync(filePath, 'r')
+  try {
+    const start = size - length
+    const bytesRead = readSync(fd, buffer, 0, length, start)
+    let contentStart = 0
+    if (partialTail) {
+      const boundary = Buffer.allocUnsafe(1)
+      readSync(fd, boundary, 0, 1, start - 1)
+      if (boundary[0] !== 0x0a) {
+        const newline = buffer.subarray(0, bytesRead).indexOf(0x0a)
+        contentStart = newline >= 0 ? newline + 1 : bytesRead
+      }
+    }
+    return buffer.subarray(contentStart, bytesRead).toString('utf8')
+  } finally {
+    closeSync(fd)
+  }
 }
 
 function readJson<T>(filePath: string): T | null {
@@ -434,7 +463,7 @@ export class ProjectStore {
     const messages: ChatMessage[] = [...pending]
     try {
       if (existsSync(filePath)) {
-        const raw = readFileSync(filePath, 'utf8')
+        const raw = readChatTail(filePath)
         const lines = raw.split('\n').filter((l) => l.trim())
         for (const line of lines) {
           try {
