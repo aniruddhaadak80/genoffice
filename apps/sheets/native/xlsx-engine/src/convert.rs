@@ -3,7 +3,7 @@
 //! Styles beyond date formats are not carried over — the converted file is a
 //! fresh workbook, not a byte-preserving edit.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs::File;
 use std::io::Write;
 use std::path::Path;
@@ -84,21 +84,20 @@ fn worksheet_xml(
 ) -> (String, usize) {
     // Rows carrying values plus rows carrying only formulas.
     let mut rows: HashMap<u32, Vec<(u32, String)>> = HashMap::new();
+    let mut emitted: HashSet<(u32, u32)> = HashSet::new();
     let mut cells = 0usize;
     let (start_row, start_col) = range.start().unwrap_or((0, 0));
     for (row, column, value) in range.used_cells() {
         let absolute = (start_row + row as u32, start_col + column as u32);
         let formula = formulas.get(&absolute).map(String::as_str);
         if let Some(cell) = cell_xml(absolute, value, formula) {
+            emitted.insert(absolute);
             cells += 1;
             rows.entry(absolute.0).or_default().push((absolute.1, cell));
         }
     }
     for (position, formula) in formulas {
-        let covered = range
-            .get_value((position.0, position.1))
-            .is_some_and(|v| *v != Data::Empty);
-        if !covered {
+        if emitted.insert(*position) {
             cells += 1;
             rows.entry(position.0).or_default().push((
                 position.1,
@@ -255,6 +254,7 @@ const STYLES_XML: &str = r#"<?xml version="1.0" encoding="UTF-8" standalone="yes
 #[cfg(test)]
 mod tests {
     use super::*;
+    use calamine::{Cell, Range};
     use std::io::Read;
 
     fn read_entry(path: &Path, name: &str) -> String {
@@ -263,6 +263,18 @@ mod tests {
         let mut content = String::new();
         entry.read_to_string(&mut content).unwrap();
         content
+    }
+
+    #[test]
+    fn emits_one_formula_cell_when_the_used_range_starts_at_b2() {
+        let range = Range::from_sparse(vec![Cell::new((1, 1), Data::Float(84.0))]);
+        let formulas = HashMap::from([((1, 1), "A2*2".to_string())]);
+
+        let (sheet, cells) = worksheet_xml(&range, &formulas);
+
+        assert_eq!(cells, 1);
+        assert_eq!(sheet.matches(r#"<c r="B2">"#).count(), 1);
+        assert!(sheet.contains(r#"<c r="B2"><f>A2*2</f><v>84</v></c>"#));
     }
 
     #[test]
