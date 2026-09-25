@@ -15,18 +15,29 @@ const parser = new XMLParser({
   removeNSPrefix: true,
 })
 
+function stripNamespacePrefix(name: string): string {
+  const separator = name.indexOf(':')
+  return separator < 0 ? name : name.slice(separator + 1)
+}
+
 const manifestParser = new XMLParser({
   ignoreAttributes: false,
   attributeNamePrefix: '@_',
   trimValues: false,
   parseTagValue: false,
-  removeNSPrefix: true,
+  removeNSPrefix: false,
+  transformTagName: stripNamespacePrefix,
   attributeValueProcessor: (_name, value) => value.trim(),
 })
 
 function asArray<T>(value: T | T[] | undefined): T[] {
   if (value === undefined || value === null) return []
   return Array.isArray(value) ? value : [value]
+}
+
+function relationshipId(node: Record<string, unknown>): string {
+  const qualified = Object.entries(node).find(([key]) => /^@_[^:]+:id$/.test(key))
+  return String(qualified?.[1] ?? node['@_id'] ?? '')
 }
 
 function slideNumber(path: string): number {
@@ -63,7 +74,7 @@ async function presentationSlideEntries(zip: JSZip): Promise<(string | null)[] |
 
   const entries: (string | null)[] = []
   for (const sldId of slideIds) {
-    const rel = rels.get(sldId['@_id'] ?? '')
+    const rel = rels.get(relationshipId(sldId))
     entries.push(
       rel && !rel.external && rel.target && rel.type.endsWith('/slide')
         ? resolveTarget('ppt/presentation.xml', rel.target)
@@ -129,9 +140,8 @@ function countPictures(nodes: readonly unknown[]): number {
   for (const node of nodes) {
     if (node == null || typeof node !== 'object') continue
     for (const [key, value] of Object.entries(node)) {
-      if (!Array.isArray(value)) continue
       if (key === 'pic') count += 1
-      else count += countPictures(value)
+      else if (Array.isArray(value)) count += countPictures(value)
     }
   }
   return count

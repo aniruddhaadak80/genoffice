@@ -100,15 +100,16 @@ describe('parseFileToText: pptx', () => {
       'ppt/presentation.xml',
       '<p-x:presentation xmlns:p-x="http://schemas.openxmlformats.org/presentationml/2006/main" ' +
         'xmlns:rel-x="http://schemas.openxmlformats.org/officeDocument/2006/relationships">' +
-        '<p-x:sldIdLst><p-x:sldId rel-x:id="rId1"/><p-x:sldId rel-x:id="rId2"/>' +
+        '<p-x:sldIdLst><p-x:sldId id="not-rel-1" rel-x:id="rId1"/>' +
+        '<p-x:sldId rel-x:id="rId2" id="not-rel-2"/>' +
         '</p-x:sldIdLst></p-x:presentation>',
     )
     zip.file(
       'ppt/_rels/presentation.xml.rels',
-      '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
-        '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide1.xml"/>' +
-        '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide2.xml"/>' +
-        '</Relationships>',
+      '<rel-p:Relationships xmlns:rel-p="http://schemas.openxmlformats.org/package/2006/relationships">' +
+        '<rel-p:Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide1.xml"/>' +
+        '<rel-p:Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide2.xml"/>' +
+        '</rel-p:Relationships>',
     )
     zip.file(
       'ppt/slides/slide1.xml',
@@ -121,11 +122,11 @@ describe('parseFileToText: pptx', () => {
       'ppt/slides/slide2.xml',
       '<s-x:sld xmlns:s-x="http://schemas.openxmlformats.org/presentationml/2006/main" ' +
         'xmlns:w-x="http://schemas.openxmlformats.org/presentationml/2006/main">' +
-        '<s-x:cSld><s-x:spTree><w-x:pic/></s-x:spTree></s-x:cSld></s-x:sld>',
+        '<s-x:cSld><s-x:spTree><w-x:pic/><w-x:pic/></s-x:spTree></s-x:cSld></s-x:sld>',
     )
     const text = await pptxToText(await zip.generateAsync({ type: 'uint8array' }))
     expect(text).toContain('## Slide 1\nPrefixed text')
-    expect(text).toContain('## Slide 2\n[picture-only slide: 1 image, no extractable text]')
+    expect(text).toContain('## Slide 2\n[picture-only slide: 2 images, no extractable text]')
   })
 
   it('keeps run text verbatim: leading zeros and the spaces between runs', async () => {
@@ -374,15 +375,15 @@ describe('parseFileToText: xlsx', () => {
       'xl/workbook.xml',
       '<q:workbook xmlns:q="http://schemas.openxmlformats.org/spreadsheetml/2006/main" ' +
         'xmlns:rel="http://schemas.openxmlformats.org/officeDocument/2006/relationships">' +
-        '<q:sheets><q:sheet name="Data" sheetId="1" rel:id="rId1"/>' +
-        '<q:sheet name="Pictures" sheetId="2" rel:id="rId2"/></q:sheets></q:workbook>',
+        '<q:sheets><q:sheet name="Data" sheetId="1" id="not-rel-1" rel:id="rId1"/>' +
+        '<q:sheet rel:id="rId2" id="not-rel-2" name="Pictures" sheetId="2"/></q:sheets></q:workbook>',
     )
     zip.file(
       'xl/_rels/workbook.xml.rels',
-      '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
-        '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>' +
-        '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet2.xml"/>' +
-        '</Relationships>',
+      '<rel:Relationships xmlns:rel="http://schemas.openxmlformats.org/package/2006/relationships">' +
+        '<rel:Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>' +
+        '<rel:Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet2.xml"/>' +
+        '</rel:Relationships>',
     )
     zip.file(
       'xl/worksheets/sheet1.xml',
@@ -393,7 +394,7 @@ describe('parseFileToText: xlsx', () => {
       'xl/worksheets/sheet2.xml',
       '<q:worksheet xmlns:q="http://schemas.openxmlformats.org/spreadsheetml/2006/main" ' +
         'xmlns:rel="http://schemas.openxmlformats.org/officeDocument/2006/relationships">' +
-        '<q:sheetData/><q:drawing rel:id="rId1"/></q:worksheet>',
+        '<q:sheetData/><q:drawing id="not-rel-drawing" rel:id="rId1"/></q:worksheet>',
     )
     zip.file(
       'xl/worksheets/_rels/sheet2.xml.rels',
@@ -404,11 +405,12 @@ describe('parseFileToText: xlsx', () => {
     zip.file(
       'xl/drawings/drawing1.xml',
       '<x-dr:wsDr xmlns:x-dr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing">' +
+        '<x-dr:twoCellAnchor><x-dr:pic/></x-dr:twoCellAnchor>' +
         '<x-dr:twoCellAnchor><x-dr:pic/></x-dr:twoCellAnchor></x-dr:wsDr>',
     )
     const text = await xlsxToText(await zip.generateAsync({ type: 'uint8array' }))
     expect(text).toContain('# Data\n7')
-    expect(text).toContain('# Pictures\n[image-only sheet: 1 image, no cell data]')
+    expect(text).toContain('# Pictures\n[image-only sheet: 2 images, no cell data]')
   })
 
   it('parses .xlsm through the same xlsx path', async () => {
