@@ -29,6 +29,16 @@ describe('applyHyperlinkEdits', () => {
     expect(patch.relsXml).toContain('Target="https://example.com/a&amp;b" TargetMode="External"')
   })
 
+  it('allocates a fresh id when an existing numeric id exceeds the safe integer range', () => {
+    const rels = RELS.replace('rId3', 'rId9007199254740992')
+    const patch = applyHyperlinkEdits(WORKSHEET, rels, [
+      { row: 0, column: 0, target: 'https://new.example' },
+    ])
+    expect(patch.worksheetXml).toContain('r:id="rId1"')
+    expect(patch.relsXml).toContain('Id="rId1"')
+    expect(patch.relsXml).toContain('Id="rId9007199254740992"')
+  })
+
   it('writes an internal anchor as a location attribute with no rel', () => {
     const patch = applyHyperlinkEdits(WORKSHEET, null, [
       { row: 1, column: 1, target: "#'My Sheet'!B2" },

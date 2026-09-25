@@ -1292,6 +1292,21 @@ it('reads a logarithmic value axis base from c:scaling', () => {
   expect(m.valAxis?.max).toBe(10000)
 })
 
+it('drops logarithmic bases outside the OOXML range', () => {
+  const withBase = (base: string) =>
+    parseChartXml(
+      LINE_CHART.replace(
+        '<c:scaling><c:orientation val="minMax"/></c:scaling>',
+        `<c:scaling><c:logBase val="${base}"/><c:orientation val="minMax"/></c:scaling>`,
+      ),
+    )!
+  expect(withBase('1.999').valAxis?.logBase).toBeUndefined()
+  expect(withBase('2').valAxis?.logBase).toBe(2)
+  expect(withBase('1000').valAxis?.logBase).toBe(1000)
+  expect(withBase('1001').valAxis?.logBase).toBeUndefined()
+  expect(withBase('1000000000').valAxis?.logBase).toBeUndefined()
+})
+
 describe('date axis chronological order', () => {
   const chartXml = (orientation: string, serials: number[]) => {
     const pts = (vals: Array<number | string>) =>

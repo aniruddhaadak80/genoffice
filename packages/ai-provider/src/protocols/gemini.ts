@@ -10,6 +10,7 @@ import {
   sseErrorText,
   sseLines,
   throwIfCreditsNotice,
+  throwIfToolCountOverBudget,
   type StreamCallbacks,
 } from './shared'
 
@@ -197,6 +198,7 @@ async function geminiTurn(
   let abnormalFinish: string | undefined
   let sawFinish = false
   let emitted = false
+  let toolCallCount = 0
   for await (const line of sseLines(response.body, onBytes)) {
     if (!line.startsWith('data:')) continue
     const payload = line.slice(5).trim()
@@ -236,6 +238,7 @@ async function geminiTurn(
       }
       // Gemini emits function calls whole, never as partial JSON
       if (part.functionCall?.name) {
+        throwIfToolCountOverBudget(++toolCallCount, 'gemini')
         emitted = true
         cb.onToolCall({
           id: crypto.randomUUID(),
