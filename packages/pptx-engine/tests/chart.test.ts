@@ -239,6 +239,22 @@ describe('parseChartXml', () => {
     expect(m.series[0]!.values).toEqual([1, 2])
   })
 
+  it('ignores out-of-range classic chart data-point indices', () => {
+    const HOSTILE = `<c:chartSpace xmlns:c="c" xmlns:a="a"><c:chart><c:plotArea>
+<c:barChart><c:barDir val="col"/><c:ser><c:idx val="0"/>
+  <c:dPt><c:idx val="0"/><c:spPr><a:solidFill><a:srgbClr val="FF0000"/></a:solidFill></c:spPr></c:dPt>
+  <c:dPt><c:idx val="20000000"/><c:spPr><a:solidFill><a:srgbClr val="0000FF"/></a:solidFill></c:spPr></c:dPt>
+  <c:cat><c:numRef><c:numCache><c:formatCode>yyyy</c:formatCode><c:ptCount val="1"/><c:pt idx="0"><c:v>1</c:v></c:pt></c:numCache></c:numRef></c:cat>
+  <c:val><c:numRef><c:numCache><c:ptCount val="1"/><c:pt idx="0"><c:v>1</c:v></c:pt></c:numCache></c:numRef></c:val>
+</c:ser></c:barChart>
+<c:dateAx><c:axId val="1"/><c:scaling><c:orientation val="minMax"/></c:scaling><c:crossAx val="2"/></c:dateAx>
+<c:valAx><c:axId val="2"/><c:scaling><c:orientation val="minMax"/></c:scaling><c:crossAx val="1"/></c:valAx>
+</c:plotArea></c:chart></c:chartSpace>`
+    const m = parseChartXml(HOSTILE)!
+    expect(m.series[0]!.pointColors).toHaveLength(1)
+    expect(m.series[0]!.pointColors?.[0]).toBe('#FF0000')
+  })
+
   it('parses bar+line combo: both plots kept, series tagged with plotKind', () => {
     const COMBO = `<c:chartSpace xmlns:c="c" xmlns:a="a"><c:chart><c:plotArea><c:layout/>
 <c:barChart><c:barDir val="col"/><c:grouping val="clustered"/>

@@ -564,9 +564,10 @@ export function parseChartXml(
         const pointNoFill: Array<boolean | undefined> = []
         const pointLines: Array<{ color: string | null; widthPt?: number } | undefined> = []
         const pointExpl: Array<number | undefined> = []
+        const pointLimit = Math.min(MAX_CHART_POINTS, s.values.length)
         for (const dPt of dPts) {
           const idx = parseInt(dPt['c:idx']?.['@_val'], 10)
-          if (Number.isNaN(idx)) continue
+          if (!Number.isInteger(idx) || idx < 0 || idx >= pointLimit) continue
           const dSp = dPt['c:spPr']
           const c = resolveColorNode(dSp?.['a:solidFill'], theme)
           if (c != null) pointColors[idx] = c
