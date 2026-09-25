@@ -1881,6 +1881,7 @@ describe('bullet parity (PowerPoint)', () => {
       } as Paragraph,
     ])
     expect(bulletsOf(l).map((b) => b?.text)).toEqual(['1.', '1.'])
+    expect(l.lines.map((line) => line.level)).toEqual([8, undefined])
   })
 
   it('nested numbering keeps one counter per level; the outer list continues after a sublist', () => {

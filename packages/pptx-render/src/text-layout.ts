@@ -1812,7 +1812,7 @@ function layoutAll(
         ...(ln.softBreakAfter != null ? { softBreakAfter: ln.softBreakAfter } : {}),
         ...(p.align ? { align: p.align } : {}),
         ...(paraBaseRtl(p) ? { rtl: true } : {}),
-        ...(p.level ? { level: p.level } : {}),
+        ...(level ? { level } : {}),
         ...(marLPx ? { marLPx } : {}),
         ...(indentPx ? { indentPx } : {}),
       })
