@@ -73,6 +73,16 @@ describe('xlsx-gateway csv import round trip', () => {
     expect(cells['B6']?.value).toBe(0)
   })
 
+  it('imports a leading plus and bare decimal points as numbers', async () => {
+    const csv = 'value\n.5\n+1\n1.\n0.5'
+    const cells = await sheetCells(await csvToXlsxBuffer(csv))
+
+    expect(cells['A2']?.value).toBe(0.5)
+    expect(cells['A3']?.value).toBe(1)
+    expect(cells['A4']?.value).toBe(1)
+    expect(cells['A5']?.value).toBe(0.5)
+  })
+
   it('keeps formula-like text as text instead of a stored formula', async () => {
     const csv = 'expr,note\n"=SUM(A1:A2)",plain'
     const cells = await sheetCells(await csvToXlsxBuffer(csv))

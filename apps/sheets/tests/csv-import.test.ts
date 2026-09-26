@@ -198,13 +198,13 @@ describe('resolveImportDelimiter', () => {
 
 describe('isNumericCell', () => {
   it('accepts plain decimals and scientific notation', () => {
-    for (const value of ['0', '42', '-3.5', '1e3', '0.5']) {
+    for (const value of ['0', '42', '-3.5', '1e3', '0.5', '.5', '1.', '+1', '+86']) {
       expect(isNumericCell(value), value).toBe(true)
     }
   })
 
   it('keeps codes, dates, and padded numbers as text', () => {
-    for (const value of ['007', '2025-06-01', '1,234', '+86', '', ' 5']) {
+    for (const value of ['007', '2025-06-01', '1,234', '', ' 5']) {
       expect(isNumericCell(value), value).toBe(false)
     }
   })
