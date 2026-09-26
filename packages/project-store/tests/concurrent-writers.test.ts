@@ -109,9 +109,13 @@ describe('concurrent writers', () => {
   }
 
   function startWriter(paths: string[], startAt: number, goPath = '') {
-    return spawn(process.execPath, [writerPath, tmpDir, storeUrl, String(startAt), goPath, ...paths], {
-      stdio: ['ignore', 'pipe', 'pipe'],
-    })
+    return spawn(
+      process.execPath,
+      [writerPath, tmpDir, storeUrl, String(startAt), goPath, ...paths],
+      {
+        stdio: ['ignore', 'pipe', 'pipe'],
+      },
+    )
   }
 
   function runWriters(
