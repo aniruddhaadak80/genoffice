@@ -257,15 +257,41 @@ export function xmlFlagOn(xml: string, tag: string): boolean {
   return false
 }
 
+/**
+ * Header/footer reference elements of a sectPr, in document order. Matching is
+ * quote-agnostic and covers the empty element pair LibreOffice writes, so a
+ * reference a producer spelled differently still resolves: matching only
+ * self-closing double-quoted tags dropped the part from the model, the save
+ * plan and the section info at once.
+ */
+export function hfReferenceTags(xml: string, kind: 'header' | 'footer'): string[] {
+  return (
+    xml.match(
+      new RegExp(`<w:${kind}Reference\\b[^>]*(?:\\/>|>\\s*<\\/w:${kind}Reference>)`, 'g'),
+    ) ?? []
+  )
+}
+
+/** w:type of a header/footer reference element (undefined when undeclared) */
+export function hfReferenceType(tag: string): string | undefined {
+  return /\bw:type\s*=\s*["']([^"']*)["']/.exec(tag)?.[1]
+}
+
+/** r:id of a header/footer reference element (undefined when undeclared) */
+export function hfReferenceRId(tag: string): string | undefined {
+  return /\br:id\s*=\s*["']([^"']+)["']/.exec(tag)?.[1]
+}
+
 function hfRefs(
   xml: string,
   kind: 'header' | 'footer',
 ): Partial<Record<'default' | 'first' | 'even', string>> {
   const refs: Partial<Record<'default' | 'first' | 'even', string>> = {}
-  for (const ref of xml.match(new RegExp(`<w:${kind}Reference[^>]*/>`, 'g')) ?? []) {
-    const type = /w:type="(default|first|even)"/.exec(ref)?.[1] ?? 'default'
-    const rId = /r:id="([^"]+)"/.exec(ref)?.[1]
-    if (rId) refs[type as 'default' | 'first' | 'even'] = rId
+  for (const ref of hfReferenceTags(xml, kind)) {
+    const declared = hfReferenceType(ref)
+    const type = declared === 'first' || declared === 'even' ? declared : 'default'
+    const rId = hfReferenceRId(ref)
+    if (rId) refs[type] = rId
   }
   return refs
 }
