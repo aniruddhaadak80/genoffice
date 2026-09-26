@@ -9,7 +9,7 @@ import {
 } from '../src/install'
 import { tempDir } from './helpers'
 
-function sandbox(): { root: string; home: string; launcher: string } {
+function sandbox(): { root: string; home: string; launcher: string; system: string } {
   const root = tempDir()
   const home = join(root, 'home')
   const app = join(root, 'app', 'resources', 'cli')
@@ -17,7 +17,7 @@ function sandbox(): { root: string; home: string; launcher: string } {
   mkdirSync(app, { recursive: true })
   const launcher = join(app, 'genoffice')
   writeFileSync(launcher, '#!/bin/sh\n')
-  return { root, home, launcher }
+  return { root, home, launcher, system: join(root, 'system-bin') }
 }
 
 describe('POSIX user-level PATH fallback', () => {
@@ -56,17 +56,16 @@ describe('POSIX user-level PATH fallback', () => {
   })
 
   it('installs into a user-level directory when /usr/local/bin is out of reach', () => {
-    const { home, launcher } = sandbox()
+    const { home, launcher, system } = sandbox()
     const links: Array<[string, string]> = []
     const outcome = installCliLink({
       launcher,
       platform: 'linux',
       env: {},
       home,
+      candidateDirs: [system, join(home, '.local', 'bin'), join(home, 'bin')],
       createLink: (target, link) => links.push([target, link]),
     })
-    // the first candidate is the real /usr/local/bin, out of reach for this
-    // user, so the walk must land on a directory the user owns
     expect(outcome).toEqual({
       status: 'linked',
       location: join(home, '.local', 'bin', 'genoffice'),
@@ -76,13 +75,14 @@ describe('POSIX user-level PATH fallback', () => {
   })
 
   it('creates a user-level directory whose parent does not exist yet', () => {
-    const { home, launcher } = sandbox()
+    const { home, launcher, system } = sandbox()
     const links: string[] = []
     const outcome = installCliLink({
       launcher,
       platform: 'linux',
       env: {},
       home,
+      candidateDirs: [system, join(home, '.local', 'bin'), join(home, 'bin')],
       createLink: (_target, link) => links.push(link),
     })
     expect(outcome.location).toBe(join(home, '.local', 'bin', 'genoffice'))
@@ -90,8 +90,14 @@ describe('POSIX user-level PATH fallback', () => {
   })
 
   it('reports the user-level target without creating it, and with a sudo-free command', () => {
-    const { home, launcher } = sandbox()
-    const seen = inspectCliLink({ launcher, platform: 'linux', env: {}, home })
+    const { home, launcher, system } = sandbox()
+    const seen = inspectCliLink({
+      launcher,
+      platform: 'linux',
+      env: {},
+      home,
+      candidateDirs: [system, join(home, '.local', 'bin'), join(home, 'bin')],
+    })
     expect(seen.status).toBe('missing')
     expect(seen.location).toBe(join(home, '.local', 'bin', 'genoffice'))
     expect(seen.manual).toContain(`mkdir -p "${join(home, '.local', 'bin')}"`)
@@ -100,19 +106,31 @@ describe('POSIX user-level PATH fallback', () => {
   })
 
   it('prefers an explicit XDG_BIN_HOME over ~/.local/bin', () => {
-    const { root, home, launcher } = sandbox()
+    const { root, home, launcher, system } = sandbox()
     const xdg = join(root, 'xdg-bin')
-    const seen = inspectCliLink({ launcher, platform: 'linux', env: { XDG_BIN_HOME: xdg }, home })
+    const seen = inspectCliLink({
+      launcher,
+      platform: 'linux',
+      env: { XDG_BIN_HOME: xdg },
+      home,
+      candidateDirs: [system, xdg, join(home, '.local', 'bin'), join(home, 'bin')],
+    })
     expect(seen.status).toBe('missing')
     expect(seen.location).toBe(join(xdg, 'genoffice'))
   })
 
   it('skips an occupied user-level directory and uses the next one', () => {
-    const { root, home, launcher } = sandbox()
+    const { root, home, launcher, system } = sandbox()
     const local = join(home, '.local', 'bin')
     mkdirSync(local, { recursive: true })
     writeFileSync(join(local, 'genoffice'), 'someone else')
-    const seen = inspectCliLink({ launcher, platform: 'linux', env: {}, home })
+    const seen = inspectCliLink({
+      launcher,
+      platform: 'linux',
+      env: {},
+      home,
+      candidateDirs: [system, local, join(home, 'bin')],
+    })
     expect(seen).toEqual({
       status: 'missing',
       location: join(home, 'bin', 'genoffice'),
