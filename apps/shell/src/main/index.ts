@@ -4616,7 +4616,7 @@ async function savePdfAs(): Promise<void> {
       defaultPath: tab.filePath,
       filters: [{ name: tm('filterPdf'), extensions: ['pdf'] }],
     })
-    if (picked.canceled || !picked.filePath || picked.filePath === tab.filePath) return
+    if (picked.canceled || !picked.filePath || isSameFile(picked.filePath, tab.filePath)) return
     if (pdfIsDirty(tab.webContents.id)) {
       // Renderer applies its pending edits onto the source bytes; the pdf main
       // process writes the result to the picked path only
