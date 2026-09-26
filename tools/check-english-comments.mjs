@@ -13,6 +13,15 @@ import { spawnSync } from 'node:child_process'
 
 const HAN = /[\u3400-\u9fff]/
 
+const HASH_COMMENT = /\.(py|sh)$/
+
+function commentText(line, file) {
+  return (line.match(/(?:^|[^:'"])\/\/(.*)$/) ??
+    (HASH_COMMENT.test(file) ? line.match(/^\s*#+(.*)$/) : null) ??
+    line.match(/^\s*\*(.*)$/) ??
+    line.match(/\/\*(.*)$/))?.[1]
+}
+
 const git = spawnSync('git', ['ls-files'], { encoding: 'utf8' })
 if (git.status !== 0) {
   console.error(git.stderr)
@@ -22,17 +31,13 @@ const root = spawnSync('git', ['rev-parse', '--show-toplevel'], { encoding: 'utf
 
 const violations = []
 for (const file of git.stdout.trim().split('\n')) {
-  const isCode = /\.(ts|tsx|mjs|cjs|js)$/.test(file)
+  const isCode = /\.(ts|tsx|mjs|cjs|js|rs|py|sh)$/.test(file)
   const isDoc =
     /\.(md|html?)$/.test(file) && !file.includes('/ai/prompts/') && !file.includes('/i18n/')
   if (!isCode && !isDoc) continue
   const lines = readFileSync(join(root, file), 'utf8').split('\n')
   lines.forEach((line, index) => {
-    const text = isDoc
-      ? line
-      : (line.match(/(?:^|[^:'"])\/\/(.*)$/) ??
-          line.match(/^\s*\*(.*)$/) ??
-          line.match(/\/\*(.*)$/))?.[1]
+    const text = isDoc ? line : commentText(line, file)
     if (text !== undefined && HAN.test(text) && !line.includes('lang-switcher')) {
       violations.push(`  ${file}:${index + 1}: ${line.trim()}`)
     }
