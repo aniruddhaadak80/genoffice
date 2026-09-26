@@ -47,6 +47,15 @@ import type {
 
 /** Max stored characters for a single tool input/output field */
 const TOOL_FIELD_MAX_CHARS = 16_000
+const MAX_TOOLS_PER_MESSAGE = 64
+const MAX_ATTACHMENTS_PER_MESSAGE = 32
+const TOOL_NAME_MAX_CHARS = 200
+const TOOL_SUMMARY_MAX_CHARS = 2_000
+const ATTACHMENT_FIELD_MAX_CHARS = 1_000
+
+function clampChatField(value: unknown, max: number): string {
+  return typeof value === 'string' ? value.slice(0, max) : ''
+}
 
 /**
  * Max stored characters for message text. A model that falls into a repetition
@@ -477,13 +486,26 @@ export class ProjectStore {
       if (msg.fileRef !== undefined) record.fileRef = msg.fileRef
       if (msg.tools && msg.tools.length > 0) {
         // Truncate tool inputs/outputs so one JSONL line can't blow up on a huge payload
-        record.tools = msg.tools.map((t) => ({
+        record.tools = msg.tools.slice(0, MAX_TOOLS_PER_MESSAGE).map((t) => ({
           ...t,
+          name: clampChatField(t.name, TOOL_NAME_MAX_CHARS),
+          summary: clampChatField(t.summary, TOOL_SUMMARY_MAX_CHARS),
           ...(t.input !== undefined ? { input: t.input.slice(0, TOOL_FIELD_MAX_CHARS) } : {}),
           ...(t.output !== undefined ? { output: t.output.slice(0, TOOL_FIELD_MAX_CHARS) } : {}),
         }))
       }
-      if (msg.attachments !== undefined) record.attachments = msg.attachments
+      if (msg.attachments !== undefined) {
+        record.attachments = msg.attachments.slice(0, MAX_ATTACHMENTS_PER_MESSAGE).map((a) => ({
+          ...a,
+          name: clampChatField(a.name, ATTACHMENT_FIELD_MAX_CHARS),
+          ...(a.path !== undefined
+            ? { path: clampChatField(a.path, ATTACHMENT_FIELD_MAX_CHARS) }
+            : {}),
+          ...(a.ext !== undefined
+            ? { ext: clampChatField(a.ext, ATTACHMENT_FIELD_MAX_CHARS) }
+            : {}),
+        }))
+      }
       if (msg.scope !== undefined) {
         record.scope = {
           label: msg.scope.label,
