@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto'
 import { handOffBytes } from './byte-handoff'
+import { readJsonState as readJson, writeJsonState as writeJson } from './json-state'
 import {
   appendFileSync,
   existsSync,
@@ -2303,20 +2304,6 @@ export function openExternalDocx(filePath: string | null): void {
 
 function userDataPath(...parts: string[]): string {
   return join(app.getPath('userData'), ...parts)
-}
-
-function readJson<T>(path: string, fallback: T): T {
-  try {
-    if (existsSync(path)) return JSON.parse(readFileSync(path, 'utf-8')) as T
-  } catch {
-    /* corrupted state file: fall back to defaults */
-  }
-  return fallback
-}
-
-function writeJson(path: string, value: unknown): void {
-  mkdirSync(join(path, '..'), { recursive: true })
-  writeFileSync(path, JSON.stringify(value, null, 2))
 }
 
 // ---- recent files ----
