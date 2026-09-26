@@ -1,11 +1,12 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { Editor } from '@tiptap/core'
+import { Editor, type MarkdownLexerConfiguration, type MarkdownTokenizer } from '@tiptap/core'
 import { getDefaults, marked } from 'marked'
 import StarterKit from '@tiptap/starter-kit'
 import { Markdown } from '@tiptap/markdown'
 import { TableKit } from '@tiptap/extension-table'
 import { TaskItem, TaskList } from '@tiptap/extension-list'
 import { buildExtensions } from '../src/renderer/editor/extensions'
+import { boundTable } from '../src/renderer/editor/boundedTokenizers'
 
 const editors: Editor[] = []
 afterEach(() => {
@@ -77,6 +78,8 @@ const CASES: Record<string, string> = {
   tableNoTrailingBlank: 'intro\n\n| a | b |\n|:--|--:|\n| 1 | 2 |\n| 3 | 4 |',
   tableWithPipesInCells: '| a | b |\n|---|---|\n| x \\| y | `c|d` |\n\nz',
   tableAdjacentParagraph: '| a | b |\n|---|---|\n| 1 | 2 |\ntrailing text\n\nnext',
+  tableWhitespaceBlankLine: '| a | b |\n|---|---|\n| 1 | 2 |\n   \nnext\n\nmore',
+  tableWhitespaceBlankThenList: '| a | b |\n|---|---|\n| 1 | 2 |\n  \t \n- item\n- item2',
   paragraphLikeTable: 'a | b\nnot a separator\n\nnext',
   mixed: [
     '# Title',
@@ -138,5 +141,86 @@ describe('bounded markdown tokenizers', () => {
     expect(json.content?.length).toBe(12000)
     // ~0.1 s here; the stock tokenizers take ~10 s. Generous for slow CI.
     expect(elapsed).toBeLessThan(5000)
+  })
+
+  it('stops the table bound at a whitespace-only blank line', () => {
+    const seen: string[] = []
+    const base: MarkdownTokenizer = {
+      name: 'table',
+      level: 'block',
+      start: () => 0,
+      tokenize: (src) => {
+        seen.push(src)
+        return undefined
+      },
+    }
+    const tail = 'tail paragraph line\n'.repeat(500)
+    const tokenizer = boundTable(base)
+    tokenizer.tokenize.call(
+      undefined,
+      `| a | b |\n|---|---|\n| 1 | 2 |\n   \n${tail}`,
+      [],
+      {} as MarkdownLexerConfiguration,
+    )
+    expect(seen).toHaveLength(1)
+    expect(seen[0]).toBe('| a | b |\n|---|---|\n| 1 | 2 |\n')
+    expect(seen[0]!.length).toBeLessThan(tail.length)
+  })
+
+  it('still stops at a truly empty blank line', () => {
+    const seen: string[] = []
+    const base: MarkdownTokenizer = {
+      name: 'table',
+      level: 'block',
+      start: () => 0,
+      tokenize: (src) => {
+        seen.push(src)
+        return undefined
+      },
+    }
+    boundTable(base).tokenize.call(
+      undefined,
+      '| a | b |\n|---|---|\n| 1 | 2 |\n\ntail\n',
+      [],
+      {} as MarkdownLexerConfiguration,
+    )
+    expect(seen).toEqual(['| a | b |\n|---|---|\n| 1 | 2 |\n'])
+  })
+
+  it('passes the whole source through when no blank line follows the table', () => {
+    const seen: string[] = []
+    const base: MarkdownTokenizer = {
+      name: 'table',
+      level: 'block',
+      start: () => 0,
+      tokenize: (src) => {
+        seen.push(src)
+        return undefined
+      },
+    }
+    const src = '| a | b |\n|---|---|\n| 1 | 2 |\n| 3 | 4 |'
+    boundTable(base).tokenize.call(undefined, src, [], {} as MarkdownLexerConfiguration)
+    expect(seen).toEqual([src])
+  })
+
+  it('rejects a non-table head without calling the base tokenizer', () => {
+    const seen: string[] = []
+    const base: MarkdownTokenizer = {
+      name: 'table',
+      level: 'block',
+      start: () => 0,
+      tokenize: (src) => {
+        seen.push(src)
+        return undefined
+      },
+    }
+    const result = boundTable(base).tokenize.call(
+      undefined,
+      'a | b\nnot a separator\n\nnext',
+      [],
+      {} as MarkdownLexerConfiguration,
+    )
+    expect(result).toBeUndefined()
+    expect(seen).toEqual([])
   })
 })
