@@ -50,8 +50,14 @@ export function LinkDialog({
     // data-keep-edit: opening over a text-edit session must not commit it — the run-level
     // link applies to the saved editor selection after the dialog closes
     <div className="modal-backdrop" data-keep-edit="" onClick={onClose}>
-      <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <h2>{t('ribbonDlgHyperlink')}</h2>
+      <div
+        className="modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="dlg-hyperlink"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h2 id="dlg-hyperlink">{t('ribbonDlgHyperlink')}</h2>
         <div className="dlg-radio-row">
           <label className="dlg-radio">
             <input type="radio" checked={mode === 'url'} onChange={() => setMode('url')} />
@@ -132,8 +138,14 @@ export function HeaderFooterDialog({ initial, onApply, onClose }: HeaderFooterDi
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <h2>{t('ribbonDlgHeaderFooter')}</h2>
+      <div
+        className="modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="dlg-header-footer"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h2 id="dlg-header-footer">{t('ribbonDlgHeaderFooter')}</h2>
         <label className="dlg-check">
           <input type="checkbox" checked={dateOn} onChange={(e) => setDateOn(e.target.checked)} />
           {t('ribbonDlgDateTime')}
@@ -214,8 +226,14 @@ export function EquationDialog({ onInsert, onClose }: EquationDialogProps) {
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal modal-wide" onClick={(e) => e.stopPropagation()}>
-        <h2>{t('ribbonDlgInsertEquation')}</h2>
+      <div
+        className="modal modal-wide"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="dlg-equation"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h2 id="dlg-equation">{t('ribbonDlgInsertEquation')}</h2>
         <div className="eq-gallery">
           {EQUATION_GALLERY.map((eq) => (
             <button
@@ -288,8 +306,14 @@ export function TableInsertDialog({
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <h2>{t('ribbonTableInsertDialog')}</h2>
+      <div
+        className="modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="dlg-table-insert"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h2 id="dlg-table-insert">{t('ribbonTableInsertDialog')}</h2>
         <div className="dlg-two-col">
           {countInput(t('ribbonTableColsLabel'), cols, setCols, true)}
           {countInput(t('ribbonTableRowsLabel'), rows, setRows)}
