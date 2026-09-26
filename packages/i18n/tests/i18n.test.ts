@@ -7,6 +7,7 @@ import {
   LANGS,
   macShortcutsToWin,
   normalizeLang,
+  pluralCategory,
 } from '../src/index'
 
 describe('normalizeLang', () => {
@@ -175,6 +176,61 @@ describe('macShortcutsToWin', () => {
     const plain = 'Ctrl+S saves the file'
     expect(macShortcutsToWin(plain)).toBe(plain)
     expect(macShortcutsToWin('文件')).toBe('文件')
+  })
+})
+
+describe('pluralCategory', () => {
+  it('picks the CLDR category a language actually uses', () => {
+    expect(pluralCategory('en', 1)).toBe('one')
+    expect(pluralCategory('en', 0)).toBe('other')
+    expect(pluralCategory('en', 2)).toBe('other')
+  })
+
+  it('puts French zero in the singular category', () => {
+    expect(pluralCategory('fr', 0)).toBe('one')
+    expect(pluralCategory('fr', 1)).toBe('one')
+    expect(pluralCategory('fr', 2)).toBe('other')
+  })
+
+  it('separates the Slavic few category from many', () => {
+    expect(pluralCategory('ru', 1)).toBe('one')
+    expect(pluralCategory('ru', 2)).toBe('few')
+    expect(pluralCategory('ru', 4)).toBe('few')
+    expect(pluralCategory('ru', 5)).toBe('many')
+    expect(pluralCategory('ru', 21)).toBe('one')
+
+    expect(pluralCategory('pl', 2)).toBe('few')
+    expect(pluralCategory('pl', 5)).toBe('many')
+    expect(pluralCategory('cs', 2)).toBe('few')
+    expect(pluralCategory('cs', 5)).toBe('other')
+  })
+
+  it('reaches every Arabic category', () => {
+    expect(pluralCategory('ar', 0)).toBe('zero')
+    expect(pluralCategory('ar', 1)).toBe('one')
+    expect(pluralCategory('ar', 2)).toBe('two')
+    expect(pluralCategory('ar', 3)).toBe('few')
+    expect(pluralCategory('ar', 11)).toBe('many')
+    expect(pluralCategory('ar', 100)).toBe('other')
+  })
+
+  it('uses the Hebrew dual category', () => {
+    expect(pluralCategory('he', 1)).toBe('one')
+    expect(pluralCategory('he', 2)).toBe('two')
+    expect(pluralCategory('he', 3)).toBe('other')
+  })
+
+  it('reports a single other category for languages without inflection', () => {
+    for (const lang of ['zh', 'zh-TW', 'ja', 'ko', 'th', 'id', 'ms'] as const) {
+      for (const n of [0, 1, 2, 3, 5, 11, 100])
+        expect(pluralCategory(lang, n), `${lang} ${n}`).toBe('other')
+    }
+  })
+
+  it('reuses one rules instance per language', () => {
+    expect(pluralCategory('de', 1)).toBe('one')
+    expect(pluralCategory('de', 2)).toBe('other')
+    expect(pluralCategory('de', 1)).toBe('one')
   })
 })
 

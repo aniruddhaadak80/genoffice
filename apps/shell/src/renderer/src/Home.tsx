@@ -3157,7 +3157,9 @@ export function Home() {
                 <span className="section-label">
                   {view === 'recent' ? t('secRecent') : t('secStarred')}
                 </span>
-                <span className="file-count">{t(fileCountKey(listTotal), { n: listTotal })}</span>
+                <span className="file-count">
+                  {t(fileCountKey(lang, listTotal), { n: listTotal })}
+                </span>
               </div>
             )}
           </div>
