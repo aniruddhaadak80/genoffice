@@ -136,6 +136,7 @@ const OVERLAP_MIN_AREA = 400
 /** Background color blocks (≥70% of canvas area) don't participate in overlap detection */
 const BACKGROUND_AREA_RATIO = 0.7
 const MAX_ISSUES = 12
+const ISSUE_RESERVE = 2
 /** slack a suggested box adds beyond the measured need */
 const SUGGEST_SLACK_PX = 4
 const EMU_PER_PX = 9525
@@ -189,6 +190,8 @@ export function auditSlideFindings(
 ): AuditFinding[] {
   const entries = collectEntries(slide.nodes)
   const findings: AuditFinding[] = []
+  const budgetFor = (laterCategories: number): number =>
+    MAX_ISSUES - laterCategories * ISSUE_RESERVE
   const W = slide.widthPx
   const H = slide.heightPx
   const boxOf = (e: AuditEntry): AuditBox => ({ x: e.x, y: e.y, w: e.w, h: e.h })
@@ -253,6 +256,7 @@ export function auditSlideFindings(
 
   // 1. Out of bounds
   for (const e of entries) {
+    if (findings.length >= budgetFor(3)) break
     const parts = outside(e)
     if (!parts.length) continue
     findings.push({
@@ -267,6 +271,7 @@ export function auditSlideFindings(
 
   // 2. Text overflow
   for (const e of entries) {
+    if (findings.length >= budgetFor(2)) break
     if (e.overflowPx > OVERFLOW_TOLERANCE_PX) {
       findings.push({
         code: 'text_overflow',
@@ -285,6 +290,7 @@ export function auditSlideFindings(
   // nowrap overflow as-is, so this is an audit-only signal that lets the AI widen the box,
   // shrink the font, or enable wrapping instead of leaving invisible overlap.
   for (const e of entries) {
+    if (findings.length >= budgetFor(1)) break
     if (e.overflowXPx > OVERFLOW_TOLERANCE_PX) {
       findings.push({
         code: 'text_overflow_width',
@@ -320,9 +326,9 @@ export function auditSlideFindings(
         message: `Overlap: ${label(a, idOf)} and ${label(b, idOf)} intersect by ${Math.round(ix)}×${Math.round(iy)}px`,
         box: boxOf(a),
       })
-      if (findings.length >= MAX_ISSUES) break
+      if (findings.length >= budgetFor(0)) break
     }
-    if (findings.length >= MAX_ISSUES) break
+    if (findings.length >= budgetFor(0)) break
   }
 
   return findings.slice(0, MAX_ISSUES)
