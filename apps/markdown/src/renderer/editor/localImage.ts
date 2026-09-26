@@ -71,6 +71,31 @@ const EXT_BY_MIME: Record<string, string> = {
   'image/gif': 'gif',
 }
 
+export const MAX_PASTED_IMAGE_BYTES = 15 * 1024 * 1024
+
+const IMAGE_MAGIC: Record<string, number[]> = {
+  'image/png': [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a],
+  'image/jpeg': [0xff, 0xd8, 0xff],
+  'image/gif': [0x47, 0x49, 0x46, 0x38],
+}
+
+const IMAGE_MAGIC_PEEK_BYTES = Math.max(...Object.values(IMAGE_MAGIC).map((m) => m.length))
+
+function hasImageMagic(head: Uint8Array, mime: string): boolean {
+  const magic = IMAGE_MAGIC[mime]
+  return !!magic && head.length >= magic.length && magic.every((byte, i) => head[i] === byte)
+}
+
+export async function isAcceptableImageFile(file: File): Promise<boolean> {
+  if (file.size === 0 || file.size > MAX_PASTED_IMAGE_BYTES) return false
+  try {
+    const head = new Uint8Array(await file.slice(0, IMAGE_MAGIC_PEEK_BYTES).arrayBuffer())
+    return hasImageMagic(head, file.type)
+  } catch {
+    return false
+  }
+}
+
 function imageFileIn(data: DataTransfer | null): File | null {
   for (const file of data?.files ?? []) {
     if (EXT_BY_MIME[file.type]) return file
@@ -83,6 +108,10 @@ async function persistAndInsert(
   file: File,
   pos: number,
 ): Promise<void> {
+  if (!(await isAcceptableImageFile(file))) {
+    showToast(t('imageRejected'), 'error')
+    return
+  }
   const bytes = new Uint8Array(await file.arrayBuffer())
   let binary = ''
   for (let i = 0; i < bytes.length; i += 0x8000) {
