@@ -83,6 +83,7 @@
 }
 
 .gcp-palette.gcp-palette .gcp-swatch:hover,
+.gcp-palette.gcp-palette .gcp-swatch:focus-visible,
 .gcp-palette.gcp-palette .gcp-swatch.selected {
   position: relative;
   z-index: 1;
