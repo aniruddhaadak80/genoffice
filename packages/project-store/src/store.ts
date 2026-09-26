@@ -15,7 +15,7 @@
  * - seq is maintained by the store layer: auto-incremented on each appendChatMessage
  */
 
-import { createHash, randomUUID } from 'node:crypto'
+import { createHash, randomBytes, randomUUID } from 'node:crypto'
 import {
   appendFileSync,
   closeSync,
@@ -23,6 +23,7 @@ import {
   mkdirSync,
   openSync,
   readFileSync,
+  readSync,
   renameSync,
   statSync,
   unlinkSync,
@@ -75,6 +76,7 @@ function ensureDir(dir: string): void {
 const DEFAULT_CHAT_LIMIT = 200
 // Upper bound for loadChat limit to avoid unbounded reads
 const MAX_CHAT_LIMIT = 10_000
+const MAX_CHAT_FILE_READ_BYTES = 8 * 1024 * 1024
 /** Max project name chars: prevents MB names bloating index.json/project.json. */
 export const MAX_PROJECT_NAME_CHARS = 128
 /** Default timeline entries; upper bound avoids loading every chat fully. */
@@ -108,6 +110,102 @@ function normalizeChatLimit(limit: number): number {
   if (floored < 1) return 1
   if (floored > MAX_CHAT_LIMIT) return MAX_CHAT_LIMIT
   return floored
+}
+
+function readChatTail(filePath: string): string {
+  const size = statSync(filePath).size
+  if (size === 0) return ''
+  const partialTail = size > MAX_CHAT_FILE_READ_BYTES
+  const length = partialTail ? MAX_CHAT_FILE_READ_BYTES - 1 : size
+  const buffer = Buffer.allocUnsafe(length)
+  const fd = openSync(filePath, 'r')
+  try {
+    const start = size - length
+    const bytesRead = readSync(fd, buffer, 0, length, start)
+    let contentStart = 0
+    if (partialTail) {
+      const boundary = Buffer.allocUnsafe(1)
+      readSync(fd, boundary, 0, 1, start - 1)
+      if (boundary[0] !== 0x0a) {
+        const newline = buffer.subarray(0, bytesRead).indexOf(0x0a)
+        contentStart = newline >= 0 ? newline + 1 : bytesRead
+      }
+    }
+    return buffer.subarray(contentStart, bytesRead).toString('utf8')
+  } finally {
+    closeSync(fd)
+  }
+}
+
+function parseChatRecords(raw: string): ChatMessage[] {
+  const messages: ChatMessage[] = []
+  for (const line of raw.split('\n')) {
+    if (!line.trim()) continue
+    try {
+      const msg = JSON.parse(line) as ChatMessage
+      if (
+        typeof msg.seq === 'number' &&
+        typeof msg.role === 'string' &&
+        typeof msg.text === 'string'
+      ) {
+        messages.push(msg)
+      }
+    } catch {
+      continue
+    }
+  }
+  return messages
+}
+
+function readAllChatRecords(filePath: string): ChatMessage[] {
+  return parseChatRecords(readFileSync(filePath, 'utf8'))
+}
+
+function appendJsonLines(filePath: string, lines: string): void {
+  if (!lines) return
+  let prefix = ''
+  try {
+    const size = statSync(filePath).size
+    if (size > 0) {
+      const fd = openSync(filePath, 'r')
+      try {
+        const lastByte = Buffer.allocUnsafe(1)
+        readSync(fd, lastByte, 0, 1, size - 1)
+        if (lastByte[0] !== 0x0a) prefix = '\n'
+      } finally {
+        closeSync(fd)
+      }
+    }
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+  }
+  appendFileSync(filePath, prefix + lines, 'utf8')
+}
+
+function mergeChatFiles(oldPath: string, newPath: string): number {
+  const existing = readAllChatRecords(newPath)
+  const moved = readAllChatRecords(oldPath)
+  let seq = existing.reduce((m, msg) => Math.max(m, msg.seq), -1) + 1
+  const movedLines = moved
+    .map((message) => JSON.stringify({ ...message, seq: seq++ }) + '\n')
+    .join('')
+  if (movedLines) {
+    const target = readFileSync(newPath)
+    const boundary =
+      target.length > 0 && target[target.length - 1] !== 0x0a ? Buffer.from('\n') : Buffer.alloc(0)
+    const tmpPath = `${newPath}.${randomBytes(6).toString('hex')}.tmp`
+    try {
+      writeFileSync(tmpPath, Buffer.concat([target, boundary, Buffer.from(movedLines, 'utf8')]))
+      renameSync(tmpPath, newPath)
+    } catch (error) {
+      try {
+        unlinkSync(tmpPath)
+      } catch {}
+      throw error
+    }
+  }
+  unlinkSync(oldPath)
+  return seq - 1
 }
 
 function readJson<T>(filePath: string): T | null {
@@ -516,7 +614,7 @@ export class ProjectStore {
       try {
         ensureDir(this.chatsDir(projectId))
         const lines = buf.map((r) => JSON.stringify(r) + '\n').join('')
-        appendFileSync(this.chatPath(projectId, chatId), lines, 'utf8')
+        appendJsonLines(this.chatPath(projectId, chatId), lines)
       } catch (err) {
         console.warn('[project-store] flushPending failed:', err)
       }
@@ -576,7 +674,7 @@ export class ProjectStore {
             ensureDir(this.chatsDir(projectId))
             this.pendingFirstWrite.delete(key)
             const lines = buf.map((r) => JSON.stringify(r) + '\n').join('')
-            appendFileSync(this.chatPath(projectId, chatId), lines, 'utf8')
+            appendJsonLines(this.chatPath(projectId, chatId), lines)
             return
           }
           this.pendingFirstWrite.set(key, buf)
@@ -586,7 +684,7 @@ export class ProjectStore {
         const buf = this.pendingFirstWrite.get(key) ?? []
         this.pendingFirstWrite.delete(key)
         const lines = [...buf, record].map((r) => JSON.stringify(r) + '\n').join('')
-        appendFileSync(this.chatPath(projectId, chatId), lines, 'utf8')
+        appendJsonLines(this.chatPath(projectId, chatId), lines)
       } catch (err) {
         console.warn('[project-store] appendChatMessage failed:', err)
       }
@@ -607,24 +705,7 @@ export class ProjectStore {
     const filePath = this.chatPath(projectId, chatId)
     const messages: ChatMessage[] = [...pending]
     try {
-      if (existsSync(filePath)) {
-        const raw = readFileSync(filePath, 'utf8')
-        const lines = raw.split('\n').filter((l) => l.trim())
-        for (const line of lines) {
-          try {
-            const msg = JSON.parse(line) as ChatMessage
-            if (
-              typeof msg.seq === 'number' &&
-              typeof msg.role === 'string' &&
-              typeof msg.text === 'string'
-            ) {
-              messages.push(msg)
-            }
-          } catch {
-            // skip bad lines
-          }
-        }
-      }
+      if (existsSync(filePath)) messages.push(...parseChatRecords(readChatTail(filePath)))
       // Sort by seq and take the most recent entries (safeLimit is always >= 1)
       messages.sort((a, b) => a.seq - b.seq)
       return messages.slice(-safeLimit)
@@ -685,13 +766,7 @@ export class ProjectStore {
           if (!existsSync(newPath)) {
             renameSync(oldPath, newPath)
           } else {
-            const existing = this.loadChat(toProjectId, toId, 10_000)
-            let seq = existing.reduce((m, msg) => Math.max(m, msg.seq), -1) + 1
-            const moved = this.loadChat(fromProjectId, fromId, 10_000)
-            const lines = moved.map((m) => JSON.stringify({ ...m, seq: seq++ }) + '\n').join('')
-            if (lines) appendFileSync(newPath, lines, 'utf8')
-            unlinkSync(oldPath)
-            mergedMaxSeq = seq - 1
+            mergedMaxSeq = mergeChatFiles(oldPath, newPath)
           }
         }
       } catch (err) {

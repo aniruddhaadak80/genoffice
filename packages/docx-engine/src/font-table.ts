@@ -1,5 +1,5 @@
 import type JSZip from 'jszip'
-import { parseRels } from './parse-package'
+import { parseRels, resolveRelationshipTargetPath } from './parse-package'
 import type { EmbeddedFont, EmbeddedFontRef, EmbeddedFontSlot, FontTableEntry } from './types'
 import { attrsOf, childrenOf, findChild, nameOf, xmlParser, type XNode } from './xml-utils'
 
@@ -97,7 +97,8 @@ export async function readEmbeddedFonts(
     >) {
       const rel = rels.get(ref.rId)
       if (!rel || rel.targetMode === 'External') continue
-      const path = rel.target.startsWith('/') ? rel.target.slice(1) : `word/${rel.target}`
+      const path = resolveRelationshipTargetPath(FONT_TABLE_PART_PATH, rel.target)
+      if (!path) continue
       const file = zip.file(path)
       if (!file) continue
       const data = deobfuscateOdttf(await file.async('uint8array'), ref.fontKey)
