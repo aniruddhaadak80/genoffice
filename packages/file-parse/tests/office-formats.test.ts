@@ -622,6 +622,41 @@ describe('parseFileToText: xlsx', () => {
     expect(text.length).toBeLessThan(1000)
   })
 
+  it('reads the formula of a cell that carries no cached value', async () => {
+    const zip = new JSZip()
+    zip.file(
+      'xl/workbook.xml',
+      '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+        '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" ' +
+        'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">' +
+        '<sheets><sheet name="S1" sheetId="1" r:id="rId1"/></sheets></workbook>',
+    )
+    zip.file(
+      'xl/_rels/workbook.xml.rels',
+      '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+        '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>' +
+        '</Relationships>',
+    )
+    zip.file(
+      'xl/worksheets/sheet1.xml',
+      '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+        '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>' +
+        '<row r="1">' +
+        '<c r="A1"><f>1+1</f><v>2</v></c>' +
+        '<c r="B1"><f>SUM(C2:C99)</f></c>' +
+        '<c r="C1"><f t="shared" si="0"/></c>' +
+        '<c r="D1" t="str"><f>CONCAT(&quot;x&quot;,&quot;y&quot;)</f><v>xy</v></c>' +
+        '<c r="E1"><f t="array" ref="E1:E3">A1*2</f></c>' +
+        '<c r="F1"><f>   </f></c>' +
+        '</row>' +
+        '</sheetData></worksheet>',
+    )
+    const bytes = await zip.generateAsync({ type: 'uint8array' })
+    const text = await xlsxToText(bytes)
+    expect(text).toContain('2 | =SUM(C2:C99) |  | xy | =A1*2 | ')
+  })
+
   it('resolves workbook rel targets against xl/workbook.xml', () => {
     const wb = (t: string) => resolveTarget('xl/workbook.xml', t)
     expect(wb('worksheets/sheet1.xml')).toBe('xl/worksheets/sheet1.xml')
