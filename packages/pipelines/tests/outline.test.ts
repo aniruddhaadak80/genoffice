@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { parseOutline } from '../src/slides/outline'
+import { parseOutline, PLACEHOLDER } from '../src/slides/outline'
 
 const HARBOR = String.fromCharCode(0x6e2f, 0x53e3)
 
@@ -120,5 +120,59 @@ describe('parseOutline', () => {
       expect(r.outline.pages[0]!.image_queries).toHaveLength(8)
       expect(r.issues.some((i) => i.message.includes('capped at 8'))).toBe(true)
     }
+  })
+})
+
+describe('PLACEHOLDER apparel sizes', () => {
+  it('accepts apparel size labels as normal copy', () => {
+    for (const copy of [
+      'Available in XS, S, M, L, XL and XXL',
+      'XXL is the largest run we stock',
+      'Sizes XS-XXL across the whole range',
+      'Model is 5ft 10in wearing a size L tee',
+    ]) {
+      expect(PLACEHOLDER.test(copy), copy).toBe(false)
+    }
+  })
+
+  it('still flags the documented XX% form', () => {
+    for (const copy of [
+      'XX% up',
+      'Revenue grew XX% year over year',
+      'thanks, XX% of you',
+      'xXX%',
+    ]) {
+      expect(PLACEHOLDER.test(copy), copy).toBe(true)
+    }
+  })
+
+  it('keeps flagging the other placeholder forms', () => {
+    for (const copy of ['lorem ipsum', 'TBD', 'TODO', '{{name}}', '[insert figure]', 'N/A']) {
+      expect(PLACEHOLDER.test(copy), copy).toBe(true)
+    }
+  })
+})
+
+describe('parseOutline apparel sizes', () => {
+  it('does not reject a brief whose copy lists apparel sizes', () => {
+    const r = parseOutline(
+      deck([
+        page({ brief: 'Left card lists the size run: Available in XS, S, M, L, XL and XXL.' }),
+      ]),
+    )
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    expect(r.issues.some((i) => i.message.includes('placeholder'))).toBe(false)
+  })
+
+  it('does not reject a title whose copy lists apparel sizes', () => {
+    const r = parseOutline(
+      deck([
+        page({ title: 'From XS to XXL, one cut covers every size', layout: 'hero_big_number' }),
+      ]),
+    )
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    expect(r.issues.some((i) => i.message.includes('placeholder'))).toBe(false)
   })
 })
