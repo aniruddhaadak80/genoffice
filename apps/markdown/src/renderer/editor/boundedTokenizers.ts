@@ -94,6 +94,18 @@ function isTableHead(header: string, delimiter: string): boolean {
   return cells.length === rowCells(header).length
 }
 
+function firstBlankLine(src: string): number {
+  let pos = 0
+  while (pos < src.length) {
+    const nl = src.indexOf('\n', pos)
+    const line = nl < 0 ? src.slice(pos) : src.slice(pos, nl)
+    if (line.trim() === '') return pos
+    if (nl < 0) break
+    pos = nl + 1
+  }
+  return -1
+}
+
 /** The upstream table tokenizer already limits itself to the text before the
  *  first blank line except for one trailing `src.split('\n')`; `start` reads
  *  the first two lines but splits everything. */
@@ -111,7 +123,7 @@ export function boundTable(base: MarkdownTokenizer): MarkdownTokenizer {
   const tokenize: Tokenize = function (this: unknown, src, tokens, lexer) {
     const lines = firstTwoLines(src)
     if (!lines || !isTableHead(...lines)) return undefined
-    const blank = src.indexOf('\n\n')
+    const blank = firstBlankLine(src)
     return base.tokenize.call(this, blank >= 0 ? src.slice(0, blank) : src, tokens, lexer)
   }
   return { ...base, start, tokenize }
