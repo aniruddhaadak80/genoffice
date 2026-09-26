@@ -62,6 +62,13 @@ interface TabRecord {
 const TAB_STRIP_HEIGHT = 40
 const HOME_ID = 'home'
 
+function markSpareSheetsView(state: 'ready' | 'taken' | 'gone'): void {
+  if (process.env.GENOFFICE_DEBUG_HOOKS !== '1') return
+  const scope = globalThis as { __genofficeSpareSheetsView?: 'ready' | 'taken' }
+  if (state === 'gone') delete scope.__genofficeSpareSheetsView
+  else scope.__genofficeSpareSheetsView = state
+}
+
 /**
  * Owns every open tab (Home + docs + sheets) inside the shell's single
  * BrowserWindow. Docs/sheets tabs are WebContentsView children of that
@@ -124,16 +131,20 @@ export class TabManager {
       view.webContents.once('render-process-gone', () => {
         if (this.spareSheetsView !== view) return
         this.spareSheetsView = null
+        markSpareSheetsView('gone')
         view.webContents.close()
       })
       this.spareSheetsView = view
+      markSpareSheetsView('ready')
     }, delayMs)
   }
 
   private takeSpareSheetsView(): WebContentsView | null {
     const view = this.spareSheetsView
     this.spareSheetsView = null
-    return view && !view.webContents.isDestroyed() ? view : null
+    if (!view || view.webContents.isDestroyed()) return null
+    markSpareSheetsView('taken')
+    return view
   }
 
   private untitled(kind: TabKind, fallback: string): string {

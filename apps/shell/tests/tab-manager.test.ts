@@ -332,6 +332,59 @@ describe('spare sheets view', () => {
       vi.unstubAllEnvs()
     }
   })
+
+  const spareState = (): string | undefined =>
+    (globalThis as { __genofficeSpareSheetsView?: string }).__genofficeSpareSheetsView
+
+  it('publishes a spare-view readiness signal for e2e instead of leaving it to a sleep', () => {
+    vi.stubEnv('GENOFFICE_DEBUG_HOOKS', '1')
+    vi.useFakeTimers()
+    try {
+      expect(spareState()).toBeUndefined()
+      homeLoaded()
+      expect(spareState()).toBeUndefined()
+      vi.advanceTimersByTime(1500)
+      expect(spareState()).toBe('ready')
+
+      manager.openSheetsTab('/tmp/budget.xlsx')
+      expect(spareState()).toBe('taken')
+    } finally {
+      vi.useRealTimers()
+      vi.unstubAllEnvs()
+      delete (globalThis as { __genofficeSpareSheetsView?: string }).__genofficeSpareSheetsView
+    }
+  })
+
+  it('clears the readiness signal when the spare renderer dies', () => {
+    vi.stubEnv('GENOFFICE_DEBUG_HOOKS', '1')
+    vi.useFakeTimers()
+    try {
+      homeLoaded()
+      vi.advanceTimersByTime(1500)
+      expect(spareState()).toBe('ready')
+      const spare = lastCreatedView(createSheetsView)
+      const gone = spare.webContents.once.mock.calls.find(
+        ([event]) => event === 'render-process-gone',
+      )
+      ;(gone![1] as () => void)()
+      expect(spareState()).toBeUndefined()
+    } finally {
+      vi.useRealTimers()
+      vi.unstubAllEnvs()
+      delete (globalThis as { __genofficeSpareSheetsView?: string }).__genofficeSpareSheetsView
+    }
+  })
+
+  it('publishes nothing without the debug-hooks env', () => {
+    vi.useFakeTimers()
+    try {
+      homeLoaded()
+      vi.advanceTimersByTime(1500)
+      expect(spareState()).toBeUndefined()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
 })
 
 describe('activation', () => {
