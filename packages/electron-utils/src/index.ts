@@ -65,6 +65,13 @@ export {
 export { GENERATED_IMAGE_DIR, readGeneratedImage, storeGeneratedImage } from './generated-images'
 export { writeJsonAtomic } from './atomic-json'
 export {
+  fileIdentitySync,
+  recoveryCopyAction,
+  sameContent,
+  type FileIdentity,
+  type RecoveryCopyAction,
+} from './recovery-copy'
+export {
   buildPrintableHtml,
   printHtmlToPdf,
   sanitizePrintableBody,
