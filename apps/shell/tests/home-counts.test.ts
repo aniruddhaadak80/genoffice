@@ -140,20 +140,69 @@ describe('recent query ext normalization', () => {
 
 describe('count labels', () => {
   const translate = createI18n(strings)
+  const files = (lang: Parameters<typeof fileCountKey>[0], n: number) =>
+    translate(lang, fileCountKey(lang, n), { n })
+  const items = (lang: Parameters<typeof timelineCountKey>[0], n: number) =>
+    translate(lang, timelineCountKey(lang, n), { n })
 
   it('uses singular and plural file labels', () => {
-    expect(translate('en', fileCountKey(1), { n: 1 })).toBe('1 file')
-    expect(translate('en', fileCountKey(2), { n: 2 })).toBe('2 files')
+    expect(files('en', 1)).toBe('1 file')
+    expect(files('en', 2)).toBe('2 files')
   })
 
   it('uses singular and plural activity item labels', () => {
-    expect(translate('en', timelineCountKey(1), { n: 1 })).toBe('1 item')
-    expect(translate('en', timelineCountKey(2), { n: 2 })).toBe('2 items')
+    expect(items('en', 1)).toBe('1 item')
+    expect(items('en', 2)).toBe('2 items')
   })
 
   it('picks the singular form in every locale with plural inflection', () => {
-    expect(translate('fr', fileCountKey(1), { n: 1 })).toBe('1 fichier')
-    expect(translate('de', fileCountKey(1), { n: 1 })).toBe('1 Datei')
-    expect(translate('zh', fileCountKey(1), { n: 1 })).toBe('1 个文件')
+    expect(files('fr', 1)).toBe('1 fichier')
+    expect(files('de', 1)).toBe('1 Datei')
+    expect(files('zh', 1)).toBe('1 个文件')
+  })
+
+  it('uses the French singular for zero instead of the generic plural', () => {
+    expect(files('fr', 0)).toBe('0 fichier')
+    expect(items('fr', 0)).toBe('0 élément')
+    expect(fileCountKey('fr', 0)).toBe('fileCountOne')
+  })
+
+  it('separates the Russian few category from many', () => {
+    expect(files('ru', 1)).toBe('1 файл')
+    expect(files('ru', 2)).toBe('2 файла')
+    expect(files('ru', 5)).toBe('Файлов: 5')
+    expect(fileCountKey('ru', 2)).toBe('fileCountFew')
+    expect(fileCountKey('ru', 5)).toBe('fileCountMany')
+  })
+
+  it('separates the Polish and Czech few categories', () => {
+    expect(files('pl', 2)).toBe('2 pliki')
+    expect(files('pl', 5)).toBe('Pliki: 5')
+    expect(files('cs', 2)).toBe('2 soubory')
+    expect(files('cs', 5)).toBe('5 souborů')
+  })
+
+  it('reaches the Arabic zero, two, few and many categories', () => {
+    expect(fileCountKey('ar', 0)).toBe('fileCountZero')
+    expect(fileCountKey('ar', 1)).toBe('fileCountOne')
+    expect(fileCountKey('ar', 2)).toBe('fileCountTwo')
+    expect(fileCountKey('ar', 3)).toBe('fileCountFew')
+    expect(fileCountKey('ar', 11)).toBe('fileCountMany')
+    expect(files('ar', 1)).toBe('ملف واحد')
+    expect(files('ar', 2)).toBe('ملفان')
+  })
+
+  it('reaches the Hebrew dual category', () => {
+    expect(fileCountKey('he', 1)).toBe('fileCountOne')
+    expect(fileCountKey('he', 2)).toBe('fileCountTwo')
+    expect(files('he', 2)).toBe('שני קבצים')
+  })
+
+  it('keeps one form for languages without inflection', () => {
+    for (const lang of ['zh', 'zh-TW', 'ja', 'ko', 'th', 'id', 'ms'] as const) {
+      for (const n of [0, 1, 2, 5, 100])
+        expect(fileCountKey(lang, n), `${lang} ${n}`).toBe('fileCountOther')
+    }
+    expect(files('ja', 3)).toBe('3 個のファイル')
   })
 })
