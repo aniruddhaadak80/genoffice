@@ -27,14 +27,40 @@ pub(crate) fn zip_entry<'a>(
     archive.by_name(resolved.as_deref().unwrap_or(name))
 }
 
+/// Ceiling for a metadata part that is read eagerly into memory. Worksheets
+/// and `sharedStrings.xml` are streamed and stay uncapped by design — their
+/// size is the workbook's, not the attacker's — but `workbook.xml`, the
+/// relationship parts, `styles.xml` and the drawing/chart parts are all
+/// whole-read and then DOM-parsed, so a small archive whose metadata entry
+/// inflates to hundreds of megabytes would otherwise be allocated in full
+/// during open.
+pub(crate) const MAX_EAGER_XML_BYTES: u64 = 16 * 1024 * 1024;
+
+/// Reads an eagerly-loaded metadata part, refusing to buffer more than
+/// `MAX_EAGER_XML_BYTES`. The cap is enforced on the bytes actually produced
+/// rather than on the entry's declared size, which a crafted archive can
+/// understate, and one extra byte is allowed through so an over-budget part is
+/// detectable instead of silently truncated into invalid XML.
+pub(crate) fn read_capped_string(
+    entry: &mut impl std::io::Read,
+    path: &str,
+) -> Result<String, SidecarError> {
+    let mut value = String::new();
+    std::io::Read::take(entry, MAX_EAGER_XML_BYTES + 1).read_to_string(&mut value)?;
+    if value.len() as u64 > MAX_EAGER_XML_BYTES {
+        return Err(SidecarError::Workbook(format!(
+            "{path} expands past the {MAX_EAGER_XML_BYTES} byte metadata limit."
+        )));
+    }
+    Ok(value)
+}
+
 pub(crate) fn read_zip_string(
     archive: &mut ZipArchive<File>,
     path: &str,
 ) -> Result<String, SidecarError> {
     let mut entry = zip_entry(archive, path)?;
-    let mut value = String::new();
-    entry.read_to_string(&mut value)?;
-    Ok(value)
+    read_capped_string(&mut entry, path)
 }
 
 pub(crate) fn attribute_value<R: std::io::BufRead>(
