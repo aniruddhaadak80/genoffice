@@ -3164,7 +3164,7 @@ function routeDocumentPath(filePath: string): boolean {
 async function newSheetTab(): Promise<void> {
   try {
     const filePath = uniquePathIn(newFileDir('sheet'), `${tm('untitledSheet')}.xlsx`)
-    writeFileSync(filePath, await blankXlsxBuffer())
+    await atomicWriteFile(filePath, await blankXlsxBuffer())
     // eligible for content-derived auto-rename after the first AI generation
     markSheetsUntitledPath(filePath)
     // route directly (not via openDocumentPath) so creating a sheet emits
@@ -3340,7 +3340,7 @@ function newHtmlTab(): void {
 async function newPdfTab(): Promise<void> {
   try {
     const filePath = uniquePathIn(newFileDir('pdf'), `${tm('untitledPdf')}.pdf`)
-    writeFileSync(filePath, await blankPdfBuffer())
+    await atomicWriteFile(filePath, await blankPdfBuffer())
     // Opt the file into content-derived auto-naming on its first save
     markPdfUntitledPath(filePath)
     // route directly (not via openDocumentPath) so creating a pdf emits only
@@ -3625,7 +3625,7 @@ function registerHomeIpc(): void {
     },
   )
 
-  ipcMain.handle(HOME_CHANNELS.duplicateFile, (_event, path: unknown) => {
+  ipcMain.handle(HOME_CHANNELS.duplicateFile, async (_event, path: unknown) => {
     if (typeof path !== 'string' || !existsSync(path)) return
     const ext = extname(path)
     const base = basename(path, ext)
@@ -3633,7 +3633,12 @@ function registerHomeIpc(): void {
     for (let i = 1; ; i++) {
       const target = join(dir, `${base} ${tm('copySuffix')}${i === 1 ? '' : ` ${i}`}${ext}`)
       if (existsSync(target)) continue
-      copyFileSync(path, target)
+      try {
+        await atomicWriteFile(target, readFileSync(path))
+      } catch (err) {
+        showErrorDialog(shellWindow, tm('errNewTabFailed'), err)
+        return
+      }
       recordRecentFile(target)
       return
     }
