@@ -160,6 +160,30 @@ export function SignatureDialog({
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const pathsRef = useRef<number[][]>([])
   const curRef = useRef<number[] | null>(null)
+  const dialogRef = useRef<HTMLDivElement>(null)
+  const previouslyFocused = useRef<HTMLElement | null>(null)
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        onCancel()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onCancel])
+
+  useEffect(() => {
+    previouslyFocused.current = document.activeElement as HTMLElement | null
+    const root = dialogRef.current
+    if (root && !root.contains(document.activeElement)) {
+      root.querySelector<HTMLElement>('input, textarea, select, button')?.focus()
+    }
+    return () => {
+      previouslyFocused.current?.focus?.()
+    }
+  }, [])
 
   useEffect(() => {
     let alive = true
@@ -274,7 +298,14 @@ export function SignatureDialog({
 
   return (
     <div className="pdf-modal-mask" onClick={onCancel}>
-      <div className="pdf-modal" onClick={(e) => e.stopPropagation()}>
+      <div
+        ref={dialogRef}
+        className="pdf-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-label={t('signTitle')}
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="pdf-modal-title">{t('signTitle')}</div>
         {saved.length > 0 && (
           <>
@@ -375,11 +406,17 @@ export function SignatureDialog({
               onChange={(e) => void pickImage(e)}
             />
             {processedImg ? (
-              <div className="pdf-sign-imgbox" onClick={() => fileRef.current?.click()}>
+              <button
+                type="button"
+                className="pdf-sign-imgbox"
+                aria-label={t('signAddImage')}
+                onClick={() => fileRef.current?.click()}
+              >
                 <img className="pdf-sign-img" src={processedImg.url} alt="" />
-              </div>
+              </button>
             ) : (
               <button
+                type="button"
                 className="pdf-sign-imgbox pdf-sign-imgbox-empty"
                 onClick={() => fileRef.current?.click()}
               >
