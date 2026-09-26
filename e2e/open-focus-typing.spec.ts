@@ -59,6 +59,16 @@ async function expectViewFocused(app: ElectronApplication, urlPart: string): Pro
     .toBe(true)
 }
 
+async function spareSheetsViewState(app: ElectronApplication): Promise<string | undefined> {
+  return app.evaluate(
+    () => (globalThis as { __genofficeSpareSheetsView?: string }).__genofficeSpareSheetsView,
+  )
+}
+
+async function waitForSpareSheetsView(app: ElectronApplication): Promise<void> {
+  await expect.poll(() => spareSheetsViewState(app), { timeout: 30_000 }).toBe('ready')
+}
+
 test('docs: typing works immediately after opening a file from Home', async () => {
   const scratch = await mkdtemp(join(tmpdir(), 'genoffice-openfocus-e2e-'))
   const docx = join(scratch, 'open-focus.docx')
@@ -94,8 +104,7 @@ test('sheets: typing into the active cell works immediately after opening from H
     env: { GENOFFICE_DEBUG_HOOKS: '1', GENOFFICE_NO_SPARE_VIEW: '' },
   })
   try {
-    // let the spare view mount (scheduled 1.5s after the shell finishes loading)
-    await launched.page.waitForTimeout(2_500)
+    await waitForSpareSheetsView(launched.app)
     await openFromHome(launched.app, launched.page, xlsx)
     const sheets = await waitForPageWithUrl(launched.app, '://sheets/')
     await sheets.waitForFunction(
@@ -105,6 +114,7 @@ test('sheets: typing into the active cell works immediately after opening from H
       null,
       { timeout: 60_000 },
     )
+    await expect.poll(() => spareSheetsViewState(launched.app)).toBe('taken')
     await expectViewFocused(launched.app, '://sheets/')
     await waitForEditableFocus(sheets)
 
