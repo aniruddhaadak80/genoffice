@@ -7,6 +7,8 @@ export const it = {
   saveFailed: 'Salvataggio non riuscito: {error}',
   saveFailedStatus: 'Salvataggio non riuscito',
   exportFailed: 'Esportazione non riuscita',
+  exportSkippedAssets:
+    'Esportato, ma {count} risorse locali non sono state incluse (fogli di stile, script, font)',
   viewPreview: 'Anteprima',
   viewSplit: 'Diviso',
   viewSource: 'Sorgente',

@@ -7,6 +7,8 @@ export const pt = {
   saveFailed: 'Falha ao salvar: {error}',
   saveFailedStatus: 'Falha ao salvar',
   exportFailed: 'Falha na exportação',
+  exportSkippedAssets:
+    'Exportado, mas {count} recursos locais ficaram de fora (folhas de estilo, scripts, fontes)',
   viewPreview: 'Visualizar',
   viewSplit: 'Dividido',
   viewSource: 'Código',

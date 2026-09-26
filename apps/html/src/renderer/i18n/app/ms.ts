@@ -7,6 +7,8 @@ export const ms = {
   saveFailed: 'Gagal menyimpan: {error}',
   saveFailedStatus: 'Gagal menyimpan',
   exportFailed: 'Eksport gagal',
+  exportSkippedAssets:
+    'Dieksport, tetapi {count} aset tempatan tidak disertakan (helaian gaya, skrip, fon)',
   viewPreview: 'Pratonton',
   viewSplit: 'Terbelah',
   viewSource: 'Sumber',

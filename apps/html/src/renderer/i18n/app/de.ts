@@ -7,6 +7,8 @@ export const de = {
   saveFailed: 'Speichern fehlgeschlagen: {error}',
   saveFailedStatus: 'Speichern fehlgeschlagen',
   exportFailed: 'Export fehlgeschlagen',
+  exportSkippedAssets:
+    'Exportiert, aber {count} lokale Ressourcen fehlen (Stylesheets, Skripte, Schriften)',
   viewPreview: 'Vorschau',
   viewSplit: 'Geteilt',
   viewSource: 'Quelltext',

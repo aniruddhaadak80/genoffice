@@ -7,6 +7,8 @@ export const ja = {
   saveFailed: '保存に失敗しました: {error}',
   saveFailedStatus: '保存に失敗しました',
   exportFailed: 'エクスポートに失敗しました',
+  exportSkippedAssets:
+    'エクスポートしましたが、{count} 件のローカルリソース（スタイルシート、スクリプト、フォントなど）は含まれていません',
   viewPreview: 'プレビュー',
   viewSplit: '分割',
   viewSource: 'ソース',

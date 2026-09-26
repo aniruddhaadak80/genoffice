@@ -7,6 +7,8 @@ export const id = {
   saveFailed: 'Gagal menyimpan: {error}',
   saveFailedStatus: 'Gagal menyimpan',
   exportFailed: 'Ekspor gagal',
+  exportSkippedAssets:
+    'Diekspor, tetapi {count} aset lokal tidak disertakan (lembar gaya, skrip, font)',
   viewPreview: 'Pratinjau',
   viewSplit: 'Terpisah',
   viewSource: 'Sumber',

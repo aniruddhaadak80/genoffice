@@ -6,6 +6,7 @@ export const zh = {
   saveFailed: '保存失败：{error}',
   saveFailedStatus: '保存失败',
   exportFailed: '导出失败',
+  exportSkippedAssets: '已导出，但有 {count} 个本地资源未包含（样式表、脚本、字体等）',
   viewPreview: '预览',
   viewSplit: '分栏',
   viewSource: '源码',

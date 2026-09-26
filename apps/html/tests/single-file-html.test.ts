@@ -2,7 +2,13 @@ import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { inlineImagesForSingleFile, singleFileExportBaseName } from '../src/main/single-file-html'
+import {
+  inlineImagesForSingleFile,
+  localScriptSources,
+  localStylesheetSources,
+  omittedSingleFileSources,
+  singleFileExportBaseName,
+} from '../src/main/single-file-html'
 
 const PNG_BASE64 =
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
@@ -21,6 +27,9 @@ beforeAll(async () => {
   // "save page as, complete" assets carry no extension: the signature types them
   await writeFile(join(dir, 'assets', 'photo'), png)
   await writeFile(join(dir, 'outside.png'), png)
+  await writeFile(join(dir, 'style.css'), '.a { color: red; }', 'utf8')
+  await writeFile(join(dir, 'app.js'), 'console.log(1)', 'utf8')
+  await writeFile(join(dir, 'inter.woff2'), Buffer.from([0x77, 0x4f, 0x46, 0x32, 0x00, 0x01]))
 })
 
 afterAll(async () => {
@@ -103,6 +112,103 @@ describe('inlineImagesForSingleFile', () => {
     expect(r.html).toContain(`\t<img src="${PNG_DATA_URL}" alt="tab">`)
     // Markdown image syntax is literal text in an HTML document
     expect(r.html).toContain('<p>![not an image](assets/logo.png)</p>')
+  })
+})
+
+describe('assets the single-file export cannot carry', () => {
+  it('reports a local stylesheet instead of dropping it silently', async () => {
+    const html = [
+      '<html><head><link rel="stylesheet" href="style.css"></head>',
+      '<body><p>text</p></body></html>',
+    ].join('\n')
+    const r = await inlineImagesForSingleFile(html, docPath)
+    expect(r.skipped).toEqual(['style.css'])
+    expect(r.inlined).toBe(0)
+    expect(r.html).toContain('<link rel="stylesheet" href="style.css">')
+  })
+
+  it('reports a local script', async () => {
+    const html = '<html><body><script src="app.js"></script></body></html>'
+    const r = await inlineImagesForSingleFile(html, docPath)
+    expect(r.skipped).toEqual(['app.js'])
+    expect(r.html).toContain('<script src="app.js"></script>')
+  })
+
+  it('reports a font referenced from CSS', async () => {
+    const html = [
+      '<html><head><style>',
+      "@font-face { src: url('inter.woff2'); }",
+      '</style></head><body></body></html>',
+    ].join('\n')
+    const r = await inlineImagesForSingleFile(html, docPath)
+    expect(r.skipped).toEqual(['inter.woff2'])
+    expect(r.html).toContain("url('inter.woff2')")
+  })
+
+  it('reports every omitted local asset in one export', async () => {
+    const html = [
+      '<html><head>',
+      '<link rel="stylesheet" href="style.css">',
+      '<link rel="icon" href="assets/logo.png">',
+      '</head><body>',
+      '<script src="app.js"></script>',
+      '<img src="assets/logo.png" alt="inlined">',
+      '</body></html>',
+    ].join('\n')
+    const r = await inlineImagesForSingleFile(html, docPath)
+    expect(r.inlined).toBe(1)
+    expect(r.skipped.sort()).toEqual(['app.js', 'style.css'])
+    expect(r.html).toContain(PNG_DATA_URL)
+  })
+
+  it('does not report external or data: stylesheets and scripts', async () => {
+    const html = [
+      '<html><head>',
+      '<link rel="stylesheet" href="https://cdn.example/site.css">',
+      '<link rel="stylesheet" href="//cdn.example/site2.css">',
+      '</head><body><script src="https://cdn.example/app.js"></script></body></html>',
+    ].join('\n')
+    const r = await inlineImagesForSingleFile(html, docPath)
+    expect(r.skipped).toEqual([])
+    expect(r.html).toBe(html)
+  })
+
+  it('ignores links that are not stylesheets', async () => {
+    const html = '<html><head><link rel="preload" href="style.css" as="style"></head></html>'
+    const r = await inlineImagesForSingleFile(html, docPath)
+    expect(r.skipped).toEqual([])
+  })
+
+  it('reports nothing for an unsaved document', async () => {
+    const html = '<link rel="stylesheet" href="style.css"><script src="app.js"></script>'
+    const r = await inlineImagesForSingleFile(html, null)
+    expect(r.skipped).toEqual([])
+    expect(r.html).toBe(html)
+  })
+})
+
+describe('local asset scanners', () => {
+  it('finds local stylesheets regardless of attribute order or quote style', () => {
+    expect(localStylesheetSources('<link href="a.css" rel="stylesheet">')).toEqual(['a.css'])
+    expect(localStylesheetSources("<link rel='stylesheet' href='b.css'>")).toEqual(['b.css'])
+    expect(localStylesheetSources('<link rel=stylesheet href=c.css>')).toEqual(['c.css'])
+    expect(localStylesheetSources('<link rel="stylesheet">')).toEqual([])
+  })
+
+  it('finds local scripts regardless of quote style', () => {
+    expect(localScriptSources('<script src="a.js"></script>')).toEqual(['a.js'])
+    expect(localScriptSources("<script defer src='b.js'>")).toEqual(['b.js'])
+    expect(localScriptSources('<script src=c.js>')).toEqual(['c.js'])
+    expect(localScriptSources('<script>inline()</script>')).toEqual([])
+  })
+
+  it('deduplicates a source referenced more than once', () => {
+    const html = [
+      '<link rel="stylesheet" href="a.css">',
+      '<link rel="stylesheet" href="a.css">',
+      '<script src="a.css"></script>',
+    ].join('')
+    expect(omittedSingleFileSources(html)).toEqual(['a.css'])
   })
 })
 

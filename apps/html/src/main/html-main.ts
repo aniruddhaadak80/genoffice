@@ -1686,10 +1686,12 @@ function registerHtmlIpc(): void {
         return { ok: false, error: 'single-file export cannot overwrite the open document' }
       }
       try {
-        const { html } = await inlineImagesForSingleFile(request.html, docPath)
+        const { html, skipped } = await inlineImagesForSingleFile(request.html, docPath)
         await writeFile(picked.filePath, html, 'utf8')
         if (!isHeadlessMode()) shell.showItemInFolder(picked.filePath)
-        return { ok: true, path: picked.filePath }
+        return skipped.length > 0
+          ? { ok: true, path: picked.filePath, skipped }
+          : { ok: true, path: picked.filePath }
       } catch (err) {
         return { ok: false, error: err instanceof Error ? err.message : String(err) }
       }

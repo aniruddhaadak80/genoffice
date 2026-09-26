@@ -7,6 +7,8 @@ export const ko = {
   saveFailed: '저장 실패: {error}',
   saveFailedStatus: '저장 실패',
   exportFailed: '내보내기 실패',
+  exportSkippedAssets:
+    '내보냈지만 로컬 리소스 {count}개(스타일시트, 스크립트, 글꼴 등)가 포함되지 않았습니다',
   viewPreview: '미리보기',
   viewSplit: '분할',
   viewSource: '소스',

@@ -7,6 +7,8 @@ export const ar = {
   saveFailed: 'فشل الحفظ: {error}',
   saveFailedStatus: 'فشل الحفظ',
   exportFailed: 'فشل التصدير',
+  exportSkippedAssets:
+    'تم التصدير، لكن لم يتم تضمين {count} من الموارد المحلية (أوراق الأنماط والبرامج النصية والخطوط)',
   viewPreview: 'معاينة',
   viewSplit: 'مقسم',
   viewSource: 'المصدر',

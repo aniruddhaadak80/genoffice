@@ -7,6 +7,8 @@ export const pl = {
   saveFailed: 'Zapis nie powiódł się: {error}',
   saveFailedStatus: 'Zapis nie powiódł się',
   exportFailed: 'Eksport nie powiódł się',
+  exportSkippedAssets:
+    'Wyeksportowano, ale pominięto {count} zasobów lokalnych (arkusze stylów, skrypty, czcionki)',
   viewPreview: 'Podgląd',
   viewSplit: 'Podzielony',
   viewSource: 'Źródło',

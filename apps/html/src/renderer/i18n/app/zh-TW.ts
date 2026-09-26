@@ -7,6 +7,7 @@ export const zhTW = {
   saveFailed: '儲存失敗：{error}',
   saveFailedStatus: '儲存失敗',
   exportFailed: '匯出失敗',
+  exportSkippedAssets: '已匯出，但有 {count} 個本機資源未包含（樣式表、指令碼、字型等）',
   viewPreview: '預覽',
   viewSplit: '分欄',
   viewSource: '原始碼',

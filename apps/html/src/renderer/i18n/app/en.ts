@@ -7,6 +7,8 @@ export const en = {
   saveFailed: 'Save failed: {error}',
   saveFailedStatus: 'Save failed',
   exportFailed: 'Export failed',
+  exportSkippedAssets:
+    'Exported, but {count} local assets were left out (stylesheets, scripts, fonts)',
   viewPreview: 'Preview',
   viewSplit: 'Split',
   viewSource: 'Source',

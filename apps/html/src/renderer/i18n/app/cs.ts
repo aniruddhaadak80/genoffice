@@ -7,6 +7,7 @@ export const cs = {
   saveFailed: 'Uložení se nezdařilo: {error}',
   saveFailedStatus: 'Uložení se nezdařilo',
   exportFailed: 'Export se nezdařil',
+  exportSkippedAssets: 'Exportováno, ale vynecháno {count} místních zdrojů (styly, skripty, písmo)',
   viewPreview: 'Náhled',
   viewSplit: 'Rozdělit',
   viewSource: 'Zdroj',

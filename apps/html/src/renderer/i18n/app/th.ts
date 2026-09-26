@@ -7,6 +7,8 @@ export const th = {
   saveFailed: 'บันทึกไม่สำเร็จ: {error}',
   saveFailedStatus: 'บันทึกไม่สำเร็จ',
   exportFailed: 'ส่งออกไม่สำเร็จ',
+  exportSkippedAssets:
+    'ส่งออกแล้ว แต่ไม่ได้รวมทรัพยากรในเครื่อง {count} รายการ (สไตล์ชีต สคริปต์ แบบอักษร)',
   viewPreview: 'ตัวอย่าง',
   viewSplit: 'แบ่งหน้าจอ',
   viewSource: 'ซอร์ส',

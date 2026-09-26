@@ -7,6 +7,8 @@ export const ru = {
   saveFailed: 'Не удалось сохранить: {error}',
   saveFailedStatus: 'Не удалось сохранить',
   exportFailed: 'Не удалось экспортировать',
+  exportSkippedAssets:
+    'Экспортировано, но не включено локальных ресурсов: {count} (таблицы стилей, скрипты, шрифты)',
   viewPreview: 'Просмотр',
   viewSplit: 'Разделить',
   viewSource: 'Исходник',
