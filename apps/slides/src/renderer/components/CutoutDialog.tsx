@@ -161,10 +161,13 @@ export function CutoutDialog({ dataUrl, onApply, onCancel }: Props) {
     <div className="modal-backdrop" onClick={onCancel}>
       <div
         className="modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="dlg-cutout"
         style={{ maxWidth: PREVIEW_MAX + 48 }}
         onClick={(e) => e.stopPropagation()}
       >
-        <h2>{t('paneCutoutTitle')}</h2>
+        <h2 id="dlg-cutout">{t('paneCutoutTitle')}</h2>
         <div
           style={{
             ...CHECKERBOARD,

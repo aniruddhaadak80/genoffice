@@ -302,8 +302,14 @@ export function ChartTypeDialog({ current, onConfirm, onClose }: Props) {
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal chart-type-modal" onClick={(e) => e.stopPropagation()}>
-        <h2>{t('ribbonChangeChartType')}</h2>
+      <div
+        className="modal chart-type-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="dlg-chart-type"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h2 id="dlg-chart-type">{t('ribbonChangeChartType')}</h2>
         <div className="chart-type-grid">
           {KINDS.map((k) => (
             <button

@@ -70,8 +70,14 @@ export function ChartDataDialog({ init, onConfirm, onClose }: Props) {
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal chart-data-modal" onClick={(e) => e.stopPropagation()}>
-        <h2>{t('paneChartEditTitle')}</h2>
+      <div
+        className="modal chart-data-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="dlg-chart-data"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h2 id="dlg-chart-data">{t('paneChartEditTitle')}</h2>
         <div className="chart-data-scroll">
           <table className="chart-data-grid">
             <thead>

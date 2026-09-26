@@ -80,8 +80,14 @@ export function ZoomDialog({
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal zoom-dlg" onClick={(e) => e.stopPropagation()}>
-        <h2>{t(TITLE_KEY[mode])}</h2>
+      <div
+        className="modal zoom-dlg"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="dlg-zoom"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h2 id="dlg-zoom">{t(TITLE_KEY[mode])}</h2>
         <div className="zoom-dlg-grid">
           {items.map((item) => (
             <button
