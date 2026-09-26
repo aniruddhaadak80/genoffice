@@ -1,8 +1,16 @@
 import { memo, useEffect, useMemo, useRef, useState } from 'react'
+import type { KeyboardEvent as ReactKeyboardEvent } from 'react'
 import type { Node as PmNode } from '@tiptap/pm/model'
 import type { CommentInfo } from '@genoffice/docx-engine'
 import { useI18n } from '../i18n/locale'
 import { IconComment, IconPencil, IconTrash } from './icons'
+
+function activateOnKey(e: ReactKeyboardEvent, run: () => void): void {
+  if (e.key !== 'Enter' && e.key !== ' ') return
+  e.preventDefault()
+  e.stopPropagation()
+  run()
+}
 
 function formatDate(iso?: string): string {
   if (!iso) return ''
@@ -161,12 +169,7 @@ export const CommentsPanel = memo(function CommentsPanel({
             e.stopPropagation()
             startEdit(c)
           }}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              e.stopPropagation()
-              startEdit(c)
-            }
-          }}
+          onKeyDown={(e) => activateOnKey(e, () => startEdit(c))}
         >
           <IconPencil size={13} />
         </span>
@@ -181,13 +184,12 @@ export const CommentsPanel = memo(function CommentsPanel({
             cancelEditIn([c.id, ...replies.map((r) => r.id)])
             onDelete(c.id)
           }}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              e.stopPropagation()
+          onKeyDown={(e) =>
+            activateOnKey(e, () => {
               cancelEditIn([c.id, ...replies.map((r) => r.id)])
               onDelete(c.id)
-            }
-          }}
+            })
+          }
         >
           <IconTrash size={13} />
         </span>
@@ -247,6 +249,7 @@ export const CommentsPanel = memo(function CommentsPanel({
                   e.stopPropagation()
                   startEdit(r)
                 }}
+                onKeyDown={(e) => activateOnKey(e, () => startEdit(r))}
               >
                 <IconPencil size={12} />
               </span>
@@ -261,6 +264,12 @@ export const CommentsPanel = memo(function CommentsPanel({
                   cancelEditIn([r.id])
                   onDelete(r.id)
                 }}
+                onKeyDown={(e) =>
+                  activateOnKey(e, () => {
+                    cancelEditIn([r.id])
+                    onDelete(r.id)
+                  })
+                }
               >
                 <IconTrash size={12} />
               </span>
