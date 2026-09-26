@@ -30,6 +30,9 @@ import {
   applySectionSettings,
   applySectionStartType,
   applyTitlePg,
+  hfReferenceRId,
+  hfReferenceTags,
+  hfReferenceType,
 } from './section'
 import {
   CUSTOM_XML_REL_TYPE,
@@ -728,14 +731,15 @@ export async function saveDocx(
     watermarkOnly = false,
   ) => {
     if (hf === undefined) return
-    const refs = trailingSectPr.match(new RegExp(`<w:${kind}Reference[^>]*/>`, 'g')) ?? []
+    const refs = hfReferenceTags(trailingSectPr, kind)
     // non-schema w:type="odd" and untyped references count as default (mirrors parse)
     const existing =
-      refs.find((r) => r.includes(`w:type="${hfType}"`)) ??
+      refs.find((r) => hfReferenceType(r) === hfType) ??
       (hfType === 'default'
-        ? (refs.find((r) => r.includes('w:type="odd"')) ?? refs.find((r) => !/w:type="/.test(r)))
+        ? (refs.find((r) => hfReferenceType(r) === 'odd') ??
+          refs.find((r) => hfReferenceType(r) === undefined))
         : undefined)
-    const rId = existing ? /r:id="([^"]+)"/.exec(existing)?.[1] : undefined
+    const rId = existing ? hfReferenceRId(existing) : undefined
     const target = rId ? relTargets.get(rId) : undefined
     if (target) {
       const path = resolveRelationshipTargetPath(docPath, target)
