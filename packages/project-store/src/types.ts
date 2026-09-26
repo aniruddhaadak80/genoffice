@@ -84,6 +84,15 @@ export interface ProjectIndex {
    * Old data without this map falls back to sha256(path) derivation.
    */
   chatIdByPath?: Record<string, string>
+  /**
+   * Absolute path → identity of the file that mapping was made for
+   * (inode and creation time). A different value than the file's current
+   * identity means the path was reused by an unrelated file, so a fresh chatId
+   * is minted instead of handing the previous document's history to it.
+   * Absent for data written before this was tracked; such a mapping adopts the
+   * identity of the file it finds.
+   */
+  fileIncarnationByPath?: Record<string, string>
 }
 
 export interface ChatMeta {

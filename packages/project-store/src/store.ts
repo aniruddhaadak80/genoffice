@@ -108,6 +108,21 @@ function normalizeChatLimit(limit: number): number {
   return floored
 }
 
+/**
+ * Identity of the file currently at a path: inode plus creation time. Both are
+ * needed because a deleted file's inode can be reused; mtime and size are
+ * deliberately not used, since saving a document changes them without making it
+ * a different file.
+ */
+function fileIncarnation(filePath: string): string {
+  try {
+    const st = statSync(filePath)
+    return `${st.ino}:${st.birthtimeMs}`
+  } catch {
+    return 'absent'
+  }
+}
+
 function readJson<T>(filePath: string): T | null {
   try {
     if (!existsSync(filePath)) return null
@@ -158,6 +173,38 @@ export class ProjectStore {
   private chatPath(projectId: string, chatId: string): string {
     assertSafeId(chatId, 'chatId')
     return join(this.chatsDir(projectId), `${chatId}.jsonl`)
+  }
+
+  /** Chat id for a path whose file identity changed, so it cannot collide with the old one. */
+  private static chatIdForIncarnation(filePath: string, incarnation: string): string {
+    return createHash('sha256').update(`${filePath} ${incarnation}`).digest('hex').slice(0, 16)
+  }
+
+  /**
+   * The chat id for a path, registering it on first use and minting a new one
+   * when the path now holds a different file than the mapping was made for, so a
+   * reused path never inherits the previous document's transcript. Mutates index;
+   * callers must persist it.
+   */
+  private chatIdForPathLocked(index: ProjectIndex, filePath: string): string {
+    const incarnation = fileIncarnation(filePath)
+    const recorded = index.fileIncarnationByPath?.[filePath]
+    const register = (chatId: string): string => {
+      index.chatIdByPath = { ...(index.chatIdByPath ?? {}), [filePath]: chatId }
+      index.fileIncarnationByPath = {
+        ...(index.fileIncarnationByPath ?? {}),
+        [filePath]: incarnation,
+      }
+      return chatId
+    }
+
+    const existing = index.chatIdByPath?.[filePath]
+    if (existing === undefined) return register(ProjectStore.chatIdForFile(filePath))
+    // A mapping written before identities were tracked keeps its chat and adopts
+    // the file it finds, so upgrading does not discard anyone's history.
+    if (recorded === undefined) return register(existing)
+    if (recorded === incarnation) return existing
+    return register(ProjectStore.chatIdForIncarnation(filePath, incarnation))
   }
 
   // ── seq counters (in-memory cache, initialized from JSONL line count on first read) ──
@@ -271,10 +318,12 @@ export class ProjectStore {
     return createHash('sha256').update(filePath).digest('hex').slice(0, 16)
   }
 
-  /** Gets the chatId from the mapping; falls back to the path hash without registering. */
+  /** Gets the chatId for the path, registering it and minting a new one if the path was reused. */
   chatIdForPath(filePath: string): string {
     const index = this.readIndex()
-    return index.chatIdByPath?.[filePath] ?? ProjectStore.chatIdForFile(filePath)
+    const chatId = this.chatIdForPathLocked(index, filePath)
+    this.writeIndex(index)
+    return chatId
   }
 
   /**
@@ -286,10 +335,7 @@ export class ProjectStore {
   resolveChatForFile(filePath: string): { projectId: string; chatId: string } {
     const projectId = this.resolveProjectForFile(filePath)
     const index = this.readIndex()
-    const mapped = index.chatIdByPath?.[filePath]
-    if (mapped) return { projectId, chatId: mapped }
-    const chatId = ProjectStore.chatIdForFile(filePath)
-    index.chatIdByPath = { ...(index.chatIdByPath ?? {}), [filePath]: chatId }
+    const chatId = this.chatIdForPathLocked(index, filePath)
     this.writeIndex(index)
     return { projectId, chatId }
   }
@@ -322,7 +368,15 @@ export class ProjectStore {
     // Old data without a mapping: the chatId was derived from the old path hash; register the mapping under that hash on rename so history keeps up
     const chatId = index.chatIdByPath?.[oldPath] ?? ProjectStore.chatIdForFile(oldPath)
     if (index.chatIdByPath?.[oldPath] !== undefined) delete index.chatIdByPath[oldPath]
+    if (index.fileIncarnationByPath?.[oldPath] !== undefined)
+      delete index.fileIncarnationByPath[oldPath]
     index.chatIdByPath = { ...(index.chatIdByPath ?? {}), [newPath]: chatId }
+    // The renamed file keeps its history, so the mapping moves to the new key
+    // carrying the identity the new path now has rather than the old one.
+    index.fileIncarnationByPath = {
+      ...(index.fileIncarnationByPath ?? {}),
+      [newPath]: fileIncarnation(newPath),
+    }
     this.writeIndex(index)
   }
 
@@ -784,12 +838,18 @@ export class ProjectStore {
   getProjectTimeline(projectId: string, limit = 20): TimelineEntry[] {
     const boundedLimit = normalizeTimelineLimit(limit)
     const index = this.readIndex()
+    // Resolving through the store keeps a reused path from being attributed the
+    // transcript of the file that used to live there.
+    for (const [filePath, pid] of Object.entries(index.fileMap)) {
+      if (pid === projectId) this.chatIdForPathLocked(index, filePath)
+    }
+    this.writeIndex(index)
     // Build the reverse chatId → filePath map (files in this project only); mapping wins, old data falls back to the path hash
     const chatToFile = new Map<string, string>()
     for (const [filePath, pid] of Object.entries(index.fileMap)) {
       if (pid === projectId) {
-        const chatId = index.chatIdByPath?.[filePath] ?? ProjectStore.chatIdForFile(filePath)
-        chatToFile.set(chatId, filePath)
+        const chatId = index.chatIdByPath?.[filePath] ?? ''
+        if (chatId) chatToFile.set(chatId, filePath)
       }
     }
 
