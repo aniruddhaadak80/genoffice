@@ -26,6 +26,7 @@ export {
   type ColorSwatch,
 } from './color-picker'
 export { installScreenTips } from './screentip'
+export { trapTab, useModalKeys } from './modal-keys'
 export {
   installPopoverDismiss,
   useDismissablePopover,

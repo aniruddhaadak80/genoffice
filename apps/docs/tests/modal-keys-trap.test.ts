@@ -1,5 +1,11 @@
-import { describe, expect, it } from 'vitest'
-import { trapTab } from '../src/renderer/components/modal-keys'
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
+import { act, createElement } from 'react'
+import { createRoot, type Root } from 'react-dom/client'
+import { trapTab, useModalKeys } from '../src/renderer/components/modal-keys'
+
+beforeAll(() => {
+  ;(globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true
+})
 
 function keydown(
   key: string,
@@ -76,5 +82,111 @@ describe('trapTab', () => {
     } finally {
       root.remove()
     }
+  })
+})
+
+function TestModal({ onClose }: { onClose: () => void }) {
+  const modalKeys = useModalKeys(onClose)
+  return createElement(
+    'div',
+    {
+      ref: modalKeys.ref,
+      role: 'dialog',
+      'aria-label': 'test',
+      onKeyDown: modalKeys.onKeyDown,
+    },
+    createElement('input', { className: 'first' }),
+    createElement('button', { className: 'last' }, 'ok'),
+  )
+}
+
+let root: Root | null = null
+let host: HTMLDivElement | null = null
+
+afterEach(() => {
+  if (root) {
+    act(() => root?.unmount())
+    root = null
+  }
+  host?.remove()
+  host = null
+})
+
+function open(onClose: () => void): HTMLElement {
+  host = document.createElement('div')
+  document.body.appendChild(host)
+  root = createRoot(host)
+  act(() => root?.render(createElement(TestModal, { onClose })))
+  return host
+}
+
+describe('useModalKeys', () => {
+  it('puts focus on the first control when the modal opens', () => {
+    open(vi.fn())
+    expect(document.activeElement).toBe(host!.querySelector('.first'))
+  })
+
+  it('leaves an autoFocused control alone', () => {
+    function AutoFocusModal({ onClose }: { onClose: () => void }) {
+      const modalKeys = useModalKeys(onClose)
+      return createElement(
+        'div',
+        { ref: modalKeys.ref, onKeyDown: modalKeys.onKeyDown },
+        createElement('input', { className: 'auto', autoFocus: true }),
+      )
+    }
+    host = document.createElement('div')
+    document.body.appendChild(host)
+    root = createRoot(host)
+    act(() => root?.render(createElement(AutoFocusModal, { onClose: vi.fn() })))
+    expect(document.activeElement).toBe(host!.querySelector('.auto'))
+  })
+
+  it('closes on Escape and stops it before global listeners', () => {
+    const onClose = vi.fn()
+    const modal = open(onClose)
+    const dialog = modal.querySelector<HTMLElement>('[role="dialog"]')!
+    const event = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })
+    act(() => {
+      dialog.dispatchEvent(event)
+    })
+    expect(onClose).toHaveBeenCalledTimes(1)
+    expect(event.defaultPrevented).toBe(true)
+  })
+
+  it('cycles Tab on the last control back to the first', () => {
+    const modal = open(vi.fn())
+    const dialog = modal.querySelector<HTMLElement>('[role="dialog"]')!
+    const last = modal.querySelector<HTMLElement>('.last')!
+    act(() => {
+      last.focus()
+    })
+    const event = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true })
+    act(() => {
+      dialog.dispatchEvent(event)
+    })
+    expect(event.defaultPrevented).toBe(true)
+    expect(document.activeElement).toBe(modal.querySelector('.first'))
+  })
+
+  it('leaves other keys and mid-list tabs to the browser', () => {
+    const onClose = vi.fn()
+    const modal = open(onClose)
+    const dialog = modal.querySelector<HTMLElement>('[role="dialog"]')!
+    const first = modal.querySelector<HTMLElement>('.first')!
+    act(() => {
+      first.focus()
+    })
+    const tab = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true })
+    act(() => {
+      dialog.dispatchEvent(tab)
+    })
+    const enter = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })
+    act(() => {
+      dialog.dispatchEvent(enter)
+    })
+    expect(tab.defaultPrevented).toBe(false)
+    expect(enter.defaultPrevented).toBe(false)
+    expect(onClose).not.toHaveBeenCalled()
   })
 })
