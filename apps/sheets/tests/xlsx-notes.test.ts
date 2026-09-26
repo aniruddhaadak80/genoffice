@@ -38,6 +38,33 @@ const NOTES: SheetNoteState[] = [
   },
 ]
 
+async function kitchenSinkWithControlThenNote(): Promise<Buffer> {
+  const zip = await JSZip.loadAsync(await buildKitchenSinkFixture())
+  zip.file(
+    'xl/drawings/vmlDrawing1.vml',
+    '<xml xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel">' +
+      '<v:shape id="_x0000_s1025" type="#_x0000_t201" style="position:absolute"/>' +
+      '<v:shape id="_x0000_s1026" type="#_x0000_t202">' +
+      '<x:ClientData ObjectType="Note"><x:Anchor>2, 15, 0, 2, 4, 15, 4, 2</x:Anchor>' +
+      '<x:Row>0</x:Row><x:Column>1</x:Column></x:ClientData></v:shape>' +
+      '</xml>',
+  )
+  return zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' })
+}
+
+describe('note removal', () => {
+  it('removes the note shape and keeps the self-closing control before it', async () => {
+    const plan = await planNotes(
+      [{ sheetName: 'Data', notes: [] }],
+      await kitchenSinkWithControlThenNote(),
+    )
+    const vml = plan.replaced.get('xl/drawings/vmlDrawing1.vml')
+    expect(vml).toBeDefined()
+    expect(vml).toContain('<v:shape id="_x0000_s1025"')
+    expect(vml).not.toContain('ObjectType="Note"')
+  })
+})
+
 describe('note snapshots', () => {
   it('creates the comments part with authors, refs, and escaped text', async () => {
     const plan = await planNotes(NOTES)
