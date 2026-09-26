@@ -18,6 +18,9 @@ export {
 export { applyAiPanelPrefs, useAiPanelPrefs, aiPanelWidthAtPointer } from './ai-panel-prefs-store'
 export {
   ColorPicker,
+  COLOR_GRID_COLUMNS,
+  colorGridStep,
+  rovingTabIndex,
   THEME_COLORS,
   THEME_COLOR_SHADES,
   STANDARD_COLORS,

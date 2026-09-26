@@ -1,4 +1,5 @@
-import type { InputHTMLAttributes, ReactElement } from 'react'
+import { useRef, useState } from 'react'
+import type { InputHTMLAttributes, KeyboardEvent as ReactKeyboardEvent, ReactElement } from 'react'
 
 /** One named palette entry; `name` is the English color name (tooltip fallback). */
 export interface ColorSwatch {
@@ -130,6 +131,59 @@ export interface ColorPickerProps {
 
 const normalizeHex = (hex: string): string => `#${hex.replace(/^#/, '').toUpperCase()}`
 
+export const COLOR_GRID_COLUMNS = 10
+
+export function colorGridStep(
+  key: string,
+  index: number,
+  count: number,
+  columns: number = COLOR_GRID_COLUMNS,
+): number | null {
+  if (index < 0 || count <= 0 || columns <= 0) return null
+  const row = Math.floor(index / columns)
+  const col = index % columns
+  const lastRow = Math.floor((count - 1) / columns)
+  switch (key) {
+    case 'ArrowRight':
+      return col + 1 < columns && index + 1 < count ? index + 1 : null
+    case 'ArrowLeft':
+      return col > 0 ? index - 1 : null
+    case 'ArrowDown':
+      return row < lastRow ? index + columns : null
+    case 'ArrowUp':
+      return row > 0 ? index - columns : null
+    case 'Home':
+      return col === 0 ? null : row * columns
+    case 'End': {
+      const end = Math.min(row * columns + columns, count) - 1
+      return end === index ? null : end
+    }
+    default:
+      return null
+  }
+}
+
+export function rovingTabIndex(
+  active: number | null,
+  index: number,
+  selectedIndex: number,
+): 0 | -1 {
+  const stop = active ?? (selectedIndex >= 0 ? selectedIndex : 0)
+  return stop === index ? 0 : -1
+}
+
+interface SwatchCell {
+  hex: string
+  title: string
+  key: string
+}
+
+interface SwatchGroup {
+  active: number | null
+  refs: React.MutableRefObject<(HTMLButtonElement | null)[]>
+  selected: number
+}
+
 /** The shared Word-style color picker panel: Automatic/None, theme colors with
     tint/shade grid, standard colors and a "More Colors…" native picker entry.
     Callers own the dropdown open state and anchor positioning (via className). */
@@ -144,17 +198,87 @@ export function ColorPicker({
   const current = value ? normalizeHex(value) : null
   const isSelected = (hex: string): boolean => current === `#${hex}`
 
-  const swatch = (hex: string, title: string, key?: string): ReactElement => (
+  const themeCells: SwatchCell[] = [
+    ...THEME_COLORS.map((c) => ({
+      hex: c.hex,
+      title: strings.colorName?.(c) ?? c.name,
+      key: c.hex,
+    })),
+    ...THEME_COLOR_SHADES.flatMap((row, r) =>
+      row.map((hex, c) => ({
+        hex,
+        title: strings.shadeTip?.(r + 1, c + 1) ?? `#${hex}`,
+        key: `${r}-${c}-${hex}`,
+      })),
+    ),
+  ]
+  const standardCells: SwatchCell[] = STANDARD_COLORS.map((c) => ({
+    hex: c.hex,
+    title: strings.colorName?.(c) ?? c.name,
+    key: c.hex,
+  }))
+  const recentCells: SwatchCell[] = (recentColors ?? []).map((hex, i) => {
+    const bare = hex.replace(/^#/, '').toUpperCase()
+    return { hex: bare, title: `#${bare}`, key: `recent-${i}-${bare}` }
+  })
+  const showRecent = Boolean(strings.recentColors) && recentCells.length > 0
+
+  const [themeActive, setThemeActive] = useState<number | null>(null)
+  const [standardActive, setStandardActive] = useState<number | null>(null)
+  const [recentActive, setRecentActive] = useState<number | null>(null)
+  const themeRefs = useRef<(HTMLButtonElement | null)[]>([])
+  const standardRefs = useRef<(HTMLButtonElement | null)[]>([])
+  const recentRefs = useRef<(HTMLButtonElement | null)[]>([])
+
+  const swatch = (cell: SwatchCell, index: number, group: SwatchGroup): ReactElement => (
     <button
-      key={key ?? hex}
+      key={cell.key}
+      ref={(el) => {
+        group.refs.current[index] = el
+      }}
       type="button"
-      className={`gcp-swatch ${isSelected(hex) ? 'selected' : ''}`}
-      title={title}
-      style={{ background: `#${hex}` }}
+      role="option"
+      aria-selected={isSelected(cell.hex)}
+      tabIndex={rovingTabIndex(group.active, index, group.selected)}
+      className={`gcp-swatch ${isSelected(cell.hex) ? 'selected' : ''}`}
+      title={cell.title}
+      style={{ background: `#${cell.hex}` }}
       onMouseDown={(e) => e.preventDefault()}
-      onClick={() => onPick(`#${hex}`)}
+      onClick={() => onPick(`#${cell.hex}`)}
     />
   )
+
+  const themeGroup: SwatchGroup = {
+    active: themeActive,
+    refs: themeRefs,
+    selected: themeCells.findIndex((c) => isSelected(c.hex)),
+  }
+  const standardGroup: SwatchGroup = {
+    active: standardActive,
+    refs: standardRefs,
+    selected: standardCells.findIndex((c) => isSelected(c.hex)),
+  }
+  const recentGroup: SwatchGroup = {
+    active: recentActive,
+    refs: recentRefs,
+    selected: recentCells.findIndex((c) => isSelected(c.hex)),
+  }
+
+  const onGridKeyDown =
+    (
+      refs: React.MutableRefObject<(HTMLButtonElement | null)[]>,
+      setActive: (index: number) => void,
+    ) =>
+    (e: ReactKeyboardEvent<HTMLDivElement>): void => {
+      const pressed = (e.target as Element | null)?.closest('button') ?? null
+      const from = refs.current.indexOf(pressed as HTMLButtonElement)
+      const next = colorGridStep(e.key, from, refs.current.length)
+      if (next === null) return
+      e.preventDefault()
+      e.stopPropagation()
+      setActive(next)
+      refs.current[next]?.focus()
+    }
 
   return (
     <div className={`gcp-palette${className ? ` ${className}` : ''}`}>
@@ -169,28 +293,40 @@ export function ColorPicker({
         </button>
       )}
       <div className="gcp-section-title">{strings.themeColors}</div>
-      <div className="gcp-theme-base">
-        {THEME_COLORS.map((c) => swatch(c.hex, strings.colorName?.(c) ?? c.name))}
-      </div>
-      <div className="gcp-theme-shades">
-        {THEME_COLOR_SHADES.flatMap((row, r) =>
-          row.map((hex, c) =>
-            swatch(hex, strings.shadeTip?.(r + 1, c + 1) ?? `#${hex}`, `${r}-${c}-${hex}`),
-          ),
-        )}
+      <div
+        className="gcp-theme"
+        role="listbox"
+        aria-label={strings.themeColors}
+        onKeyDown={onGridKeyDown(themeRefs, setThemeActive)}
+      >
+        <div className="gcp-theme-base">
+          {themeCells.slice(0, THEME_COLORS.length).map((cell, i) => swatch(cell, i, themeGroup))}
+        </div>
+        <div className="gcp-theme-shades">
+          {themeCells
+            .slice(THEME_COLORS.length)
+            .map((cell, i) => swatch(cell, THEME_COLORS.length + i, themeGroup))}
+        </div>
       </div>
       <div className="gcp-section-title">{strings.standardColors}</div>
-      <div className="gcp-standard-row">
-        {STANDARD_COLORS.map((c) => swatch(c.hex, strings.colorName?.(c) ?? c.name))}
+      <div
+        className="gcp-standard-row"
+        role="listbox"
+        aria-label={strings.standardColors}
+        onKeyDown={onGridKeyDown(standardRefs, setStandardActive)}
+      >
+        {standardCells.map((cell, i) => swatch(cell, i, standardGroup))}
       </div>
-      {strings.recentColors && recentColors && recentColors.length > 0 && (
+      {showRecent && (
         <>
           <div className="gcp-section-title">{strings.recentColors}</div>
-          <div className="gcp-standard-row">
-            {recentColors.map((hex, i) => {
-              const bare = hex.replace(/^#/, '').toUpperCase()
-              return swatch(bare, `#${bare}`, `recent-${i}-${bare}`)
-            })}
+          <div
+            className="gcp-standard-row"
+            role="listbox"
+            aria-label={strings.recentColors}
+            onKeyDown={onGridKeyDown(recentRefs, setRecentActive)}
+          >
+            {recentCells.map((cell, i) => swatch(cell, i, recentGroup))}
           </div>
         </>
       )}
