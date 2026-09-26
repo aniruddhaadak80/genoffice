@@ -1132,6 +1132,46 @@ describe('AgentLoop compaction', () => {
     expect(onDone).toHaveBeenCalledWith({ text: 'done', cancelled: false, turnLimit: false })
   })
 
+  it('a tool call whose arguments were a JSON scalar is not executed; the retry runs after the correction', async () => {
+    const transport = scriptedTransport([
+      (cb) => {
+        cb.onToolCall({
+          id: 't1',
+          name: 'do_thing',
+          input: {},
+          inputError: 'Tool arguments must be a JSON object, got a number; raw: 42',
+        })
+        cb.onDone()
+      },
+      (cb) => {
+        cb.onToolCall({ id: 't2', name: 'do_thing', input: { a: 1 } })
+        cb.onDone()
+      },
+      (cb) => {
+        cb.onDelta('done')
+        cb.onDone()
+      },
+    ])
+    const executed: AgentToolCall[] = []
+    const skill = makeSkill((call) => {
+      executed.push(call)
+      return { output: 'ok', summary: 'ok' }
+    })
+    const loop = new AgentLoop({ transport, skill, events: { onDone: vi.fn() } })
+    loop.run('x')
+    await flush()
+    await flush()
+    await flush()
+    expect(executed.map((c) => c.id)).toEqual(['t2'])
+    const toolMsg = loop.messages[2] as Extract<AgentMessage, { role: 'tool' }>
+    expect(toolMsg.results[0].isError).toBe(true)
+    expect(toolMsg.results[0].output).toContain('must be a JSON object')
+    // the rejected call is stored without the execution hint, and the corrected
+    // call is what reaches the skill
+    const assistantMsg = loop.messages[1] as Extract<AgentMessage, { role: 'assistant' }>
+    expect(assistantMsg.toolCalls).toEqual([{ id: 't1', name: 'do_thing', input: {} }])
+  })
+
   it('a truncated tool call is fed back as "split the call", not as a JSON error', async () => {
     const transport = scriptedTransport([
       (cb) => {

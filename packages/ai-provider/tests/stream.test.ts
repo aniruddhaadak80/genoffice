@@ -384,6 +384,29 @@ describe('streamForProvider: anthropic', () => {
     expect(deltas.join('')).toBe('after') // the stream was not interrupted
   })
 
+  it.each(['null', '42', '"just a string"', '[1, 2]'])(
+    'a tool call whose arguments are %s is an inputError, not a tool input',
+    async (argumentsJson) => {
+      const body = sseStream([
+        'data: {"type":"content_block_start","index":1,"content_block":{"type":"tool_use","id":"t1","name":"gen"}}',
+        `data: ${JSON.stringify({
+          type: 'content_block_delta',
+          index: 1,
+          delta: { type: 'input_json_delta', partial_json: argumentsJson },
+        })}`,
+        'data: {"type":"content_block_stop","index":1}',
+        'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"after"}}',
+      ])
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(okResponse(body)))
+      const { deltas, toolCalls, cb } = collector()
+      await streamForProvider('anthropic', { apiKey: 'k', model: 'm' }, 'sys', [], [], 100, cb)
+      expect(toolCalls).toHaveLength(1)
+      expect(toolCalls[0]!.input).toEqual({})
+      expect(toolCalls[0]!.inputError).toContain('must be a JSON object')
+      expect(deltas.join('')).toBe('after') // the stream was not interrupted
+    },
+  )
+
   it('surfaces message_delta stop_reason and does not flag complete tool calls', async () => {
     const body = sseStream([
       'data: {"type":"content_block_start","index":1,"content_block":{"type":"tool_use","id":"t1","name":"gen"}}',
@@ -854,6 +877,34 @@ describe('streamForProvider: openai-compatible', () => {
     await streamForProvider('openai', { apiKey: 'k', model: 'm' }, 'sys', [], [], 100, cb)
     expect(deltas.join('')).toBe('partial ')
   })
+
+  it.each(['null', '42', '"just a string"', '[1, 2]'])(
+    'JSON-body tool arguments of %s become an inputError instead of a tool input',
+    async (argumentsJson) => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue(
+          jsonResponse({
+            choices: [
+              {
+                message: {
+                  tool_calls: [
+                    { id: 'c1', function: { name: 'replace', arguments: argumentsJson } },
+                  ],
+                },
+                finish_reason: 'stop',
+              },
+            ],
+          }),
+        ),
+      )
+      const { toolCalls, cb } = collector()
+      await streamForProvider('openai', { apiKey: 'k', model: 'm' }, 'sys', [], [], 100, cb)
+      expect(toolCalls).toHaveLength(1)
+      expect(toolCalls[0]!.input).toEqual({})
+      expect(toolCalls[0]!.inputError).toContain('must be a JSON object')
+    },
+  )
 
   it('emits content and tool calls from a complete JSON body sent instead of SSE', async () => {
     vi.stubGlobal(

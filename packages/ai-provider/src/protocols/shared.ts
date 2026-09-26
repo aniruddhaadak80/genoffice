@@ -256,17 +256,35 @@ export function throwIfCreditsNotice(bodyText: string): void {
   if (notice) throw new AiCreditsError(notice)
 }
 
+/** Tool arguments must be a JSON object; a model answering `null`, an array or a scalar
+ * is a shape mistake the corrective retry path fixes, not input the tool may run on. */
+function nonObjectToolInput(
+  json: string,
+  value: unknown,
+): { input: Record<string, unknown>; error: string } {
+  const kind = value === null ? 'null' : Array.isArray(value) ? 'an array' : `a ${typeof value}`
+  return {
+    input: {},
+    error: `Tool arguments must be a JSON object, got ${kind}; raw: ${json.slice(0, 500)}`,
+  }
+}
+
 /** Don't throw on parse failure (it would kill the whole stream); return error so the loop feeds it back for retry */
 export function parseToolInput(json: string): { input: Record<string, unknown>; error?: string } {
   if (!json.trim()) return { input: {} }
+  let parsed: unknown
   try {
-    return { input: JSON.parse(json) as Record<string, unknown> }
+    parsed = JSON.parse(json)
   } catch (e) {
     try {
-      return { input: JSON.parse(repairUnescapedQuotes(json)) as Record<string, unknown> }
+      parsed = JSON.parse(repairUnescapedQuotes(json))
     } catch {
       const msg = e instanceof Error ? e.message : String(e)
       return { input: {}, error: `${msg}; raw: ${json.slice(0, 500)}` }
     }
   }
+  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    return nonObjectToolInput(json, parsed)
+  }
+  return { input: parsed as Record<string, unknown> }
 }
