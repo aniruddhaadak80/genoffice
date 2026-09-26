@@ -56,7 +56,7 @@ export function buildStreamedChartGrid(
     else pending.delete(key)
   }
   for (const cell of screenCells) put(cell)
-  for (const entry of journalEntries) if (entry.hasValue) put(entry)
+  for (const entry of journalEntries) if (entry.hasValue || entry.formula !== undefined) put(entry)
   for (let row = bounds.startRow; row <= bounds.endRow; row += 1) {
     for (let column = bounds.startColumn; column <= bounds.endColumn; column += 1) {
       const fill = fillAt(row, column)
