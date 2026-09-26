@@ -35,6 +35,26 @@ describe('speaker notes', () => {
     )
   })
 
+  it('skips self-closing text runs when reading attributed text', async () => {
+    const opened = await openPptx(await createBlankPptx())
+    setSlideNotes(opened, 0, 'placeholder')
+    const slidePath = opened.deck.slides[0]!.path
+    const notesRel = [...opened.archive.readRels(slidePath).values()].find((rel) =>
+      rel.type.endsWith('/notesSlide'),
+    )!
+    const notesPath = `ppt/${notesRel.target.replace(/^\.\.\//, '')}`
+    const xml = opened.archive.readText(notesPath)!
+    opened.archive.entries.set(
+      notesPath,
+      Buffer.from(
+        xml.replace(
+          /<a:p>[\s\S]*?<\/a:p>/,
+          '<a:p><a:r><a:rPr/><a:t/></a:r><a:r><a:rPr/><a:t xml:space="preserve">Hello world </a:t></a:r></a:p>',
+        ),
+      ),
+    )
+    expect(getSlideNotes(opened.archive, slidePath)).toBe('Hello world ')
+  })
   it('replaces an empty notes-master list instead of duplicating it', async () => {
     const opened = await openPptx(await createBlankPptx())
     const presentationPath = 'ppt/presentation.xml'

@@ -276,6 +276,7 @@ export interface DesktopApi {
   respondToZotero(response: ZoteroRendererResponse): void
   openDocx(): Promise<OpenDocxResult>
   openDocxPath(path: string): Promise<OpenDocxResult>
+  confirmDocumentReplace(): Promise<boolean>
   /** decrypt-and-open a password-protected docx (path from a needsPassword result) */
   openDocxDecrypt(path: string, password: string): Promise<DecryptOpenResult>
   /** w:altChunk HTML rendered through html2docx in a hidden window; null when conversion fails */
