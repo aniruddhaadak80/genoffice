@@ -7,6 +7,7 @@ import {
   LANGS,
   macShortcutsToWin,
   normalizeLang,
+  platformShortcuts,
 } from '../src/index'
 
 describe('normalizeLang', () => {
@@ -180,26 +181,26 @@ describe('macShortcutsToWin', () => {
 
 describe('createI18n', () => {
   const t = createI18n({
-    zh: { hello: '你好 {name}', plain: '文件' },
-    en: { hello: 'Hello {name}', plain: 'Files' },
-    ja: { hello: 'こんにちは {name}', plain: 'ファイル' },
-    ko: { hello: '안녕하세요 {name}', plain: '파일' },
-    fr: { hello: 'Bonjour {name}', plain: 'Fichiers' },
-    de: { hello: 'Hallo {name}', plain: 'Dateien' },
-    es: { hello: 'Hola {name}', plain: 'Archivos' },
-    th: { hello: 'สวัสดี {name}', plain: 'ไฟล์' },
-    id: { hello: 'Halo {name}', plain: 'Berkas' },
-    ru: { hello: 'Привет, {name}', plain: 'Файлы' },
-    ar: { hello: 'مرحباً {name}', plain: 'الملفات' },
-    pt: { hello: 'Olá {name}', plain: 'Arquivos' },
-    it: { hello: 'Ciao {name}', plain: 'File' },
-    pl: { hello: 'Cześć {name}', plain: 'Pliki' },
-    cs: { hello: 'Ahoj {name}', plain: 'Soubory' },
-    nl: { hello: 'Hallo {name}', plain: 'Bestanden' },
-    ms: { hello: 'Helo {name}', plain: 'Fail' },
-    he: { hello: 'שלום {name}', plain: 'קבצים' },
-    hi: { hello: 'नमस्ते {name}', plain: 'फ़ाइलें' },
-    'zh-TW': { hello: '你好 {name}', plain: '檔案' },
+    zh: { hello: '你好 {name}', plain: '文件', saveHint: '保存 (⌘S)' },
+    en: { hello: 'Hello {name}', plain: 'Files', saveHint: 'Save (⌘S)' },
+    ja: { hello: 'こんにちは {name}', plain: 'ファイル', saveHint: '保存 (⌘S)' },
+    ko: { hello: '안녕하세요 {name}', plain: '파일', saveHint: '저장 (⌘S)' },
+    fr: { hello: 'Bonjour {name}', plain: 'Fichiers', saveHint: 'Enregistrer (⌘S)' },
+    de: { hello: 'Hallo {name}', plain: 'Dateien', saveHint: 'Speichern (⌘S)' },
+    es: { hello: 'Hola {name}', plain: 'Archivos', saveHint: 'Guardar (⌘S)' },
+    th: { hello: 'สวัสดี {name}', plain: 'ไฟล์', saveHint: 'บันทึก (⌘S)' },
+    id: { hello: 'Halo {name}', plain: 'Berkas', saveHint: 'Simpan (⌘S)' },
+    ru: { hello: 'Привет, {name}', plain: 'Файлы', saveHint: 'Сохранить (⌘S)' },
+    ar: { hello: 'مرحباً {name}', plain: 'الملفات', saveHint: 'حفظ (⌘S)' },
+    pt: { hello: 'Olá {name}', plain: 'Arquivos', saveHint: 'Salvar (⌘S)' },
+    it: { hello: 'Ciao {name}', plain: 'File', saveHint: 'Salva (⌘S)' },
+    pl: { hello: 'Cześć {name}', plain: 'Pliki', saveHint: 'Zapisz (⌘S)' },
+    cs: { hello: 'Ahoj {name}', plain: 'Soubory', saveHint: 'Uložit (⌘S)' },
+    nl: { hello: 'Hallo {name}', plain: 'Bestanden', saveHint: 'Opslaan (⌘S)' },
+    ms: { hello: 'Helo {name}', plain: 'Fail', saveHint: 'Simpan (⌘S)' },
+    he: { hello: 'שלום {name}', plain: 'קבצים', saveHint: 'שמור (⌘S)' },
+    hi: { hello: 'नमस्ते {name}', plain: 'फ़ाइलें', saveHint: 'सहेजें (⌘S)' },
+    'zh-TW': { hello: '你好 {name}', plain: '檔案', saveHint: '儲存 (⌘S)' },
   })
 
   it('translates per language with interpolation', () => {
@@ -216,4 +217,19 @@ describe('createI18n', () => {
     expect(t('cs', 'plain')).toBe('Soubory')
     expect(t('zh-TW', 'plain')).toBe('檔案')
   })
+
+  it('never rewrites an interpolated value as a keyboard shortcut', () => {
+    expect(t('en', 'hello', { name: 'Plan ⇧Final.xlsx' })).toBe('Hello Plan ⇧Final.xlsx')
+    expect(t('en', 'hello', { name: '⌘S notes.md' })).toBe('Hello ⌘S notes.md')
+    expect(t('en', 'hello', { name: 'a ⏎ b ␣ c' })).toBe('Hello a ⏎ b ␣ c')
+  })
+
+  it.skipIf(platformShortcuts('⌘') === '⌘')(
+    'still converts the template own shortcut notation on Windows and Linux',
+    () => {
+      expect(t('en', 'saveHint')).toBe('Save (Ctrl+S)')
+      expect(t('de', 'saveHint')).toBe('Speichern (Ctrl+S)')
+      expect(t('ru', 'saveHint')).toBe('Сохранить (Ctrl+S)')
+    },
+  )
 })
