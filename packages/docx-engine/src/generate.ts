@@ -55,7 +55,7 @@ export function patchImageParagraphXml(xml: string, patch: ImagePatch): string {
     out = out.replace(/(<pic:spPr[^>]*>[\s\S]*?)<a:xfrm([^>]*)>/, (_whole, prefix, attrs) => {
       let a = attrs as string
       const setAttr = (name: string, value: string | null) => {
-        a = a.replace(new RegExp(`\\s*\\b${name}="[^"]*"`), '')
+        a = a.replace(new RegExp(`\\s*\\b${name}\\s*=\\s*(?:"[^"]*"|'[^']*')`), '')
         if (value != null) a += ` ${name}="${value}"`
       }
       if (patch.rotDeg !== undefined && Number.isFinite(patch.rotDeg)) {
