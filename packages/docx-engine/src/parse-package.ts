@@ -31,10 +31,35 @@ export async function resolveMainDocumentPath(zip: JSZip): Promise<string | null
   const rels = await parseRels(zip, '_rels/.rels')
   for (const rel of rels.values()) {
     if (!/\/officeDocument$/.test(rel.type) || rel.targetMode === 'External') continue
-    const target = rel.target.replace(/^\//, '')
-    if (zip.file(target)) return target
+    const target = resolveRelationshipTargetPath('', rel.target)
+    if (target && zip.file(target)) return target
   }
   return null
+}
+
+export function resolveRelationshipTargetPath(sourcePath: string, target: string): string | null {
+  const withoutFragment = target.split('#', 1)[0]
+  if (!withoutFragment || /^[A-Za-z][A-Za-z0-9+.-]*:/.test(withoutFragment)) return null
+  let decoded: string
+  try {
+    decoded = decodeURIComponent(withoutFragment)
+  } catch {
+    return null
+  }
+  const sourceSlash = sourcePath.lastIndexOf('/')
+  const base = sourceSlash >= 0 ? sourcePath.slice(0, sourceSlash + 1) : ''
+  const path = decoded.startsWith('/') ? decoded.slice(1) : `${base}${decoded}`
+  const parts: string[] = []
+  for (const segment of path.replace(/\\/g, '/').split('/')) {
+    if (!segment || segment === '.') continue
+    if (segment === '..') {
+      if (parts.length === 0) return null
+      parts.pop()
+    } else {
+      parts.push(segment)
+    }
+  }
+  return parts.join('/') || null
 }
 
 export async function parseRels(zip: JSZip, path: string): Promise<Map<string, RelInfo>> {

@@ -197,12 +197,13 @@ impl SourceFormats {
             }
         }
         for cell in wanted {
-            let format = found.get(cell).copied().flatten().and_then(|index| {
-                self.xf_formats.get(index).cloned().flatten()
-            });
+            let format = found
+                .get(cell)
+                .copied()
+                .flatten()
+                .and_then(|index| self.xf_formats.get(index).cloned().flatten());
             let format = self.format_of(format);
-            self.cache
-                .insert((path.to_owned(), cell.clone()), format);
+            self.cache.insert((path.to_owned(), cell.clone()), format);
         }
     }
 }
@@ -320,7 +321,9 @@ mod tests {
             let mut writer = zip::ZipWriter::new(std::fs::File::create(&path).unwrap());
             let options = zip::write::SimpleFileOptions::default()
                 .compression_method(zip::CompressionMethod::Deflated);
-            writer.start_file("xl/worksheets/sheet1.xml", options).unwrap();
+            writer
+                .start_file("xl/worksheets/sheet1.xml", options)
+                .unwrap();
             std::io::Write::write_all(&mut writer, sheet.as_bytes()).unwrap();
             writer.finish().unwrap();
         }
@@ -366,10 +369,7 @@ mod tests {
         );
         assert_eq!(sheet_passes(), 1);
         // A reference the pre-pass never saw still resolves, on its own pass.
-        assert_eq!(
-            formats.first_cell_format(&mut archive, "Data!$E$41"),
-            None
-        );
+        assert_eq!(formats.first_cell_format(&mut archive, "Data!$E$41"), None);
         assert_eq!(sheet_passes(), 2);
     }
 }

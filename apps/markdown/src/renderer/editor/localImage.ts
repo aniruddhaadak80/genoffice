@@ -116,6 +116,9 @@ function imageMarkdown(attrs: JSONContent['attrs']): string {
   const src = String(attrs?.src ?? '')
   const alt = String(attrs?.alt ?? '')
   const title = String(attrs?.title ?? '')
+  const escapedAlt = alt.replace(/[\\[\]]/g, '\\$&')
+  const destination = /[\s()<>\\"]/u.test(src) ? `<${src.replace(/[\\<>]/g, '\\$&')}>` : src
+  const titleText = title ? ` ${JSON.stringify(title)}` : ''
   // markdown has no image size syntax; a sized picture keeps its HTML form
   if (attrs?.width != null || attrs?.height != null) {
     const parts = [`src="${attr(src)}"`]
@@ -125,7 +128,7 @@ function imageMarkdown(attrs: JSONContent['attrs']): string {
     if (attrs.height != null) parts.push(`height="${attr(attrs.height)}"`)
     return `<img ${parts.join(' ')} />`
   }
-  return title ? `![${alt}](${src} "${title}")` : `![${alt}](${src})`
+  return `![${escapedAlt}](${destination}${titleText})`
 }
 
 /**
