@@ -186,7 +186,7 @@ export function parsePageSpecObject(
         const sizePt = num(rr.sizePt)
         runs.push({
           text: t,
-          ...(sizePt ? { sizePt: Math.min(Math.max(sizePt, 6), 160) } : {}),
+          ...(sizePt !== undefined ? { sizePt: Math.min(Math.max(sizePt, 6), 160) } : {}),
           ...(rr.bold === true ? { bold: true } : {}),
           ...(rr.italic === true ? { italic: true } : {}),
           ...(normColor(rr.color) ? { color: normColor(rr.color) } : {}),
@@ -205,7 +205,9 @@ export function parsePageSpecObject(
         ...(align === 'left' || align === 'center' || align === 'right' || align === 'justify'
           ? { align }
           : {}),
-        ...(lineSpacingPct ? { lineSpacingPct: Math.min(Math.max(lineSpacingPct, 60), 300) } : {}),
+        ...(lineSpacingPct !== undefined
+          ? { lineSpacingPct: Math.min(Math.max(lineSpacingPct, 60), 300) }
+          : {}),
         ...(spaceBeforePt !== undefined
           ? { spaceBeforePt: Math.min(Math.max(spaceBeforePt, 0), 96) }
           : {}),

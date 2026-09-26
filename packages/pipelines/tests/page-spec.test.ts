@@ -83,6 +83,71 @@ describe('parsePageSpec', () => {
     expect((r.spec.elements[0] as { shape: string }).shape).toBe('rect')
   })
 
+  it('clamps a zero font size up to the documented minimum instead of dropping it', () => {
+    const r = parsePageSpec(
+      JSON.stringify({
+        elements: [
+          {
+            ...textSpec('zero size'),
+            paragraphs: [{ runs: [{ text: 'zero size', sizePt: 0 }] }],
+          },
+        ],
+      }),
+    )
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    const el = r.spec.elements[0] as { paragraphs: { runs: { sizePt?: number }[] }[] }
+    expect(el.paragraphs[0]!.runs[0]!.sizePt).toBe(6)
+  })
+
+  it('clamps a zero line spacing up to the documented minimum instead of dropping it', () => {
+    const r = parsePageSpec(
+      JSON.stringify({
+        elements: [
+          {
+            ...textSpec('zero spacing'),
+            paragraphs: [{ runs: [{ text: 'zero spacing' }], lineSpacingPct: 0 }],
+          },
+        ],
+      }),
+    )
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    const el = r.spec.elements[0] as { paragraphs: { lineSpacingPct?: number }[] }
+    expect(el.paragraphs[0]!.lineSpacingPct).toBe(60)
+  })
+
+  it('treats an empty-string size or line spacing as zero and clamps it', () => {
+    const r = parsePageSpec(
+      JSON.stringify({
+        elements: [
+          {
+            ...textSpec('empty string'),
+            paragraphs: [{ runs: [{ text: 'empty string', sizePt: '' }], lineSpacingPct: '' }],
+          },
+        ],
+      }),
+    )
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    const el = r.spec.elements[0] as {
+      paragraphs: { lineSpacingPct?: number; runs: { sizePt?: number }[] }[]
+    }
+    expect(el.paragraphs[0]!.runs[0]!.sizePt).toBe(6)
+    expect(el.paragraphs[0]!.lineSpacingPct).toBe(60)
+  })
+
+  it('leaves an absent size or line spacing absent so the engine default applies', () => {
+    const r = parsePageSpec(JSON.stringify({ elements: [textSpec('no overrides')] }))
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    const el = r.spec.elements[0] as {
+      paragraphs: { lineSpacingPct?: number; runs: { sizePt?: number }[] }[]
+    }
+    expect(el.paragraphs[0]!.runs[0]!.sizePt).toBe(32)
+    expect('lineSpacingPct' in el.paragraphs[0]!).toBe(false)
+  })
+
   it('accepts and normalizes uppercase HTTP(S) image URL schemes', () => {
     const r = parsePageSpec(
       JSON.stringify({
