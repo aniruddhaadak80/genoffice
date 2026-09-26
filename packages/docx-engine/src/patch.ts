@@ -20,6 +20,7 @@ import {
   injectInkRunsIntoParagraph,
   stripInkRuns,
 } from './ink'
+import { resolveRelationshipTargetPath } from './parse-package'
 import { assertZipWithinLimits, resolveMainDocumentPath, type ParseExtras } from './parse'
 import { cleanupDocxOwnedResources } from './resource-cleanup'
 import { loadDocxZip } from './zip-load'
@@ -65,8 +66,8 @@ import { PAGE_MARK, TOTAL_PAGES_MARK } from './types'
 import { patchParagraphTexts } from './text-patch'
 import { balanceFieldChars } from './field-balance'
 import {
-  mergeStyleXml,
   mergeDefaultFontsXml,
+  upsertStyleXml,
   type DefaultFonts,
   type StyleUpsert,
 } from './style-upsert'
@@ -286,10 +287,8 @@ export async function findChartWorkbookPath(
     // find Relationship with Type ending in /package
     const m = relsXml.match(/Type="[^"]*\/package"[^/]*Target="([^"]+)"/)
     if (!m) return null
-    // Target is relative to dir (word/charts/)
     const target = m[1]
-    if (target.startsWith('/')) return target.slice(1)
-    return `${dir}/${target}`
+    return resolveRelationshipTargetPath(chartPath, target)
   } catch {
     return null
   }
@@ -739,7 +738,8 @@ export async function saveDocx(
     const rId = existing ? /r:id="([^"]+)"/.exec(existing)?.[1] : undefined
     const target = rId ? relTargets.get(rId) : undefined
     if (target) {
-      const path = target.startsWith('/') ? target.slice(1) : `word/${target}`
+      const path = resolveRelationshipTargetPath(docPath, target)
+      if (!path) return
       const file = zip.file(path)
       const originalXml = file ? await file.async('string') : null
       const wmXml =
@@ -807,7 +807,8 @@ export async function saveDocx(
     const rId = existing ? /r:id="([^"]+)"/.exec(existing)?.[1] : undefined
     const target = rId ? relTargets.get(rId) : undefined
     if (target) {
-      const path = target.startsWith('/') ? target.slice(1) : `word/${target}`
+      const path = resolveRelationshipTargetPath(docPath, target)
+      if (!path) continue
       const file = zip.file(path)
       const originalXml = file ? await file.async('string') : null
       hfParts.push({ path, xml: headerFooterPartXml(edit.kind, edit.hf, undefined, originalXml) })
@@ -896,16 +897,7 @@ export async function saveDocx(
       ? await file.async('string')
       : '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\r\n' +
         '<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"></w:styles>'
-    for (const up of options.styleUpserts ?? []) {
-      const existing = new RegExp(
-        `<w:style [^>]*w:styleId="${up.styleId.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\$&')}"[\\s\\S]*?</w:style>`,
-      )
-      const match = existing.exec(xml)
-      const styleXml = mergeStyleXml(match?.[0] ?? null, up)
-      xml = match
-        ? xml.replace(existing, () => styleXml)
-        : xml.replace('</w:styles>', `${styleXml}</w:styles>`)
-    }
+    for (const up of options.styleUpserts ?? []) xml = upsertStyleXml(xml, up)
     stylesXmlOut = options.defaultFonts ? mergeDefaultFontsXml(xml, options.defaultFonts) : xml
   }
 

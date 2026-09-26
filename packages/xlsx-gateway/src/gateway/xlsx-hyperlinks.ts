@@ -63,7 +63,18 @@ export function applyHyperlinkEdits(
     const element =
       `<Relationship Id="${relId}" Type="${HYPERLINK_REL_TYPE}" ` +
       `Target="${escapeXmlAttribute(target)}" TargetMode="External"/>`
-    rels = rels.replace('</Relationships>', () => `${element}</Relationships>`)
+    const close = rels.replace('</Relationships>', () => `${element}</Relationships>`)
+    if (close !== rels) {
+      rels = close
+    } else {
+      const emptyRoot = /<Relationships\b([^>]*)\/>/.exec(rels)
+      if (emptyRoot) {
+        rels = rels.replace(
+          emptyRoot[0],
+          `<Relationships${emptyRoot[1]}>${element}</Relationships>`,
+        )
+      }
+    }
     relsChanged = true
     return relId
   }

@@ -54,7 +54,7 @@ import { CropDialog, CutoutDialog, cropImagePng } from './ImageDialogs'
 import { cropRect, flipPixels, multiplyAlpha } from './image-bake'
 import type { CropFractions, ImageBakeOp } from './image-bake'
 import { removeBackground, type PixelImage } from './cutout'
-import { navAction } from './keyNav'
+import { navAction, shouldHandleDocumentUndo } from './keyNav'
 import { rowOfVisIdx, spreadRows, stepPage } from './spread'
 import {
   captureViewState,
@@ -5689,6 +5689,7 @@ export default function App() {
           target.tagName === 'TEXTAREA' ||
           target.tagName === 'SELECT' ||
           target.isContentEditable)
+      if (!shouldHandleDocumentUndo(e.target, e.key, e.metaKey || e.ctrlKey)) return
       if (e.metaKey || e.ctrlKey) {
         const k = e.key.toLowerCase()
         if (k === 's') {

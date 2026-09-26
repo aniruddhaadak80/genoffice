@@ -1,3 +1,4 @@
+import JSZip from 'jszip'
 import { describe, expect, it } from 'vitest'
 import { parseDocx, saveDocx } from '../src/index'
 import { buildDocx } from './helpers/build-docx'
@@ -23,7 +24,10 @@ const HEADER_RELS =
   '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/image1.png"/>' +
   '</Relationships>'
 
-async function buildHeaderLogoDocx(headerXml: string = HEADER_XML): Promise<Uint8Array> {
+async function buildHeaderLogoDocx(
+  headerXml: string = HEADER_XML,
+  headerRels: string = HEADER_RELS,
+): Promise<Uint8Array> {
   return buildDocx({
     bodyXml: '<w:p><w:r><w:t>Body</w:t></w:r></w:p>',
     withImage: true,
@@ -38,7 +42,7 @@ async function buildHeaderLogoDocx(headerXml: string = HEADER_XML): Promise<Uint
       },
       {
         path: 'word/_rels/header1.xml.rels',
-        xml: HEADER_RELS,
+        xml: headerRels,
         contentType: 'application/vnd.openxmlformats-package.relationships+xml',
       },
     ],
@@ -59,6 +63,20 @@ describe('header/footer images (display-only Logo)', () => {
     // hfParts (multi-section path) carries images too
     const part = Object.values(doc.hfParts ?? {}).find((p) => p.text === 'Confidential')
     expect(part?.images).toHaveLength(1)
+  })
+
+  it('resolves absolute percent-encoded image targets', async () => {
+    const zip = await JSZip.loadAsync(await buildHeaderLogoDocx())
+    const image = await zip.file('word/media/image1.png')!.async('uint8array')
+    zip.remove('word/media/image1.png')
+    zip.file('word/media/image 1.png', image)
+    const rels = HEADER_RELS.replace('media/image1.png', '/word/media/image%201.png')
+    zip.file('word/_rels/header1.xml.rels', rels)
+    const bytes = await zip.generateAsync({ type: 'uint8array' })
+    const doc = await parseDocx(bytes)
+    expect(doc.headerImages).toHaveLength(1)
+    expect(doc.headerImages![0].dataUrl.startsWith('data:image/png;base64,')).toBe(true)
+    expect(rels).toContain('image%201.png')
   })
 
   it('untouched round-trip stays byte-identical', async () => {
