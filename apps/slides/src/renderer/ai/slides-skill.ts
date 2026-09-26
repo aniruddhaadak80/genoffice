@@ -20,6 +20,13 @@ import systemPrompt from './prompts/system.md?raw'
  * back into React state — the same pipeline as manual editing.
  */
 
+/** Deck size ceiling for a single generate_deck run: bounds the planner batches, the
+    generation queue and the progress context a single request can inject. */
+const MAX_DECK_PAGES = 200
+
+/** Unfinished pages named individually in the progress checklist; the rest are counted. */
+const MAX_NAMED_UNFINISHED = 40
+
 // ── Generation progress events (for the onProgress callback; renderer memory only, never persisted or journaled) ──
 
 /** Per-page progress status */
@@ -566,7 +573,9 @@ const TOOLS: AgentToolDef[] = [
         },
         approx_pages: {
           type: 'integer',
-          description: 'Expected page count (used together with topic)',
+          minimum: 1,
+          maximum: MAX_DECK_PAGES,
+          description: `Expected page count (used together with topic), 1..${MAX_DECK_PAGES}`,
         },
         context: {
           type: 'string',
@@ -1148,13 +1157,21 @@ function buildProgressNote(state?: SkillState): string {
   }
   // Name unfinished pages one by one from pageDone (page numbers stay accurate when a middle page fails)
   const remaining: string[] = []
+  let unnamed = 0
   for (let i = 0; i < planned; i++) {
-    if (!flags[i]) remaining.push(`page ${i + 1}${titles[i] ? ` "${titles[i]}"` : ''}`)
+    if (flags[i]) continue
+    if (remaining.length < MAX_NAMED_UNFINISHED) {
+      remaining.push(`page ${i + 1}${titles[i] ? ` "${titles[i]}"` : ''}`)
+    } else {
+      unnamed++
+    }
   }
+  const listed = remaining.join(', ')
+  const rest = unnamed ? `, and ${unnamed} more` : ''
   return (
     `<generation-progress>\n` +
     `⚠️ Incomplete: ${planned} pages planned, ${done} generated, ${planned - done} still missing.\n` +
-    `Unfinished: ${remaining.join(', ')}.\n` +
+    `Unfinished: ${listed}${rest}.\n` +
     `Immediately fill in the unfinished pages above with generate_deck(pages: briefs for the missing pages, insert_mode:"append"); do not stop and do not substitute native tools.\n` +
     `</generation-progress>`
   )
@@ -1901,9 +1918,9 @@ async function executeTool(
       if (!styleSkill) styleSkill = style // Fallback: use the user-passed style, or empty
 
       // ── Step 1: plan the outline — without pages, plan in-tool from topic (batched recursion over PLAN_BATCH; layouts chosen per the Style Skill).
-      const approxForProgress = Math.max(
-        1,
-        parseInt(String(call.input.approx_pages ?? '0'), 10) || pages.length || 1,
+      const approxForProgress = Math.min(
+        MAX_DECK_PAGES,
+        Math.max(1, parseInt(String(call.input.approx_pages ?? '0'), 10) || pages.length || 1),
       )
       if (pages.length === 0) {
         const approx = approxForProgress
