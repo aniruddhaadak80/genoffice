@@ -828,6 +828,24 @@ describe('group (p:grpSp) parsing', () => {
     expect(c2.transform.offset.x).toBe(2000)
   })
 
+  it('keeps deeply nested groups as byte-preserving passthroughs', () => {
+    let group = '<p:sp><p:nvSpPr/><p:spPr/></p:sp>'
+    for (let i = 0; i < 2_000; i++) {
+      group = `<p:grpSp><p:nvGrpSpPr/><p:grpSpPr/>${group}</p:grpSp>`
+    }
+    const slideXml =
+      '<?xml version="1.0"?><p:sld xmlns:p="p" xmlns:a="a"><p:cSld><p:spTree>' +
+      '<p:nvGrpSpPr/><p:grpSpPr/>' +
+      group +
+      '</p:spTree></p:cSld></p:sld>'
+
+    const slide = parseSlide({ path: 'ppt/slides/slide1.xml', slideXml, ctx: {} })
+
+    expect(slide.elements).toHaveLength(1)
+    expect(slide.elements[0]?.type).toBe('passthrough')
+    expect(reassembleSlideXml(slide)).toBe(slideXml)
+  })
+
   it('group emits original bytes on reassemble (fidelity: no child roundtrip)', () => {
     const slide = parseSlide({ path: 'ppt/slides/slide1.xml', slideXml: groupSlideXml, ctx: {} })
     expect(reassembleSlideXml(slide)).toBe(groupSlideXml)

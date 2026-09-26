@@ -24,6 +24,7 @@ import {
   webContents,
 } from 'electron'
 import type { MenuItemConstructorOptions, NativeImage, WebContents } from 'electron'
+import { atomicWriteFile } from './atomic-write'
 import { tabStripOverlay } from './title-bar-overlay'
 import menuDocxIcon1x from './assets/menu-docx.png?asset'
 import menuDocxIcon2x from './assets/menu-docx@2x.png?asset'
@@ -98,6 +99,7 @@ import {
   syncCloudProjects,
 } from './cloud-projects'
 import { handleDroppedFiles } from './dropped-files'
+import { collectLaunchPaths } from './launch-paths'
 import {
   genofficeLogout,
   gskLoginInfo,
@@ -3008,9 +3010,6 @@ const PDF_RE = /\.pdf$/i
 const MD_RE = /\.(md|markdown)$/i
 const HTML_RE = /\.html?$/i
 
-/** document formats we recognize but don't open — surfaced as a dialog, not silently dropped */
-const UNSUPPORTED_DOC_RE = /\.(doc|rtf|odt|ppt|pps|odp|ods|xlsb|pages|key|numbers)$/i
-
 /**
  * Single source of truth for the open-dialog filter. Includes the
  * legacy .doc/.ppt binaries so they are selectable and surface the explicit
@@ -3031,25 +3030,6 @@ const OPEN_DIALOG_EXTENSIONS = [
   'html',
   'htm',
 ]
-
-function supportedFileIn(argv: string[]): string | null {
-  return (
-    argv.find(
-      (arg) =>
-        (DOCX_RE.test(arg) ||
-          XLSX_RE.test(arg) ||
-          PPTX_RE.test(arg) ||
-          PDF_RE.test(arg) ||
-          MD_RE.test(arg) ||
-          HTML_RE.test(arg)) &&
-        existsSync(arg),
-    ) ?? null
-  )
-}
-
-function unsupportedFileIn(argv: string[]): string | null {
-  return argv.find((arg) => UNSUPPORTED_DOC_RE.test(arg) && existsSync(arg)) ?? null
-}
 
 function notifyUnsupportedFile(filePath: string): void {
   const ext = extname(filePath).slice(1).toLowerCase() || basename(filePath)
@@ -4722,7 +4702,7 @@ async function exportPdfAsDocxLocal(): Promise<void> {
       },
     )
     if (result === null) return
-    writeFileSync(picked.filePath, result.docx)
+    await atomicWriteFile(picked.filePath, result.docx)
 
     // degrade transparency (plan §7.6 dual-track split): whole scan → say so
     // once; individual image-fallback pages → name them;
@@ -4860,7 +4840,7 @@ async function exportPdfAsPptxLocal(): Promise<void> {
       },
     )
     if (result === null) return
-    writeFileSync(picked.filePath, result.pptx)
+    await atomicWriteFile(picked.filePath, result.pptx)
 
     // degrade transparency (same split as the Word export): whole scan vs
     // individual image-fallback pages
@@ -4970,7 +4950,7 @@ async function exportPdfAsXlsxLocal(): Promise<void> {
       },
     )
     if (result === null) return
-    writeFileSync(picked.filePath, result.xlsx)
+    await atomicWriteFile(picked.filePath, result.xlsx)
 
     // degrade transparency: pages that could not become cells got a notice
     // row on their worksheet instead of an image (a spreadsheet has none)
@@ -5108,7 +5088,7 @@ async function installMainProcessProxy(): Promise<void> {
 
 // ---- lifecycle (the shell is the only owner) ----
 
-let pendingLaunchPath = supportedFileIn(process.argv) ?? unsupportedFileIn(process.argv)
+let pendingLaunchPaths = collectLaunchPaths(process.argv)
 let controlServer: ControlServer | null = null
 
 // show() does not un-minimize, and on macOS ⌘W destroys the shell window while the
@@ -5120,6 +5100,12 @@ function revealShellWindow(): void {
   shellWindow?.focus()
 }
 
+function openLaunchPaths(paths: readonly string[]): void {
+  let opened = false
+  for (const filePath of paths) opened = openDocumentPath(filePath) || opened
+  if (!opened) tabManager?.openHomeTab()
+}
+
 // On macOS a file opened from Finder is not in argv; it arrives via the open-file event (before ready).
 // If another instance already holds the lock, this process exits, and the path must ride along in
 // the lock request's additionalData to the surviving instance — so the lock request is deferred
@@ -5127,20 +5113,17 @@ function revealShellWindow(): void {
 app.on('open-file', (event, filePath) => {
   event.preventDefault()
   if (!app.isReady()) {
-    pendingLaunchPath = filePath
+    if (!pendingLaunchPaths.includes(filePath)) pendingLaunchPaths.push(filePath)
     return
   }
   revealShellWindow()
-  if (!openDocumentPath(filePath)) tabManager?.openHomeTab()
+  openLaunchPaths([filePath])
 })
 
 app.on('second-instance', (_event, argv, _cwd, additionalData) => {
-  const file =
-    supportedFileIn(argv) ??
-    unsupportedFileIn(argv) ??
-    (additionalData as { launchPath?: string } | null)?.launchPath
+  const paths = collectLaunchPaths(argv, additionalData)
   revealShellWindow()
-  if (!file || !openDocumentPath(file)) tabManager?.openHomeTab()
+  openLaunchPaths(paths)
 })
 
 installNavigationGuard(app)
@@ -5225,7 +5208,10 @@ app.whenReady().then(async () => {
     await runHeadlessExportEntry(headlessArgv)
     return
   }
-  const lockData = () => (pendingLaunchPath ? { launchPath: pendingLaunchPath } : {})
+  const lockData = () =>
+    pendingLaunchPaths.length > 0
+      ? { launchPath: pendingLaunchPaths[0], launchPaths: pendingLaunchPaths }
+      : {}
   let hasLock = app.requestSingleInstanceLock(lockData())
   if (!hasLock && !app.isPackaged) {
     // Dev watch restart: electron-vite SIGTERMs the previous instance and spawns this
@@ -5409,8 +5395,8 @@ app.whenReady().then(async () => {
   setUpdateCheckInvoker(() => void checkForUpdatesNow())
   initAutoUpdater(() => shellWindow, currentUpdateChannel())
 
-  if (!pendingLaunchPath || !openDocumentPath(pendingLaunchPath)) tabManager?.openHomeTab()
-  pendingLaunchPath = null
+  openLaunchPaths(pendingLaunchPaths)
+  pendingLaunchPaths = []
 
   startControlServer(
     app.getPath('userData'),

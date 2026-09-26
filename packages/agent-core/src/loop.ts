@@ -428,16 +428,20 @@ export class AgentLoop<TSnapshot = unknown> {
     return new Promise((resolve) => {
       let text = ''
       let settled = false
+      let handle: AgentStreamHandle | null = null
       const finish = (v: string | null) => {
         if (settled) return
         settled = true
         clearTimeout(timer)
         resolve(v)
       }
-      const timer = setTimeout(() => finish(null), SUMMARIZE_TIMEOUT_MS)
+      const timer = setTimeout(() => {
+        finish(null)
+        handle?.cancel()
+      }, SUMMARIZE_TIMEOUT_MS)
       try {
         // Attach to this.handle so cancel() can abort the summary request when the user clicks stop
-        this.handle = this.options.transport.stream(
+        handle = this.options.transport.stream(
           {
             system: SUMMARIZE_SYSTEM,
             messages: [
@@ -448,6 +452,7 @@ export class AgentLoop<TSnapshot = unknown> {
           },
           {
             onDelta: (t) => {
+              if (settled) return
               text += t
             },
             onToolCall: () => {
@@ -457,6 +462,7 @@ export class AgentLoop<TSnapshot = unknown> {
             onError: () => finish(null),
           },
         )
+        this.handle = handle
       } catch {
         finish(null)
       }

@@ -5,6 +5,7 @@
 /// survive a rewrite untouched.
 
 import { encodeXlsxEscapes } from './xlsx-escapes'
+import { resolveRelTarget } from './xlsx-drawing-add'
 import { ensureRelationshipNamespace } from './xlsx-namespace'
 import { nextFreeRelationshipId } from './xlsx-sheets'
 
@@ -60,17 +61,6 @@ function relTarget(relsXml: string, type: string): string | null {
   if (!found) return null
   const target = / Target="([^"]*)"/.exec(found[0])
   return target?.[1] ?? null
-}
-
-/// "../comments1.xml" or "/xl/comments1.xml" → package path.
-function resolveRelTarget(worksheetPath: string, target: string): string {
-  if (target.startsWith('/')) return target.slice(1)
-  const base = worksheetPath.split('/').slice(0, -1)
-  for (const part of target.split('/')) {
-    if (part === '..') base.pop()
-    else if (part !== '.') base.push(part)
-  }
-  return base.join('/')
 }
 
 async function nextFreePath(

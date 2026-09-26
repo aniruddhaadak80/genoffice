@@ -51,10 +51,17 @@ function loadConfig(opts: {
         return {
           ...require(id),
           existsSync: () => true,
-          readFileSync: (path: string, encoding: string) =>
-            String(path).endsWith('genoffice.cjs')
-              ? `const __cliAppVersion = ${JSON.stringify(baked)};\n`
-              : require('node:fs').readFileSync(path, encoding as BufferEncoding),
+          readFileSync: (path: string, encoding: string) => {
+            if (String(path).endsWith('genoffice.cjs')) {
+              return `const __cliAppVersion = ${JSON.stringify(baked)};\n`
+            }
+            // Packaging also gates on a generated third-party notice. Serve a
+            // valid one so the CLI version check is what these tests exercise.
+            if (String(path).endsWith('THIRD-PARTY-NOTICES.txt')) {
+              return '@embedpdf/pdfium\nCopyright 2014 PDFium Authors\nApache License\n'
+            }
+            return require('node:fs').readFileSync(path, encoding as BufferEncoding)
+          },
         }
       }
       return require(id)
