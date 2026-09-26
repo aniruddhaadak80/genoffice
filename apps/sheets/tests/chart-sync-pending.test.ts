@@ -80,6 +80,17 @@ describe('buildStreamedChartGrid', () => {
     expect(grid.pendingFormula).toBe(true)
   })
 
+  it('flags a journal entry that is a formula the engine has not evaluated yet', () => {
+    const grid = buildStreamedChartGrid(
+      bounds,
+      screen,
+      [{ row: 1, column: 11, hasValue: false, value: null, formula: '=SUM(A1:A3)' }],
+      noFill,
+    )
+    expect(grid.pendingFormula).toBe(true)
+    expect(grid.values[0]).toEqual([null])
+  })
+
   it('reads cached sidecar values and constant edits as settled', () => {
     const grid = buildStreamedChartGrid(
       bounds,
