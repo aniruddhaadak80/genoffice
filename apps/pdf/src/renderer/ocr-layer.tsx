@@ -10,6 +10,7 @@
  */
 import type { ReactElement } from 'react'
 import type { PDFDocumentProxy } from 'pdfjs-dist'
+import { foldCase } from '@genoffice/ui'
 import type { PdfOcrLine } from '../shared/ipc'
 import { geomDispSize, pdfRectToCss, viewToPdf } from './annotations'
 import type { PageGeom } from './annotations'
@@ -155,7 +156,7 @@ export function buildOcrPageData(lines: PdfOcrLine[], geom: PageGeom): OcrPageDa
     text += '\n'
   }
   if (items.length === 0) return null
-  return { entry: { text, lower: text.toLowerCase(), items }, words }
+  return { entry: { text, lower: foldCase(text), items }, words }
 }
 
 /** True when a page has effectively no extractable text (scanned candidate).
