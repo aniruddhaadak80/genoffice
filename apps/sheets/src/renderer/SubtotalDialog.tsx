@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Dropdown } from '@genoffice/ui'
+import { Dropdown, useModalKeys } from '@genoffice/ui'
 import type { PivotField } from './PivotDialog'
 import { useI18n } from './i18n/locale'
 
@@ -27,14 +27,17 @@ export function SubtotalDialog({
   const [valueCol, setValueCol] = useState(fields[1]?.colIndex ?? fields[0]?.colIndex ?? 0)
   const [agg, setAgg] = useState<SubtotalConfig['agg']>('sum')
   const [error, setError] = useState<string | null>(null)
+  const modalKeys = useModalKeys(onClose)
 
   return (
     <div className="dialog-backdrop" onClick={onClose}>
       <div
+        ref={modalKeys.ref}
         className="format-cells-dialog"
         role="dialog"
         aria-label={t('dlgSubtotalTitle')}
         onClick={(event) => event.stopPropagation()}
+        onKeyDown={modalKeys.onKeyDown}
       >
         <header>{t('dlgSubtotalTitle')}</header>
         {fields.length === 0 ? (

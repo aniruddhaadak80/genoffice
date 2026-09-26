@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useModalKeys } from '@genoffice/ui'
 
 import { useI18n } from './i18n/locale'
 
@@ -21,6 +22,7 @@ export function GoToDialog({
   const { t } = useI18n()
   const [reference, setReference] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const modalKeys = useModalKeys(onClose)
 
   const go = (ref: string): void => {
     const failure = onGo(ref)
@@ -31,10 +33,12 @@ export function GoToDialog({
   return (
     <div className="dialog-backdrop" onClick={onClose}>
       <div
+        ref={modalKeys.ref}
         className="format-cells-dialog"
         role="dialog"
         aria-label={t('dlgGoToTitle')}
         onClick={(event) => event.stopPropagation()}
+        onKeyDown={modalKeys.onKeyDown}
       >
         <header>{t('dlgGoToTitle')}</header>
         <section className="dialog-body">
