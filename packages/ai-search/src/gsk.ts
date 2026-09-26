@@ -168,31 +168,70 @@ export function gskChildEnv(base: NodeJS.ProcessEnv = process.env): NodeJS.Proce
 // ── Low-level execution ─────────────────────────────────────────────
 
 /**
+ * How many opener lines the recovery scan below may try. gsk prefixes its log
+ * lines with `[INFO]`, which itself looks like an array opener, so the scan has
+ * to walk forward — but the walk must stay bounded instead of growing with the
+ * size of the output.
+ */
+const MAX_JSON_SCAN_CANDIDATES = 8
+
+/**
+ * The balanced `{...}` / `[...]` block that starts at `start`, or null when it
+ * never closes. String-aware, so braces and quotes inside string values do not
+ * change the depth, and a block ends at its own closer rather than at the end
+ * of the output (trailing log lines are left out).
+ */
+function jsonBlockAt(text: string, start: number): string | null {
+  let depth = 0
+  let inString = false
+  let escaped = false
+  for (let i = start; i < text.length; i++) {
+    const c = text[i]!
+    if (inString) {
+      if (escaped) escaped = false
+      else if (c === '\\') escaped = true
+      else if (c === '"') inString = false
+      continue
+    }
+    if (c === '"') inString = true
+    else if (c === '{' || c === '[') depth++
+    else if (c === '}' || c === ']') {
+      depth--
+      if (depth === 0) return text.slice(start, i + 1)
+    }
+  }
+  return null
+}
+
+/**
  * gsk output may have [INFO] log lines mixed in before or after the JSON;
- * scan for a line starting with { or [ and parse the longest valid JSON
- * block from there, shrinking past any trailing logs.
+ * find the first line that opens a JSON block and take that block, so a
+ * pretty-printed payload is located in one linear scan instead of by reparsing
+ * every line-bounded prefix.
  */
 export function parseGskOutput(stdout: string): unknown {
   const trimmed = stdout.trim()
   try {
     return JSON.parse(trimmed)
   } catch {
-    /* fall through to line-by-line scan */
+    /* fall through to the bounded recovery scan */
   }
-  // Pretty-printed output puts inner elements on their own `{` lines, so the
-  // scan must start from the earliest candidate and take the longest parse.
-  const lines = trimmed.split('\n')
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i]!.trim()
-    if (line.startsWith('{') || line.startsWith('[')) {
-      for (let j = lines.length; j > i; j--) {
+  let offset = 0
+  let candidates = 0
+  for (const line of trimmed.split('\n')) {
+    const opener = line.trimStart()[0]
+    if (opener === '{' || opener === '[') {
+      const block = jsonBlockAt(trimmed, offset + line.indexOf(opener))
+      if (block) {
         try {
-          return JSON.parse(lines.slice(i, j).join('\n'))
+          return JSON.parse(block)
         } catch {
-          continue
+          /* a log line that only looks like JSON; try the next opener */
         }
       }
+      if (++candidates >= MAX_JSON_SCAN_CANDIDATES) break
     }
+    offset += line.length + 1
   }
   throw new Error(`No JSON found in gsk output: ${stdout.slice(0, 300)}`)
 }

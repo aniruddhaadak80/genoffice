@@ -45,6 +45,50 @@ describe('parseGskOutput', () => {
   it('throws when no JSON present', () => {
     expect(() => parseGskOutput('[INFO] nothing here')).toThrow()
   })
+
+  it('recovers past a log line that only looks like an array opener', () => {
+    expect(parseGskOutput('[INFO] progress {50%}\n{"status":"ok"}')).toEqual({ status: 'ok' })
+  })
+
+  it('takes the outer block, not the first inner one, of a large pretty payload', () => {
+    const rows = Array.from({ length: 2000 }, (_, i) => `    { "id": ${i}, "t": "row ${i}" },`)
+    const out = [
+      '[INFO] Calling /tools...',
+      '[INFO] cache hit',
+      '{',
+      '  "status": "ok",',
+      '  "data": [',
+      ...rows.slice(0, -1),
+      rows.at(-1)!.replace(/,$/, ''),
+      '  ]',
+      '}',
+      '[INFO] done in 900ms',
+    ].join('\n')
+    const parsed = parseGskOutput(out) as { status: string; data: unknown[] }
+    expect(parsed.status).toBe('ok')
+    expect(parsed.data).toHaveLength(2000)
+    expect(parsed.data[0]).toEqual({ id: 0, t: 'row 0' })
+  })
+
+  it('locates a large payload in linear time', () => {
+    const rows = Array.from({ length: 20_000 }, (_, i) => `  { "id": ${i} },`)
+    const out = [
+      '[INFO] starting',
+      '{',
+      '  "data": [',
+      ...rows.slice(0, -1),
+      rows.at(-1)!.replace(/,$/, ''),
+      '  ]',
+      '}',
+      '[INFO] done',
+    ].join('\n')
+    const started = performance.now()
+    const parsed = parseGskOutput(out) as { data: unknown[] }
+    const elapsed = performance.now() - started
+    expect(parsed.data).toHaveLength(20_000)
+    // the previous nested slice-and-reparse scan needed minutes at this size
+    expect(elapsed).toBeLessThan(5_000)
+  })
 })
 
 describe('gskChildEnv', () => {
