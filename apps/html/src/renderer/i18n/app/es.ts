@@ -7,6 +7,8 @@ export const es = {
   saveFailed: 'Error al guardar: {error}',
   saveFailedStatus: 'Error al guardar',
   exportFailed: 'Error al exportar',
+  exportSkippedAssets:
+    'Exportado, pero se omitieron {count} recursos locales (hojas de estilo, scripts, fuentes)',
   viewPreview: 'Vista previa',
   viewSplit: 'Dividido',
   viewSource: 'Código',

@@ -7,6 +7,8 @@ export const hi = {
   saveFailed: 'सहेजना विफल: {error}',
   saveFailedStatus: 'सहेजना विफल',
   exportFailed: 'निर्यात विफल',
+  exportSkippedAssets:
+    'निर्यात किया गया, लेकिन {count} स्थानीय संसाधन शामिल नहीं हुए (स्टाइलशीट, स्क्रिप्ट, फ़ॉन्ट)',
   viewPreview: 'पूर्वावलोकन',
   viewSplit: 'विभाजित',
   viewSource: 'स्रोत',

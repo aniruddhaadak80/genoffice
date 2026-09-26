@@ -7,6 +7,8 @@ export const nl = {
   saveFailed: 'Opslaan mislukt: {error}',
   saveFailedStatus: 'Opslaan mislukt',
   exportFailed: 'Exporteren mislukt',
+  exportSkippedAssets:
+    'Geëxporteerd, maar {count} lokale assets ontbreken (stylesheets, scripts, lettertypen)',
   viewPreview: 'Voorbeeld',
   viewSplit: 'Gesplitst',
   viewSource: 'Bron',

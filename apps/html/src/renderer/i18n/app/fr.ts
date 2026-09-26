@@ -7,6 +7,8 @@ export const fr = {
   saveFailed: "Échec de l'enregistrement : {error}",
   saveFailedStatus: "Échec de l'enregistrement",
   exportFailed: "Échec de l'export",
+  exportSkippedAssets:
+    'Exporté, mais {count} ressources locales ont été omises (feuilles de style, scripts, polices)',
   viewPreview: 'Aperçu',
   viewSplit: 'Scindé',
   viewSource: 'Source',

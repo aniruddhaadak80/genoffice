@@ -62,6 +62,38 @@ interface CssUrlMatch {
   quote: '"' | "'" | ''
 }
 
+const LINK_TAG_RE = /<link\b[^>]*>/gi
+const LINK_HREF_RE = /\bhref\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i
+const SCRIPT_SRC_RE = /<script\b[^>]*\bsrc\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/gi
+
+function attrValue(match: RegExpExecArray | null): string {
+  if (!match) return ''
+  return (match[1] ?? match[2] ?? match[3] ?? '').trim()
+}
+
+export function localStylesheetSources(text: string): string[] {
+  const out: string[] = []
+  for (const tag of text.matchAll(LINK_TAG_RE)) {
+    if (!/\brel\s*=\s*["']?stylesheet["']?/i.test(tag[0])) continue
+    const source = attrValue(LINK_HREF_RE.exec(tag[0]))
+    if (source && !isExternalRef(source)) out.push(source)
+  }
+  return out
+}
+
+export function localScriptSources(text: string): string[] {
+  const out: string[] = []
+  for (const match of text.matchAll(SCRIPT_SRC_RE)) {
+    const source = attrValue(match)
+    if (source && !isExternalRef(source)) out.push(source)
+  }
+  return out
+}
+
+export function omittedSingleFileSources(text: string): string[] {
+  return [...new Set([...localStylesheetSources(text), ...localScriptSources(text)])]
+}
+
 /** Every CSS url(...) reference: <style> rules and inline style attributes alike. */
 function scanCssUrls(text: string): CssUrlMatch[] {
   const out: CssUrlMatch[] = []
@@ -107,7 +139,9 @@ export async function inlineImagesForSingleFile(
   const imageSources = extractDocumentImageSources(text)
   const cssMatches = scanCssUrls(text)
   const candidates = new Set(
-    [...imageSources, ...cssMatches.map((m) => m.source)].filter((s) => s && !isExternalRef(s)),
+    [...imageSources, ...cssMatches.map((m) => m.source), ...omittedSingleFileSources(text)].filter(
+      (s) => s && !isExternalRef(s),
+    ),
   )
   const dataBySource = new Map<string, string>()
   const skipped: string[] = []

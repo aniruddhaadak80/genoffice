@@ -1183,6 +1183,10 @@ export default function App() {
         setNotice(t('exportFailed'))
         return false
       }
+      if ('skipped' in result && result.skipped && result.skipped.length > 0) {
+        console.warn('[html] single-file export left local assets behind:', result.skipped)
+        setNotice(t('exportSkippedAssets', { count: String(result.skipped.length) }))
+      }
       return !('canceled' in result)
     } finally {
       exportingRef.current = false

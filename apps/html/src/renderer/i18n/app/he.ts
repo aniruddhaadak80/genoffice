@@ -7,6 +7,8 @@ export const he = {
   saveFailed: 'השמירה נכשלה: {error}',
   saveFailedStatus: 'השמירה נכשלה',
   exportFailed: 'הייצוא נכשל',
+  exportSkippedAssets:
+    'יוצא, אך {count} משאבים מקומיים לא נכללו (גיליונות סגנון, סקריפטים, גופנים)',
   viewPreview: 'תצוגה מקדימה',
   viewSplit: 'מפוצל',
   viewSource: 'מקור',
