@@ -181,6 +181,28 @@ describe('isNumericCell', () => {
     expect(isNumericCell('1234567890123456')).toBe(false)
   })
 
+  it('accepts a leading plus and a leading or trailing decimal point', () => {
+    expect(isNumericCell('.5')).toBe(true)
+    expect(isNumericCell('+1')).toBe(true)
+    expect(isNumericCell('1.')).toBe(true)
+    expect(isNumericCell('0.5')).toBe(true)
+    expect(isNumericCell('+.5')).toBe(true)
+    expect(isNumericCell('-1.')).toBe(true)
+    expect(isNumericCell('1.e2')).toBe(true)
+  })
+
+  it('rejects a lone sign or dot, and a doubled decimal point', () => {
+    expect(isNumericCell('.')).toBe(false)
+    expect(isNumericCell('+.')).toBe(false)
+    expect(isNumericCell('+.e2')).toBe(false)
+    expect(isNumericCell('1.2.3')).toBe(false)
+  })
+
+  it('keeps a signed long id as text', () => {
+    expect(isNumericCell('+123456789012345')).toBe(true)
+    expect(isNumericCell('+1234567890123456')).toBe(false)
+  })
+
   it('rejects blanks and formatted text', () => {
     expect(isNumericCell('')).toBe(false)
     expect(isNumericCell('12a')).toBe(false)
