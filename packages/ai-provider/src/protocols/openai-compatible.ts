@@ -95,6 +95,9 @@ function emitOpenAiJsonMessage(bodyText: string, cb: StreamCallbacks): void {
   const toolCalls: AgentToolCall[] = []
   for (const tc of choice?.message?.tool_calls ?? []) {
     if (!tc.function?.name) continue
+    // A complete JSON body carries the whole turn at once, so the per-turn tool
+    // budget of the streamed path has to be applied here as well
+    throwIfToolCountOverBudget(toolCalls.length + 1, 'openai-compatible')
     emitted = true
     const { input, error } = parseToolInput(tc.function.arguments ?? '')
     toolCalls.push({
