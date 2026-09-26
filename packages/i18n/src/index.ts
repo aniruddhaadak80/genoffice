@@ -92,6 +92,19 @@ export function htmlLang(lang: Lang): string {
   return HTML_LANGS[lang]
 }
 
+export type PluralCategory = 'zero' | 'one' | 'two' | 'few' | 'many' | 'other'
+
+const pluralRules = new Map<Lang, Intl.PluralRules>()
+
+export function pluralCategory(lang: Lang, count: number): PluralCategory {
+  let rules = pluralRules.get(lang)
+  if (!rules) {
+    rules = new Intl.PluralRules(HTML_LANGS[lang])
+    pluralRules.set(lang, rules)
+  }
+  return rules.select(count) as PluralCategory
+}
+
 // ---- platform-native shortcut hints ----
 // Dictionaries write shortcut hints in Mac notation (⌘S, ⇧⌘Z, ⌘+Click); on
 // Windows/Linux every translated string is rewritten to Ctrl/Alt/Shift form.
