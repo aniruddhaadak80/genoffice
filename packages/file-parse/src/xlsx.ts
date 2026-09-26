@@ -74,6 +74,7 @@ interface Cell {
   '@_t'?: string
   '@_s'?: string
   v?: unknown
+  f?: unknown
   is?: Record<string, unknown>
 }
 
@@ -116,6 +117,10 @@ function cellText(cell: Cell, shared: string[], dates: DateStyles, date1904: boo
   // <v> is ST_Xstring so it reaches the caller verbatim; the two reads that need it as a
   // scalar handle their own whitespace (Number tolerates it, the boolean compare strips it)
   const value = textOf(cell.v)
+  if (value.trim() === '') {
+    const formula = textOf(cell.f).trim()
+    if (formula !== '') return `=${formula}`
+  }
   if ((type === '' || type === 'n') && cell['@_s'] !== undefined) {
     const parts = dates.get(Number(cell['@_s']))
     if (parts && value.trim() !== '') {
