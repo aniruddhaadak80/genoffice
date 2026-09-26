@@ -6,7 +6,7 @@ import {
   planCellEditsToXlsx,
 } from '@genoffice/xlsx-gateway/gateway/xlsx-gateway'
 import type { SheetNoteState } from '@genoffice/xlsx-gateway/gateway/xlsx-gateway'
-import { buildEditFixture } from './fixture-builder'
+import { buildEditFixture, buildKitchenSinkFixture } from './fixture-builder'
 
 async function planNotes(noteStates: SheetNoteState[], fixture?: Buffer) {
   const source = await createBufferEntrySource(fixture ?? (await buildEditFixture()))
@@ -107,6 +107,17 @@ describe('note snapshots', () => {
       plan.replaced.get('xl/worksheets/_rels/sheet1.xml.rels') ??
       plan.added.get('xl/worksheets/_rels/sheet1.xml.rels')
     expect(rels).toContain('Id="rId130001"')
+  })
+
+  it('starts new note shape ids after the ids the part already holds', async () => {
+    const plan = await planNotes(NOTES, await buildKitchenSinkFixture())
+    const vml =
+      plan.replaced.get('xl/drawings/vmlDrawing1.vml') ??
+      plan.added.get('xl/drawings/vmlDrawing1.vml')
+    expect(vml).toBeDefined()
+    const ids = [...vml!.matchAll(/id="_x0000_s(\d+)"/g)].map((match) => match[1])
+    expect(ids).toHaveLength(3)
+    expect(new Set(ids).size).toBe(ids.length)
   })
 
   it('is a no-op when clearing notes on a sheet that never had any', async () => {
