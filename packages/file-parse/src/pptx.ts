@@ -158,15 +158,46 @@ interface SlideSection {
   pictures: number
 }
 
-function slideSection(heading: string, xml: string): SlideSection {
+const SPEAKER_NOTES_MARKER = '[speaker notes]'
+
+function slideSection(heading: string, xml: string, notes: readonly string[]): SlideSection {
   const tree = parser.parse(xml)
   const paras: string[] = []
   collectParagraphs(tree, paras)
-  if (paras.length > 0)
-    return { section: [heading, ...paras].join('\n'), hasText: true, pictures: 0 }
+  if (paras.length > 0 || notes.length > 0) {
+    const lines = [heading, ...paras]
+    if (notes.length > 0) lines.push(SPEAKER_NOTES_MARKER, ...notes)
+    return { section: lines.join('\n'), hasText: true, pictures: 0 }
+  }
   const pictures = countPictures(tree)
   const note = `[picture-only slide: ${pictures} image${pictures === 1 ? '' : 's'}, no extractable text]`
   return { section: pictures > 0 ? `${heading}\n${note}` : heading, hasText: false, pictures }
+}
+
+function relationshipPart(partPath: string): string {
+  return partPath.replace(/([^/]+)$/, '_rels/$1.rels')
+}
+
+async function speakerNotes(zip: JSZip, slidePath: string): Promise<string[]> {
+  const relsXml = await zipText(zip, relationshipPart(slidePath))
+  if (!relsXml) return []
+  const doc = manifestParser.parse(relsXml) as {
+    Relationships?: { Relationship?: Record<string, string> | Record<string, string>[] }
+  }
+  for (const rel of asArray(doc.Relationships?.Relationship)) {
+    if (!String(rel['@_Type'] ?? '').endsWith('/notesSlide')) continue
+    if (String(rel['@_TargetMode'] ?? '').toLowerCase() === 'external') continue
+    const target = String(rel['@_Target'] ?? '')
+    if (target.trim() === '') continue
+    const path = resolveTarget(slidePath, target)
+    if (path === '' || path === slidePath) continue
+    const notesXml = await zipText(zip, path)
+    if (!notesXml) return []
+    const paras: string[] = []
+    collectParagraphs(parser.parse(notesXml), paras)
+    return paras
+  }
+  return []
 }
 
 function joinSections(sections: SlideSection[]): string {
@@ -187,14 +218,14 @@ export async function pptxToText(bytes: Uint8Array): Promise<string> {
       if (path === null) continue
       const xml = await zipText(zip, path)
       if (!xml) continue
-      sections.push(slideSection(`## Slide ${index + 1}`, xml))
+      sections.push(slideSection(`## Slide ${index + 1}`, xml, await speakerNotes(zip, path)))
     }
     return joinSections(sections)
   }
   for (const path of legacySlidePaths(zip)) {
     const xml = await zipText(zip, path)
     if (!xml) continue
-    sections.push(slideSection(`## Slide ${slideNumber(path)}`, xml))
+    sections.push(slideSection(`## Slide ${slideNumber(path)}`, xml, await speakerNotes(zip, path)))
   }
   return joinSections(sections)
 }

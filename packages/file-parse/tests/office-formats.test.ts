@@ -213,6 +213,136 @@ describe('parseFileToText: pptx', () => {
     expect(await pptxToText(bytes)).toContain('Col1\tCol2')
   })
 
+  function notesSlideXml(paragraphs: string[], slideNumber: string | null = '7'): string {
+    const slideNumberShape =
+      slideNumber === null
+        ? ''
+        : '<p:sp><p:nvSpPr><p:nvPr><p:ph type="sldNum"/></p:nvPr></p:nvSpPr>' +
+          `<p:txBody><a:p><a:r><a:t>${slideNumber}</a:t></a:r></a:p></p:txBody></p:sp>`
+    return (
+      '<p:notes xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" ' +
+      'xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">' +
+      `<p:cSld><p:spTree>${slideNumberShape}` +
+      '<p:sp><p:nvSpPr><p:nvPr><p:ph type="body"/></p:nvPr></p:nvSpPr>' +
+      `<p:txBody>${paragraphs.map((t) => `<a:p><a:r><a:t>${t}</a:t></a:r></a:p>`).join('')}</p:txBody></p:sp>` +
+      '</p:spTree></p:cSld></p:notes>'
+    )
+  }
+
+  function slideRels(relationships: string): string {
+    return (
+      '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+      relationships +
+      '</Relationships>'
+    )
+  }
+
+  function notesSlideRel(id: string, target: string, extra = ''): string {
+    return (
+      `<Relationship Id="${id}" Target="${target}" ${extra} ` +
+      'Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/notesSlide"/>'
+    )
+  }
+
+  function textSlide(body: string): string {
+    return (
+      '<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" ' +
+      'xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">' +
+      `<p:cSld><p:spTree><p:sp><p:txBody><a:p><a:r><a:t>${body}</a:t></a:r></a:p>` +
+      '</p:txBody></p:sp></p:spTree></p:cSld></p:sld>'
+    )
+  }
+
+  it('appends speaker notes after the slide text', async () => {
+    const zip = new JSZip()
+    zip.file(
+      'ppt/presentation.xml',
+      '<p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" ' +
+        'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">' +
+        '<p:sldIdLst><p:sldId id="1" r:id="rId1"/><p:sldId id="2" r:id="rId2"/></p:sldIdLst>' +
+        '</p:presentation>',
+    )
+    zip.file(
+      'ppt/_rels/presentation.xml.rels',
+      slideRels(
+        slideRelationship('rId1', 'slides/slide1.xml') +
+          slideRelationship('rId2', 'slides/slide2.xml'),
+      ),
+    )
+    zip.file('ppt/slides/slide1.xml', textSlide('Roadmap'))
+    zip.file(
+      'ppt/slides/_rels/slide1.xml.rels',
+      slideRels(notesSlideRel('rId1', '../notesSlides/notesSlide1.xml')),
+    )
+    zip.file(
+      'ppt/notesSlides/notesSlide1.xml',
+      notesSlideXml(['Budget was cut by half', 'Say nothing about the timeline']),
+    )
+    zip.file('ppt/slides/slide2.xml', textSlide('Risks'))
+    zip.file(
+      'ppt/slides/_rels/slide2.xml.rels',
+      slideRels(notesSlideRel('rId1', '../notesSlides/missing.xml')),
+    )
+    const text = await pptxToText(await zip.generateAsync({ type: 'uint8array' }))
+    // the notes part carries a slide-number placeholder next to the body text, and
+    // the whole part is reported; the notes part a slide points at but that is not
+    // in the package contributes nothing
+    expect(text).toBe(
+      '## Slide 1\nRoadmap\n[speaker notes]\n7\nBudget was cut by half\nSay nothing about the timeline' +
+        '\n\n## Slide 2\nRisks',
+    )
+  })
+
+  it('counts a notes-only slide as text and skips blank notes', async () => {
+    const zip = new JSZip()
+    zip.file('ppt/slides/slide1.xml', PIC_SLIDE)
+    zip.file(
+      'ppt/slides/_rels/slide1.xml.rels',
+      slideRels(notesSlideRel('rId1', '../notesSlides/notesSlide1.xml')),
+    )
+    zip.file('ppt/notesSlides/notesSlide1.xml', notesSlideXml(['Detail only in the notes']))
+    zip.file('ppt/slides/slide2.xml', textSlide('Blank notes'))
+    zip.file(
+      'ppt/slides/_rels/slide2.xml.rels',
+      slideRels(notesSlideRel('rId1', '../notesSlides/notesSlide2.xml')),
+    )
+    zip.file('ppt/notesSlides/notesSlide2.xml', notesSlideXml(['   '], null))
+    const text = await pptxToText(await zip.generateAsync({ type: 'uint8array' }))
+    expect(text).toBe(
+      '## Slide 1\n[speaker notes]\n7\nDetail only in the notes\n\n## Slide 2\nBlank notes',
+    )
+    expect(text).not.toContain('No extractable text')
+    expect(text).not.toContain('picture-only')
+  })
+
+  it('ignores an external or self-referencing notes relationship', async () => {
+    const zip = new JSZip()
+    zip.file('ppt/slides/slide1.xml', textSlide('Only slide text'))
+    zip.file(
+      'ppt/slides/_rels/slide1.xml.rels',
+      slideRels(
+        notesSlideRel('rId1', 'https://example.invalid/notes.xml', 'TargetMode="External"') +
+          notesSlideRel('rId2', 'slide1.xml'),
+      ),
+    )
+    const text = await pptxToText(await zip.generateAsync({ type: 'uint8array' }))
+    expect(text).toBe('## Slide 1\nOnly slide text')
+  })
+
+  it('appends speaker notes for a deck with no presentation manifest', async () => {
+    const zip = new JSZip()
+    zip.file('ppt/slides/slide1.xml', textSlide('Fallback order'))
+    zip.file(
+      'ppt/slides/_rels/slide1.xml.rels',
+      slideRels(notesSlideRel('rId1', '../notesSlides/notesSlide1.xml')),
+    )
+    zip.file('ppt/notesSlides/notesSlide1.xml', notesSlideXml(['Reached without the manifest']))
+    const text = await pptxToText(await zip.generateAsync({ type: 'uint8array' }))
+    expect(text).toBe(
+      '## Slide 1\nFallback order\n[speaker notes]\n7\nReached without the manifest',
+    )
+  })
+
   async function presentationFixture(slideIds: string, relationships: string): Promise<JSZip> {
     const zip = await JSZip.loadAsync(await buildPptxFixture())
     zip.file(
