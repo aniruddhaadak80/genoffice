@@ -293,6 +293,41 @@ describe('structural ops', () => {
     ).toBe('<p>A &amp; <strong>B</strong>&nbsp;C</p>')
   })
 
+  it('wrap_text maps decoded offsets the same for a literal and an entity astral character', async () => {
+    const { decodedToRaw } = await import('../src/renderer/document/ops')
+    const literal = '<p>\u{1F600}abc</p>'
+    const entity = '<p>&#128512;abc</p>'
+    const p = sidOf(literal, 'p')
+    expect(
+      run([{ op: 'wrap_text', sid: p, index: 0, start: 2, end: 5, tag: 'b' }], literal).next,
+    ).toBe('<p>\u{1F600}<b>abc</b></p>')
+    expect(
+      run([{ op: 'wrap_text', sid: p, index: 0, start: 2, end: 5, tag: 'b' }], entity).next,
+    ).toBe('<p>&#128512;<b>abc</b></p>')
+    expect(decodedToRaw('&#128512;abc', 2)).toBe('&#128512;'.length)
+    expect(decodedToRaw('\u{1F600}abc', 2)).toBe('\u{1F600}'.length)
+    expect('&#128512;abc'.slice(decodedToRaw('&#128512;abc', 2))).toBe('abc')
+    expect('\u{1F600}abc'.slice(decodedToRaw('\u{1F600}abc', 2))).toBe('abc')
+  })
+
+  it('counts a hex astral reference by its decoded width too', async () => {
+    const { decodedToRaw } = await import('../src/renderer/document/ops')
+    expect(decodedToRaw('&#x1F600;abc', 2)).toBe('&#x1F600;'.length)
+    expect('&#x1F600;abc'.slice(decodedToRaw('&#x1F600;abc', 2))).toBe('abc')
+    expect(decodedToRaw('&#x1F4A9;abc', 3)).toBe('&#x1F4A9;a'.length)
+  })
+
+  it('still counts a BMP numeric and a named reference as one unit', async () => {
+    const { decodedToRaw } = await import('../src/renderer/document/ops')
+    expect(decodedToRaw('&#65;abc', 1)).toBe('&#65;'.length)
+    expect(decodedToRaw('&#x41;abc', 1)).toBe('&#x41;'.length)
+    expect(decodedToRaw('&nbsp;abc', 1)).toBe('&nbsp;'.length)
+    expect(decodedToRaw('&amp;abc', 1)).toBe('&amp;'.length)
+    const raw = 'A &amp; B&nbsp;C'
+    expect(decodedToRaw(raw, 3)).toBe(7)
+    expect(decodedToRaw(raw, 6)).toBe(15)
+  })
+
   it('unwrap removes only the tags', () => {
     const b = sidOf(T, 'b')
     expect(run([{ op: 'unwrap', sid: b }], T).next).toContain('<p class="x">Hello big world</p>')
