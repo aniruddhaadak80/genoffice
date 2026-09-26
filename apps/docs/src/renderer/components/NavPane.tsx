@@ -37,6 +37,11 @@ export const NavPane = memo(function NavPane({
             className={`nav-item nav-l${Math.min(h.level, 4)}`}
             data-tip={h.text}
             onClick={() => {
+              editor
+                .chain()
+                .focus(null, { scrollIntoView: false })
+                .setTextSelection(h.pos + 1)
+                .run()
               const dom = editor.view.nodeDOM(h.pos) as HTMLElement | null
               dom?.scrollIntoView({ behavior: 'smooth', block: 'start' })
             }}
