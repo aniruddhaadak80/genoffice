@@ -144,7 +144,7 @@ import { atomicWriteFile } from './atomic-write'
 import { closeGuardDecision } from './close-guard'
 import { SaveEditsTransferStore } from './save-edits-transfer'
 import { exportPdf, printWorkbook } from './pdf-export'
-import { allowsAutomaticWorkbookRecovery } from './recovery-policy'
+import { allowsAutomaticWorkbookRecovery, pendingRecoveryCopy } from './recovery-policy'
 import {
   setSystemShortDate,
   shortDatePatternForSystemLocale,
@@ -1816,16 +1816,16 @@ async function promptRecoveryRestoreNative(
   return answer.response === 0 ? 'restore' : 'discard'
 }
 
-/** Recovery copy newer than the file itself, i.e. unsaved work from a lost session. */
+/** A pending crash-recovery copy. A newer workbook mtime does not make it
+ * obsolete: another program may have touched the file while the copy still
+ * holds the unsaved work. It is dropped only when the workbook already holds
+ * exactly the same bytes. */
 function pendingRecoveryFor(filePath: string): string | null {
   const copy = recoveryPathFor(filePath)
   try {
-    if (!existsSync(copy)) return null
-    if (statSync(copy).mtimeMs <= statSync(filePath).mtimeMs) {
-      unlinkSync(copy)
-      return null
-    }
-    return copy
+    const action = pendingRecoveryCopy({ copyPath: copy, sourcePath: filePath })
+    if (action === 'drop-duplicate') unlinkSync(copy)
+    return action === 'offer' ? copy : null
   } catch {
     return null
   }

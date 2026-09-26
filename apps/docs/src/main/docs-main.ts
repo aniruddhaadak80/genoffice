@@ -63,6 +63,8 @@ import {
   rendererUrl,
   MAX_REMOTE_IMAGE_BYTES,
   readBodyCapped,
+  recoveryCopyAction,
+  type FileIdentity,
 } from '@genoffice/electron-utils'
 import { configureMetricsCache, familyVerticalMetrics } from '@genoffice/font-metrics'
 import { createI18n, getUiLang, normalizeLang, setUiLang } from '@genoffice/i18n'
@@ -129,7 +131,7 @@ import type {
 } from '../shared/ipc'
 import { ATTACHMENT_IMAGE_EXTS } from '../shared/ipc'
 import { findDocxPath } from '../shared/open-file'
-import { atomicWriteFile, looksLikeZip } from './atomic-write'
+import { atomicWriteFile } from './atomic-write'
 import {
   adoptLazyMediaHashes,
   forgetLazyMediaOwner,
@@ -2606,22 +2608,29 @@ interface MaybeRecoveredDocBytes {
   recovered: boolean
 }
 
-/** On open, if a recovery copy newer than the original exists, ask whether to restore
- * (still points at the original path; only save persists it). */
+/** On open, if a recovery copy exists, ask whether to restore (still points at the
+ * original path; only save persists it). The copy is dropped without asking only
+ * when the file already holds the same bytes — a newer original mtime means
+ * nothing about which one carries the unsaved work. */
 async function maybeRecoverDocBytes(
   filePath: string,
   original: Buffer,
+  sourceIdentity: FileIdentity,
 ): Promise<MaybeRecoveredDocBytes> {
   const asPath = recoveryPathFor(filePath)
   try {
     if (!existsSync(asPath)) return { bytes: original, recovered: false }
-    if (statSync(asPath).mtimeMs <= statSync(filePath).mtimeMs) {
-      // a crashed partial write bumps mtime yet corrupts the file — keep the copy
-      // then (an encrypted original is a CFB container, not a zip: intact too)
-      if (looksLikeZip(original) || isEncryptedDocx(original)) {
-        unlinkSync(asPath)
-        return { bytes: original, recovered: false }
-      }
+    const copyNewer = statSync(asPath).mtimeMs > statSync(filePath).mtimeMs
+    if (
+      recoveryCopyAction({
+        copyPath: asPath,
+        sourcePath: filePath,
+        copyNewerThanSource: copyNewer,
+        sourceIdentity,
+      }) === 'drop-duplicate'
+    ) {
+      unlinkSync(asPath)
+      return { bytes: original, recovered: false }
     }
   } catch {
     return { bytes: original, recovered: false }
@@ -2692,7 +2701,7 @@ async function loadDocx(
   // reopen with the user's password), so a bad save never loses the source file
   const hash = lazy?.hash ?? sha256Hex(original)
   await archiveOriginal(filePath, hash, size)
-  const recovery = await maybeRecoverDocBytes(filePath, plainBytes)
+  const recovery = await maybeRecoverDocBytes(filePath, plainBytes, { size, digest: hash })
   let bytes = recovery.bytes
   let recovered = recovery.recovered
   // recovery copies of a protected document are themselves encrypted (see

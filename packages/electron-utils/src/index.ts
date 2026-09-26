@@ -64,6 +64,13 @@ export {
 } from './remote-image'
 export { GENERATED_IMAGE_DIR, readGeneratedImage, storeGeneratedImage } from './generated-images'
 export {
+  fileIdentitySync,
+  recoveryCopyAction,
+  sameContent,
+  type FileIdentity,
+  type RecoveryCopyAction,
+} from './recovery-copy'
+export {
   buildPrintableHtml,
   printHtmlToPdf,
   sanitizePrintableBody,
