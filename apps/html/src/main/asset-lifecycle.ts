@@ -375,6 +375,12 @@ function isPathInside(root: string, candidate: string): boolean {
   )
 }
 
+export function isInDocDir(target: string, dir: string, separator: string = sep): boolean {
+  if (target === dir) return false
+  const prefix = dir.endsWith(separator) ? dir : dir + separator
+  return target.startsWith(prefix)
+}
+
 export async function resolveSafeRelativeImagePath(
   documentPath: string,
   source: string,
