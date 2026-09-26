@@ -119,6 +119,15 @@ function findAttribute(
 
 const ENTITY_RE = /&(?:#\d+|#x[0-9a-fA-F]+|[a-zA-Z][a-zA-Z0-9]*);/y
 
+const NUMERIC_ENTITY_RE = /^&#(?:(\d+)|x([0-9a-fA-F]+));$/
+
+function entityDecodedWidth(entity: string): number {
+  const numeric = NUMERIC_ENTITY_RE.exec(entity)
+  if (!numeric) return 1
+  const code = numeric[1] !== undefined ? Number(numeric[1]) : Number.parseInt(numeric[2]!, 16)
+  return code > 0xffff ? 2 : 1
+}
+
 /** raw index of the character at `decoded` in a text node whose entities each decode to one character */
 export function decodedToRaw(raw: string, decoded: number): number {
   const target = Math.max(0, Math.floor(Number.isFinite(decoded) ? decoded : 0))
@@ -129,7 +138,7 @@ export function decodedToRaw(raw: string, decoded: number): number {
     const entity = ENTITY_RE.exec(raw)
     if (entity) {
       i += entity[0].length
-      seen += 1
+      seen += entityDecodedWidth(entity[0])
       continue
     }
     const astral = raw.codePointAt(i)! > 0xffff
