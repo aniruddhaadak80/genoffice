@@ -35,6 +35,46 @@ function fakeTransport(script: RpcMessage[]): CodexTurnTransport {
   }
 }
 
+/** A child whose `turn/start` answer is driven by the test, so a cancel can land
+ * in the window before the turn id exists. */
+function pendingStartTransport() {
+  const requests: Array<{ method: string; params: unknown }> = []
+  const listeners = new Set<(message: RpcMessage) => void>()
+  let settleStart: ((value: unknown) => void) | undefined
+  let failStart: ((error: Error) => void) | undefined
+  const transport: CodexTurnTransport = {
+    request: (method, params) => {
+      requests.push({ method, params })
+      if (method === 'turn/start') {
+        return new Promise((resolve, reject) => {
+          settleStart = resolve
+          failStart = reject
+        })
+      }
+      return Promise.resolve({})
+    },
+    onNotification: (next) => {
+      listeners.add(next)
+      return () => {
+        listeners.delete(next)
+      }
+    },
+  }
+  return {
+    transport,
+    requests,
+    interrupts: () => requests.filter((r) => r.method === 'turn/interrupt').map((r) => r.params),
+    get listenerCount() {
+      return listeners.size
+    },
+    emit: (message: RpcMessage) => {
+      for (const listener of [...listeners]) listener(message)
+    },
+    resolveStart: (result: unknown) => settleStart?.(result),
+    rejectStart: (error: Error) => failStart?.(error),
+  }
+}
+
 const noopCallbacks = {
   signal: new AbortController().signal,
   onDelta: () => undefined,
@@ -186,6 +226,84 @@ describe('Codex app-server bridge', () => {
     expect(() =>
       parseCodexAppServerTurn(JSON.stringify({ text: '', toolCalls: [] }), tools),
     ).toThrow('no content')
+  })
+
+  it('a cancel before turn/started interrupts the orphan turn once its id arrives', async () => {
+    const child = pendingStartTransport()
+    const controller = new AbortController()
+    const pending = waitForTurn(
+      child.transport,
+      'th',
+      () => child.transport.request('turn/start', {}),
+      controller.signal,
+      { ...noopCallbacks, signal: controller.signal },
+    )
+    controller.abort()
+    await expect(pending).rejects.toThrow('cancelled')
+    // nothing to interrupt yet, and the subscription stays for the id
+    expect(child.interrupts()).toEqual([])
+    expect(child.listenerCount).toBe(1)
+    child.emit({ method: 'turn/started', params: { threadId: 'th', turn: { id: 't9' } } })
+    expect(child.interrupts()).toEqual([{ threadId: 'th', turnId: 't9' }])
+    expect(child.listenerCount).toBe(0)
+  })
+
+  it('a cancel before the turn/start answer interrupts it when the id is in the response', async () => {
+    const child = pendingStartTransport()
+    const controller = new AbortController()
+    const pending = waitForTurn(
+      child.transport,
+      'th',
+      () => child.transport.request('turn/start', {}),
+      controller.signal,
+      { ...noopCallbacks, signal: controller.signal },
+    )
+    controller.abort()
+    await expect(pending).rejects.toThrow('cancelled')
+    child.resolveStart({ turn: { id: 't7' } })
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(child.interrupts()).toEqual([{ threadId: 'th', turnId: 't7' }])
+    expect(child.listenerCount).toBe(0)
+  })
+
+  it('a cancel before a turn/start that then fails releases the subscription', async () => {
+    const child = pendingStartTransport()
+    const controller = new AbortController()
+    const pending = waitForTurn(
+      child.transport,
+      'th',
+      () => child.transport.request('turn/start', {}),
+      controller.signal,
+      { ...noopCallbacks, signal: controller.signal },
+    )
+    controller.abort()
+    await expect(pending).rejects.toThrow('cancelled')
+    child.rejectStart(new Error('app-server closed'))
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(child.interrupts()).toEqual([])
+    expect(child.listenerCount).toBe(0)
+  })
+
+  it('a cancel after the id is known interrupts immediately and unsubscribes', async () => {
+    const child = pendingStartTransport()
+    const controller = new AbortController()
+    const pending = waitForTurn(
+      child.transport,
+      'th',
+      () => child.transport.request('turn/start', {}),
+      controller.signal,
+      { ...noopCallbacks, signal: controller.signal },
+    )
+    child.emit({ method: 'turn/started', params: { threadId: 'th', turn: { id: 't1' } } })
+    controller.abort()
+    await expect(pending).rejects.toThrow('cancelled')
+    expect(child.interrupts()).toEqual([{ threadId: 'th', turnId: 't1' }])
+    expect(child.listenerCount).toBe(0)
+    // a turn/started that arrives afterwards is not interrupted twice
+    child.emit({ method: 'turn/started', params: { threadId: 'th', turn: { id: 't1' } } })
+    expect(child.interrupts()).toHaveLength(1)
   })
 
   it('keeps waiting through transient stream errors Codex retries itself', async () => {
