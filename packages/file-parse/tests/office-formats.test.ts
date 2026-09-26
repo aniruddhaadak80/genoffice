@@ -2,7 +2,7 @@ import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import JSZip from 'jszip'
 import { parseFileToText } from '../src/index'
-import { pptxToText } from '../src/pptx'
+import { MAX_PPTX_DEPTH, MAX_PPTX_NODES, pptxToText } from '../src/pptx'
 import { xlsxToText } from '../src/xlsx'
 import { resolveTarget } from '../src/opc'
 import {
@@ -211,6 +211,85 @@ describe('parseFileToText: pptx', () => {
     )
     const bytes = await zip.generateAsync({ type: 'uint8array' })
     expect(await pptxToText(bytes)).toContain('Col1\tCol2')
+  })
+
+  function textSlide(body: string): string {
+    return (
+      '<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" ' +
+      'xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">' +
+      `<p:cSld><p:spTree><p:sp><p:txBody><a:p><a:r><a:t>${body}</a:t></a:r></a:p>` +
+      '</p:txBody></p:sp></p:spTree></p:cSld></p:sld>'
+    )
+  }
+
+  function groupSlide(groups: string, body: string): string {
+    return (
+      '<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" ' +
+      'xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">' +
+      `<p:cSld><p:spTree>${groups}${body}</p:spTree></p:cSld></p:sld>`
+    )
+  }
+
+  const RUN = '<a:p><a:r><a:t>Reachable</a:t></a:r></a:p>'
+
+  it('bounds the walk over a slide part nested thousands of levels deep', async () => {
+    const zip = new JSZip()
+    zip.file(
+      'ppt/slides/slide1.xml',
+      groupSlide('<a:grpSp>'.repeat(5_000), RUN + '</a:grpSp>'.repeat(5_000)),
+    )
+    const bytes = await zip.generateAsync({ type: 'uint8array' })
+    expect(await pptxToText(bytes)).toBe('## Slide 1\n[part not read: its XML could not be parsed]')
+  })
+
+  it('stops descending at the depth budget and reports it', async () => {
+    const zip = new JSZip()
+    const groups = MAX_PPTX_DEPTH + 16
+    zip.file(
+      'ppt/slides/slide1.xml',
+      groupSlide('<a:grpSp>'.repeat(groups), RUN + '</a:grpSp>'.repeat(groups)),
+    )
+    const text = await pptxToText(await zip.generateAsync({ type: 'uint8array' }))
+    expect(text).toBe(
+      `## Slide 1\n[walk limit reached: XML nested past ${MAX_PPTX_DEPTH} levels; ` +
+        'the deeper text and images were not read]',
+    )
+  })
+
+  it('keeps the other slides when one slide part cannot be walked', async () => {
+    const zip = new JSZip()
+    zip.file(
+      'ppt/slides/slide1.xml',
+      groupSlide('<a:grpSp>'.repeat(5_000), RUN + '</a:grpSp>'.repeat(5_000)),
+    )
+    zip.file('ppt/slides/slide2.xml', textSlide('Still readable'))
+    const text = await pptxToText(await zip.generateAsync({ type: 'uint8array' }))
+    expect(text).toBe(
+      '## Slide 1\n[part not read: its XML could not be parsed]\n\n## Slide 2\nStill readable',
+    )
+  })
+
+  it('still reads text from a slide nested within the depth budget', async () => {
+    const zip = new JSZip()
+    const groups = MAX_PPTX_DEPTH - 10
+    zip.file(
+      'ppt/slides/slide1.xml',
+      groupSlide('<a:grpSp>'.repeat(groups), RUN + '</a:grpSp>'.repeat(groups)),
+    )
+    const text = await pptxToText(await zip.generateAsync({ type: 'uint8array' }))
+    expect(text).toBe('## Slide 1\nReachable')
+  })
+
+  it('bounds the walk over a slide part carrying more nodes than the budget', async () => {
+    const zip = new JSZip()
+    const wide = '<a:p><a:r><a:t>x</a:t></a:r></a:p>'.repeat(60_000)
+    zip.file('ppt/slides/slide1.xml', groupSlide('', wide))
+    const text = await pptxToText(await zip.generateAsync({ type: 'uint8array' }))
+    expect(text).toContain(
+      `[walk limit reached: more than ${MAX_PPTX_NODES} nodes in this part; ` +
+        'some text and images were not read]',
+    )
+    expect(text.length).toBeLessThan(1_000_000)
   })
 
   async function presentationFixture(slideIds: string, relationships: string): Promise<JSZip> {

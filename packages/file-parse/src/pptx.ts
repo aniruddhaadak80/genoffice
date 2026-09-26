@@ -95,14 +95,58 @@ async function zipText(zip: JSZip, path: string): Promise<string | undefined> {
   return file ? file.async('text') : undefined
 }
 
+export const MAX_PPTX_DEPTH = 64
+
+export const MAX_PPTX_NODES = 200_000
+
+const PART_UNREADABLE_NOTE = '[part not read: its XML could not be parsed]'
+
+interface WalkBudget {
+  nodes: number
+  depthExceeded: boolean
+  nodesExceeded: boolean
+}
+
+function walkLimitNote(budget: WalkBudget): string {
+  return budget.depthExceeded
+    ? `[walk limit reached: XML nested past ${MAX_PPTX_DEPTH} levels; ` +
+        'the deeper text and images were not read]'
+    : `[walk limit reached: more than ${MAX_PPTX_NODES} nodes in this part; ` +
+        'some text and images were not read]'
+}
+
+function walkExhausted(depth: number, budget: WalkBudget): boolean {
+  if (depth > MAX_PPTX_DEPTH) {
+    budget.depthExceeded = true
+    return true
+  }
+  if (budget.nodes <= 0) {
+    budget.nodesExceeded = true
+    return true
+  }
+  return false
+}
+
+function newBudget(): WalkBudget {
+  return { nodes: MAX_PPTX_NODES, depthExceeded: false, nodesExceeded: false }
+}
+
 /**
  * One paragraph's text in document order. Only #text directly under a:t counts: untrimmed, the
  * whitespace laying out any other element is a value too. <a:br> is a soft line break, <a:tab>
  * is a tab stop between runs, and <a:fld> (slide number, date) contributes its own a:t where it sits.
  */
-function collectText(nodes: readonly unknown[], out: string[], isText = false): void {
+function collectText(
+  nodes: readonly unknown[],
+  out: string[],
+  isText: boolean,
+  depth: number,
+  budget: WalkBudget,
+): void {
+  if (walkExhausted(depth, budget)) return
   for (const node of nodes) {
     if (node == null || typeof node !== 'object') continue
+    budget.nodes -= 1
     for (const [key, value] of Object.entries(node)) {
       if (key === '#text') {
         if (isText) out.push(String(value))
@@ -111,37 +155,46 @@ function collectText(nodes: readonly unknown[], out: string[], isText = false): 
       } else if (key === 'tab') {
         out.push('\t')
       } else if (Array.isArray(value)) {
-        collectText(value, out, key === 't')
+        collectText(value, out, key === 't', depth + 1, budget)
       }
     }
   }
 }
 
 /** walk the slide tree; each a:p paragraph becomes one output entry (a:br splits it further) */
-function collectParagraphs(nodes: readonly unknown[], out: string[]): void {
+function collectParagraphs(
+  nodes: readonly unknown[],
+  out: string[],
+  depth: number,
+  budget: WalkBudget,
+): void {
+  if (walkExhausted(depth, budget)) return
   for (const node of nodes) {
     if (node == null || typeof node !== 'object') continue
+    budget.nodes -= 1
     for (const [key, value] of Object.entries(node)) {
       if (!Array.isArray(value)) continue
       if (key === 'p') {
         const texts: string[] = []
-        collectText(value, texts)
+        collectText(value, texts, false, depth + 1, budget)
         const line = texts.join('')
         if (line.trim()) out.push(line)
       } else {
-        collectParagraphs(value, out)
+        collectParagraphs(value, out, depth + 1, budget)
       }
     }
   }
 }
 
-function countPictures(nodes: readonly unknown[]): number {
+function countPictures(nodes: readonly unknown[], depth: number, budget: WalkBudget): number {
+  if (walkExhausted(depth, budget)) return 0
   let count = 0
   for (const node of nodes) {
     if (node == null || typeof node !== 'object') continue
+    budget.nodes -= 1
     for (const [key, value] of Object.entries(node)) {
       if (key === 'pic') count += 1
-      else if (Array.isArray(value)) count += countPictures(value)
+      else if (Array.isArray(value)) count += countPictures(value, depth + 1, budget)
     }
   }
   return count
@@ -159,14 +212,28 @@ interface SlideSection {
 }
 
 function slideSection(heading: string, xml: string): SlideSection {
-  const tree = parser.parse(xml)
+  const budget = newBudget()
+  let tree: readonly unknown[]
+  try {
+    tree = parser.parse(xml) as readonly unknown[]
+  } catch {
+    return { section: `${heading}\n${PART_UNREADABLE_NOTE}`, hasText: false, pictures: 0 }
+  }
   const paras: string[] = []
-  collectParagraphs(tree, paras)
-  if (paras.length > 0)
-    return { section: [heading, ...paras].join('\n'), hasText: true, pictures: 0 }
-  const pictures = countPictures(tree)
-  const note = `[picture-only slide: ${pictures} image${pictures === 1 ? '' : 's'}, no extractable text]`
-  return { section: pictures > 0 ? `${heading}\n${note}` : heading, hasText: false, pictures }
+  collectParagraphs(tree, paras, 0, budget)
+  const lines = [heading, ...paras]
+  if (paras.length > 0) {
+    if (budget.depthExceeded || budget.nodesExceeded) lines.push(walkLimitNote(budget))
+    return { section: lines.join('\n'), hasText: true, pictures: 0 }
+  }
+  const pictures = countPictures(tree, 0, budget)
+  if (pictures > 0) {
+    lines.push(
+      `[picture-only slide: ${pictures} image${pictures === 1 ? '' : 's'}, no extractable text]`,
+    )
+  }
+  if (budget.depthExceeded || budget.nodesExceeded) lines.push(walkLimitNote(budget))
+  return { section: lines.join('\n'), hasText: false, pictures }
 }
 
 function joinSections(sections: SlideSection[]): string {
