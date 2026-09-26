@@ -258,10 +258,12 @@ export class XlsxSidecarClient {
       this.stderr = `${this.stderr}${chunk}`.slice(-MAX_STDERR_LENGTH)
     })
     child.once('error', (error) => {
+      if (this.process !== child) return
       this.process = null
       this.rejectPending(error)
     })
     child.once('exit', (code, signal) => {
+      if (this.process !== child) return
       this.process = null
       this.lines?.close()
       this.lines = null
