@@ -34,18 +34,22 @@ interface TipState {
 }
 
 let tip: TipState | null = null
+let tipSeq = 0
 let showTimer: number | null = null
 let autoHideTimer: number | null = null
 let anchor: Element | null = null
 // clicked anchor: the tip stays hidden until the pointer leaves it (Office behavior)
 let suppressed: Element | null = null
 let warmUntil = 0
+let described: Element | null = null
+let describedBefore: string | null = null
 
 function ensureTip(doc: Document): TipState {
   if (tip && tip.el.isConnected) return tip
   const el = doc.createElement('div')
   el.className = 'ui-screentip'
   el.setAttribute('role', 'tooltip')
+  el.id = `ui-screentip-${++tipSeq}`
   const name = doc.createElement('span')
   name.className = 'ui-screentip-name'
   const kbd = doc.createElement('span')
@@ -56,6 +60,21 @@ function ensureTip(doc: Document): TipState {
   doc.body.appendChild(el)
   tip = { el, name, kbd, detail }
   return tip
+}
+
+function describe(el: Element, id: string): void {
+  clearDescribed()
+  described = el
+  describedBefore = el.getAttribute('aria-describedby')
+  el.setAttribute('aria-describedby', describedBefore ? `${describedBefore} ${id}` : id)
+}
+
+function clearDescribed(): void {
+  if (!described) return
+  if (describedBefore === null) described.removeAttribute('aria-describedby')
+  else described.setAttribute('aria-describedby', describedBefore)
+  described = null
+  describedBefore = null
 }
 
 function cancelShow(): void {
@@ -75,6 +94,7 @@ function hide(): void {
     tip.el.style.visibility = 'hidden'
     warmUntil = Date.now() + WARM_WINDOW_MS
   }
+  clearDescribed()
   anchor = null
 }
 
@@ -121,6 +141,7 @@ function show(el: Element, doc: Document): void {
   t.el.style.left = `${Math.round(left)}px`
   t.el.style.top = `${Math.round(top)}px`
   t.el.style.visibility = 'visible'
+  describe(el, t.el.id)
 
   if (autoHideTimer !== null) window.clearTimeout(autoHideTimer)
   autoHideTimer = window.setTimeout(hide, AUTO_HIDE_MS)
@@ -155,11 +176,31 @@ export function installScreenTips(doc: Document = document): () => void {
     hide()
     warmUntil = 0
   }
+  const onFocusIn = (e: FocusEvent): void => {
+    const target = e.target instanceof Element ? e.target : null
+    const el = target?.closest('[data-tip]') ?? null
+    if (!el) return
+    if (el === suppressed) return
+    if (suppressed) suppressed = null
+    if (el === anchor) return
+    hide()
+    anchor = el
+    show(el, doc)
+  }
+  const onFocusOut = (e: FocusEvent): void => {
+    const from = e.target instanceof Element ? e.target.closest('[data-tip]') : null
+    if (!from) return
+    const to = e.relatedTarget instanceof Element ? e.relatedTarget.closest('[data-tip]') : null
+    if (to === from) return
+    hide()
+  }
   const onHide = (): void => hide()
 
   doc.addEventListener('pointerover', onPointerOver, true)
   doc.addEventListener('pointerout', onPointerOut, true)
   doc.addEventListener('pointerdown', onPointerDown, true)
+  doc.addEventListener('focusin', onFocusIn, true)
+  doc.addEventListener('focusout', onFocusOut, true)
   doc.addEventListener('scroll', onHide, true)
   window.addEventListener('blur', onHide)
   window.addEventListener('resize', onHide)
@@ -167,10 +208,13 @@ export function installScreenTips(doc: Document = document): () => void {
     doc.removeEventListener('pointerover', onPointerOver, true)
     doc.removeEventListener('pointerout', onPointerOut, true)
     doc.removeEventListener('pointerdown', onPointerDown, true)
+    doc.removeEventListener('focusin', onFocusIn, true)
+    doc.removeEventListener('focusout', onFocusOut, true)
     doc.removeEventListener('scroll', onHide, true)
     window.removeEventListener('blur', onHide)
     window.removeEventListener('resize', onHide)
     hide()
+    clearDescribed()
     tip?.el.remove()
     tip = null
   }
