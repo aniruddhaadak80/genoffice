@@ -129,7 +129,7 @@ function noteShape(note: SheetNote, index: number): string {
 
 /// Drops every Note-typed shape, keeping other legacy objects verbatim.
 function stripNoteShapes(vmlXml: string): string {
-  return vmlXml.replace(/<v:shape\b[\s\S]*?<\/v:shape>/g, (shape) =>
+  return vmlXml.replace(/<v:shape\b(?![^>]*\/>)[\s\S]*?<\/v:shape>/g, (shape) =>
     shape.includes('ObjectType="Note"') ? '' : shape,
   )
 }
