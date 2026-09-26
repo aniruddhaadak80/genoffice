@@ -57,6 +57,12 @@ interface ModelEntry {
 
 const DIAGNOSTIC_LIMIT = 16_000
 const REQUEST_TIMEOUT_MS = 30_000
+/**
+ * How long a turn cancelled before its id arrived keeps listening for that id.
+ * The orphan turn only ends when the server names it and the interrupt goes
+ * out, and `turn/start` itself is allowed REQUEST_TIMEOUT_MS to answer.
+ */
+const LATE_INTERRUPT_GRACE_MS = 30_000
 const IDLE_SHUTDOWN_MS = 120_000
 const MAX_NATIVE_SESSIONS = 64
 const MAX_MODEL_PAGES = 10
@@ -778,24 +784,54 @@ export async function waitForTurn(
   let turnId = ''
   let finalText = ''
   let settled = false
+  // Set when the user cancelled while `turn/start` was still in flight: the turn
+  // is running on the server but has no id to interrupt yet.
+  let awaitingInterrupt = false
+  let graceTimer: ReturnType<typeof setTimeout> | undefined
   return new Promise<string>((resolve, reject) => {
+    const release = () => {
+      unsubscribe()
+      signal.removeEventListener('abort', onAbort)
+      if (graceTimer) {
+        clearTimeout(graceTimer)
+        graceTimer = undefined
+      }
+    }
+    const interruptLate = (id: string) => {
+      awaitingInterrupt = false
+      void client.request('turn/interrupt', { threadId, turnId: id }).catch(() => undefined)
+      release()
+    }
     const finish = (error?: Error) => {
       if (settled) return
       settled = true
-      unsubscribe()
-      signal.removeEventListener('abort', onAbort)
+      // An orphan turn that cannot be interrupted yet keeps its subscription, so
+      // the id arriving on turn/started still reaches the server.
+      if (!awaitingInterrupt) release()
       if (error) reject(error)
       else resolve(finalText)
     }
     const onAbort = () => {
       if (turnId) {
         void client.request('turn/interrupt', { threadId, turnId }).catch(() => undefined)
+        finish(cancelledError())
+        return
       }
+      awaitingInterrupt = true
+      graceTimer = setTimeout(release, LATE_INTERRUPT_GRACE_MS)
+      graceTimer.unref?.()
       finish(cancelledError())
     }
     const unsubscribe = client.onNotification((message) => {
       const params = objectValue(message.params)
       if (params?.threadId !== threadId) return
+      if (settled) {
+        // Past the local settle the only work left is interrupting the orphan
+        // turn; keep the watchdog untouched so it cannot re-arm.
+        const started = message.method === 'turn/started' ? objectValue(params.turn) : undefined
+        if (awaitingInterrupt && typeof started?.id === 'string') interruptLate(started.id)
+        return
+      }
       cb.onActivity?.()
       const eventTurnId = typeof params.turnId === 'string' ? params.turnId : ''
       if (turnId && eventTurnId && eventTurnId !== turnId) return
@@ -831,9 +867,22 @@ export async function waitForTurn(
     void start()
       .then((result) => {
         const turn = objectValue(objectValue(result)?.turn)
-        if (typeof turn?.id === 'string') turnId = turn.id
+        if (typeof turn?.id !== 'string') return
+        if (settled) {
+          if (awaitingInterrupt) interruptLate(turn.id)
+          return
+        }
+        turnId = turn.id
       })
-      .catch((error) => finish(error instanceof Error ? error : new Error(String(error))))
+      .catch((error) => {
+        if (settled) {
+          // The turn never started, so there is no orphan left to interrupt.
+          awaitingInterrupt = false
+          release()
+          return
+        }
+        finish(error instanceof Error ? error : new Error(String(error)))
+      })
   })
 }
 
