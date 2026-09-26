@@ -1,6 +1,7 @@
 use std::borrow::Cow;
 
 use super::*;
+use crate::visuals::resolve_part_target;
 use crate::xml_util::MAX_EAGER_XML_BYTES;
 
 #[test]
@@ -171,6 +172,34 @@ fn strips_future_function_markers_outside_strings() {
 }
 
 #[test]
+fn preserves_future_function_markers_in_sheet_and_defined_names() {
+    assert_eq!(
+        strip_future_function_markers("='Data_xlfn.Total'!_xlfn.MINIFS(A1:A3,A1:A3,\">0\")"),
+        "='Data_xlfn.Total'!MINIFS(A1:A3,A1:A3,\">0\")"
+    );
+    assert_eq!(
+        strip_future_function_markers("'Owner''s_xlfn.Data'!A1"),
+        "'Owner''s_xlfn.Data'!A1"
+    );
+    assert_eq!(
+        strip_future_function_markers("Budget_xlfn.Total+A1"),
+        "Budget_xlfn.Total+A1"
+    );
+    assert_eq!(
+        strip_future_function_markers("Budget_xlfn.Total(A1)+_xlfn.MINIFS(A1,A1,\">0\")"),
+        "Budget_xlfn.Total(A1)+MINIFS(A1,A1,\">0\")"
+    );
+    assert_eq!(
+        strip_future_function_markers("Budget_xlfn._xlws.FILTER(A1)"),
+        "Budget_xlfn._xlws.FILTER(A1)"
+    );
+    assert_eq!(
+        strip_future_function_markers("'Data_xlfn.Total'!_xlfn._xlws.SORT(A1)"),
+        "'Data_xlfn.Total'!SORT(A1)"
+    );
+}
+
+#[test]
 fn normalizes_worksheet_paths_with_forward_slashes() {
     assert_eq!(
         normalize_worksheet_path("worksheets/sheet1.xml").unwrap(),
@@ -189,6 +218,68 @@ fn normalizes_worksheet_paths_with_forward_slashes() {
         "xl/worksheets/sheet1.xml"
     );
     assert!(normalize_worksheet_path("../../etc/passwd").is_err());
+}
+
+#[test]
+fn resolves_encoded_internal_relationship_targets() {
+    assert_eq!(
+        normalize_worksheet_path("worksheets/sheet%201.xml").unwrap(),
+        "xl/worksheets/sheet 1.xml"
+    );
+    assert_eq!(
+        normalize_worksheet_path("worksheets/%E6%95%B0%E6%8D%AE.xml").unwrap(),
+        "xl/worksheets/数据.xml"
+    );
+    assert_eq!(
+        resolve_part_target("xl/worksheets/sheet.xml", "../drawings/drawing%201.xml").unwrap(),
+        "xl/drawings/drawing 1.xml"
+    );
+    assert!(normalize_worksheet_path("worksheets/%ZZ.xml").is_err());
+    assert!(normalize_worksheet_path("../../outside.xml").is_err());
+    assert!(resolve_part_target("xl/worksheets/sheet.xml", "../../../outside.xml").is_err());
+
+    let (_dir, path) = open_fixture(&[("xl/media/image 1.png", "image")]);
+    let mut archive = zip::ZipArchive::new(File::open(&path).unwrap()).unwrap();
+    assert!(crate::xml_util::zip_entry(&mut archive, "xl/media/image%201.png").is_ok());
+}
+
+#[test]
+fn opens_percent_encoded_worksheet_target() {
+    let (_dir, path) = open_fixture(&[
+        (
+            "xl/workbook.xml",
+            r#"<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="S" sheetId="1" r:id="rId1"/></sheets></workbook>"#,
+        ),
+        (
+            "xl/_rels/workbook.xml.rels",
+            r#"<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet%201.xml"/></Relationships>"#,
+        ),
+        (
+            "xl/worksheets/sheet 1.xml",
+            r#"<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><dimension ref="A1"/><sheetData><row r="1"><c r="A1"><v>7</v></c></row></sheetData></worksheet>"#,
+        ),
+    ]);
+    let mut sessions = WorkbookSessions::new();
+    let metadata = sessions.open(&path).unwrap();
+    assert_eq!(metadata.sheets[0].name, "S");
+    let result = sessions
+        .read_range(
+            &metadata.session_id,
+            "sheet-1",
+            &CellRange {
+                start_row: 0,
+                end_row: 0,
+                start_column: 0,
+                end_column: 0,
+            },
+        )
+        .unwrap();
+    assert!(
+        result
+            .cells
+            .iter()
+            .any(|cell| { matches!(&cell.value, Some(CellValue::Number(value)) if *value == 7.0) })
+    );
 }
 
 #[test]

@@ -682,11 +682,18 @@ export function reparseDeck(opened: OpenedPptx): OpenedPptx {
  *   even flagged dirty they use original bytes.
  */
 export async function savePptx(opened: OpenedPptx): Promise<Uint8Array> {
-  return buildZip(opened).generateAsync({
-    type: 'uint8array',
-    compression: 'DEFLATE',
-    compressionOptions: { level: 6 },
-  })
+  try {
+    return await buildZip(opened).generateAsync({
+      type: 'uint8array',
+      compression: 'DEFLATE',
+      compressionOptions: { level: 6 },
+    })
+  } catch (err) {
+    // A save that never landed cannot vouch for any edit: drop the snapshot so
+    // a later commitSaved bakes the deck instead of clearing it.
+    saveSnapshot.delete(opened)
+    throw err
+  }
 }
 
 /**
@@ -708,8 +715,22 @@ export async function savePptxToFile(opened: OpenedPptx, filePath: string): Prom
     compressionOptions: { level: 6 },
     streamFiles: true,
   })
-  await pipeline(source, createWriteStream(filePath))
+  try {
+    await pipeline(source, createWriteStream(filePath))
+  } catch (err) {
+    saveSnapshot.delete(opened)
+    throw err
+  }
 }
+
+/**
+ * The slide XML each in-flight save pulled into its package, keyed by the
+ * opened deck. buildZip records it before the stream starts, and commitSaved
+ * clears dirty state only for the slides it matches — a slide that was clean
+ * at snapshot time, or whose XML moved afterwards, holds edits the finished
+ * write never contained.
+ */
+const saveSnapshot = new WeakMap<OpenedPptx, Map<string, string>>()
 
 /**
  * Sync the in-memory model with what savePptx/savePptxToFile just wrote, without
@@ -722,14 +743,18 @@ export async function savePptxToFile(opened: OpenedPptx, filePath: string): Prom
  * patchedElementXml pair as buildZip, so memory and disk are byte-identical and
  * the next save's byte slices are safe to reuse.
  *
+ * Only slides the finished save actually carried are cleared, so an edit
+ * committed while the stream was running stays dirty and lands in the next save.
  * Call only after a successful save; on failure keep the dirty state so the next
  * save retries the patches.
  */
 export function commitSaved(opened: OpenedPptx): void {
   const { deck, archive } = opened
+  const snapshot = saveSnapshot.get(opened)
   for (const slide of deck.slides) {
     if (!slideIsDirty(slide)) continue
     const xml = patchSlideXml(slide)
+    if (snapshot && snapshot.get(slide.path) !== xml) continue
     for (const el of slide.elements) {
       el.anchor.originalXml = patchedElementXml(el)
       delete el.dirty
@@ -743,6 +768,7 @@ export function commitSaved(opened: OpenedPptx): void {
     delete slide.structureDirty
     archive.entries.set(slide.path, Buffer.from(xml, 'utf8'))
   }
+  saveSnapshot.delete(opened)
 }
 
 /**
@@ -765,16 +791,17 @@ function slideIsDirty(s: Slide): boolean {
 function buildZip(opened: OpenedPptx): JSZip {
   const { deck, archive } = opened
   stripStaleEmbeddedFonts(deck, archive)
-  const dirtyByPath = new Map<string, Slide>()
+  const patched = new Map<string, string>()
   for (const s of deck.slides) {
-    if (slideIsDirty(s)) dirtyByPath.set(s.path, s)
+    if (slideIsDirty(s)) patched.set(s.path, patchSlideXml(s))
   }
+  saveSnapshot.set(opened, patched)
 
   const zip = new JSZip()
   for (const [path, data] of archive.entries) {
-    const slide = dirtyByPath.get(path)
-    if (slide) {
-      zip.file(path, patchSlideXml(slide))
+    const xml = patched.get(path)
+    if (xml !== undefined) {
+      zip.file(path, xml)
       continue
     }
     const ext = path.slice(path.lastIndexOf('.') + 1).toLowerCase()

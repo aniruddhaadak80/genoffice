@@ -8,6 +8,7 @@ import { createStreamWatchdog, type StreamWatchdog } from '../watchdog'
 import {
   jsonBodyInsteadOfSse,
   parseToolInput,
+  readCappedResponseText,
   sseErrorText,
   sseLines,
   throwIfCreditsNotice,
@@ -182,9 +183,11 @@ async function openAiCompatibleTurn(
   // headers arrived: ping the renderer watchdog too, or a slow first chunk could trip it
   onBytes()
   if (!response.ok || !response.body) {
-    throw new Error(`HTTP ${response.status}: ${httpBodyDetail(await response.text())}`)
+    throw new Error(
+      `HTTP ${response.status}: ${httpBodyDetail(await readCappedResponseText(response, onBytes))}`,
+    )
   }
-  const jsonBody = await jsonBodyInsteadOfSse(response)
+  const jsonBody = await jsonBodyInsteadOfSse(response, onBytes)
   if (jsonBody !== null) {
     throwIfCreditsNotice(jsonBody)
     return emitOpenAiJsonMessage(jsonBody, cb)
@@ -344,12 +347,15 @@ export async function chatOpenAiCompatible(
   })
   wd.touch()
   if (!response.ok) {
-    return { ok: false, error: `HTTP ${response.status}: ${httpBodyDetail(await response.text())}` }
+    return {
+      ok: false,
+      error: `HTTP ${response.status}: ${httpBodyDetail(await readCappedResponseText(response, () => wd.touch()))}`,
+    }
   }
   // A 200 with an HTML shell / empty / truncated body (gateway soft-failure)
   // would make response.json() throw; return ok:false instead of leaking a
   // raw SyntaxError to the caller.
-  const bodyText = await response.text()
+  const bodyText = await readCappedResponseText(response, () => wd.touch())
   let json: { choices?: Array<{ message?: { content?: string } }> }
   try {
     json = JSON.parse(bodyText) as { choices?: Array<{ message?: { content?: string } }> }

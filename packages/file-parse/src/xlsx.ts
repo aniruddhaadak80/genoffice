@@ -9,6 +9,11 @@ import {
   type DateFormatParts,
 } from './xlsx-dates'
 
+function stripNamespacePrefix(name: string): string {
+  const separator = name.indexOf(':')
+  return separator < 0 ? name : name.slice(separator + 1)
+}
+
 // Text fidelity: no trim (xml:space="preserve" runs carry the spaces between words),
 // no numeric coercion of tag values (otherwise <t>02139</t> becomes a number and loses characters)
 const parser = new XMLParser({
@@ -16,6 +21,8 @@ const parser = new XMLParser({
   attributeNamePrefix: '@_',
   trimValues: false,
   parseTagValue: false,
+  removeNSPrefix: false,
+  transformTagName: stripNamespacePrefix,
   // trimValues also governs attributes; nothing read here (r:id, Target, cell ref, sheet
   // name) carries meaningful edge whitespace, and an untrimmed Target builds the wrong zip
   // path, which silently drops the whole sheet
@@ -25,6 +32,11 @@ const parser = new XMLParser({
 function asArray<T>(value: T | T[] | undefined): T[] {
   if (value === undefined || value === null) return []
   return Array.isArray(value) ? value : [value]
+}
+
+function relationshipId(node: Record<string, unknown>): string {
+  const qualified = Object.entries(node).find(([key]) => /^@_[^:]+:id$/.test(key))
+  return String(qualified?.[1] ?? node['@_id'] ?? '')
 }
 
 /** unwrap a fast-xml-parser text node (plain value, or { '#text': ... } when it carried attributes) */
@@ -170,7 +182,7 @@ export async function xlsxToText(bytes: Uint8Array): Promise<string> {
   let sheetsWithData = 0
   let imageOnlySheets = 0
   for (const sheet of sheets) {
-    const path = relTargets.get(String(sheet['@_r:id'] ?? ''))
+    const path = relTargets.get(relationshipId(sheet))
     const sheetXml = path ? await zipText(zip, path) : undefined
     if (!sheetXml) continue
     const worksheet = parser.parse(sheetXml) as Record<string, any>
@@ -212,6 +224,15 @@ export async function xlsxToText(bytes: Uint8Array): Promise<string> {
   return `[No extractable text: none of the ${n} sheet${n === 1 ? '' : 's'} holds cell data; the content is in embedded images, which this extraction does not read.]\n\n${body}`
 }
 
+function countElements(value: unknown, name: string): number {
+  if (Array.isArray(value)) return value.reduce((n, item) => n + countElements(item, name), 0)
+  if (value === null || typeof value !== 'object') return 0
+  return Object.entries(value).reduce((n, [key, child]) => {
+    const matches = key === name ? (Array.isArray(child) ? child.length : 1) : 0
+    return n + matches + countElements(child, name)
+  }, 0)
+}
+
 /** follow the sheet's <drawing r:id> to its drawing part and count the pictures anchored there */
 async function countDrawingPictures(
   zip: JSZip,
@@ -222,11 +243,11 @@ async function countDrawingPictures(
   const relsXml = await zipText(zip, relsPath)
   if (!relsXml) return 0
   const rels = parser.parse(relsXml) as Record<string, any>
-  const wanted = String(drawing['@_r:id'] ?? '')
+  const wanted = relationshipId(drawing)
   for (const rel of asArray(rels.Relationships?.Relationship) as Array<Record<string, unknown>>) {
     if (String(rel['@_Id'] ?? '') !== wanted) continue
     const drawingXml = await zipText(zip, resolveTarget(sheetPath, String(rel['@_Target'] ?? '')))
-    return drawingXml ? (drawingXml.match(/<(?:\w+:)?pic[\s>/]/g) ?? []).length : 0
+    return drawingXml ? countElements(parser.parse(drawingXml), 'pic') : 0
   }
   return 0
 }
