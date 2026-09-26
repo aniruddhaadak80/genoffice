@@ -7,6 +7,7 @@ import { createStreamWatchdog, type StreamWatchdog } from '../watchdog'
 import {
   jsonBodyInsteadOfSse,
   parseToolInput,
+  readCappedResponseText,
   sseErrorText,
   sseLines,
   throwIfCreditsNotice,
@@ -170,9 +171,11 @@ async function anthropicTurn(
   // headers arrived: ping the renderer watchdog too, or a slow first chunk could trip it
   onBytes()
   if (!response.ok || !response.body) {
-    throw new Error(`Claude HTTP ${response.status}: ${httpBodyDetail(await response.text())}`)
+    throw new Error(
+      `Claude HTTP ${response.status}: ${httpBodyDetail(await readCappedResponseText(response, onBytes))}`,
+    )
   }
-  const jsonBody = await jsonBodyInsteadOfSse(response)
+  const jsonBody = await jsonBodyInsteadOfSse(response, onBytes)
   if (jsonBody !== null) {
     throwIfCreditsNotice(jsonBody)
     return emitAnthropicJsonMessage(jsonBody, cb)
@@ -291,13 +294,13 @@ export async function chatAnthropic(
   if (!response.ok) {
     return {
       ok: false,
-      error: `Claude HTTP ${response.status}: ${httpBodyDetail(await response.text())}`,
+      error: `Claude HTTP ${response.status}: ${httpBodyDetail(await readCappedResponseText(response, () => wd.touch()))}`,
     }
   }
   // A 200 with an HTML shell / empty / truncated body (gateway soft-failure)
   // would make response.json() throw; return ok:false instead of leaking a
   // raw SyntaxError to the caller.
-  const bodyText = await response.text()
+  const bodyText = await readCappedResponseText(response, () => wd.touch())
   let json: { content?: Array<{ type: string; text?: string }> }
   try {
     json = JSON.parse(bodyText) as { content?: Array<{ type: string; text?: string }> }

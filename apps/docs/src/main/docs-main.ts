@@ -2287,7 +2287,10 @@ export function openExternalDocx(filePath: string | null): void {
     pendingOpenPath = filePath
     return
   }
-  void loadDocx(filePath, win.webContents.id)
+  void (async () => {
+    if (rendererReady && !(await requestDocsClose(win.webContents, win))) return
+    return loadDocx(filePath, win.webContents.id)
+  })()
     .then((result) => {
       if (!result || win.isDestroyed()) return
       if (win.isMinimized()) win.restore()
@@ -3362,6 +3365,9 @@ export function registerDocsIpc(): void {
   // shared with the other editor modules — last (identical) registration wins
   ipcMain.removeHandler('app:get-language')
   ipcMain.handle('app:get-language', () => getUiLang())
+  ipcMain.handle('docs:confirm-document-replace', (event) =>
+    requestDocsClose(event.sender, dialogParent(event)),
+  )
 
   configureMetricsCache(userDataPath('font-metrics'))
   ipcMain.handle('docs:font-metrics', (_event, family: string) =>
@@ -4035,7 +4041,7 @@ export function registerDocsIpc(): void {
           margins: { top: 0, bottom: 0, left: 0, right: 0 },
           ...pdfScale(scale),
         })
-        writeFileSync(filePath, data)
+        await atomicWriteFile(filePath, data)
         if (!isImageExportTemp(event.sender.id, filePath)) openGeneratedFile(filePath)
         return { ok: true, path: filePath }
       } catch (err) {
@@ -4102,7 +4108,7 @@ export function registerDocsIpc(): void {
       }
       try {
         const filePath = join(dir, fileName)
-        await writeFile(filePath, Buffer.from(String(pngBase64), 'base64'))
+        await atomicWriteFile(filePath, Buffer.from(String(pngBase64), 'base64'))
         return { ok: true, path: filePath }
       } catch (err) {
         return { ok: false, error: String(err) }
@@ -4129,7 +4135,10 @@ export function registerDocsIpc(): void {
         allowPdfWrite(event.sender.id, filePath)
       }
       try {
-        writeFileSync(filePath, await inlineLazyMediaInHtml(html, readLazyMedia), 'utf8')
+        await atomicWriteFile(
+          filePath,
+          Buffer.from(await inlineLazyMediaInHtml(html, readLazyMedia), 'utf8'),
+        )
         openGeneratedFile(filePath)
         return { ok: true, path: filePath }
       } catch (err) {
@@ -4194,7 +4203,7 @@ export function registerDocsIpc(): void {
           const pages = await merged.copyPages(part, part.getPageIndices())
           for (const page of pages) merged.addPage(page)
         }
-        writeFileSync(filePath, Buffer.from(await merged.save()))
+        await atomicWriteFile(filePath, Buffer.from(await merged.save()))
         if (!isImageExportTemp(event.sender.id, filePath)) openGeneratedFile(filePath)
         return { ok: true, path: filePath }
       } catch (err) {

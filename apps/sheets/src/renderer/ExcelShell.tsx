@@ -162,6 +162,7 @@ function ToolSymbol({ symbol }: { readonly symbol: string }): React.JSX.Element 
 }
 
 interface ExcelShellProps {
+  readonly openingWorkbook: boolean
   readonly prompt: string
   readonly preview: ChangePlan | null
   readonly selectionFormat: SelectionFormat | null
@@ -370,6 +371,7 @@ export function ExcelShell({
   onAiCitation,
   onCommand,
   onIsCellEditing,
+  openingWorkbook,
   statusMessage,
   emptyCsvNotice,
   onOpenWorkbook,
@@ -423,8 +425,10 @@ export function ExcelShell({
   const [chartTextTarget, setChartTextTarget] = useState<ChartTextTarget | null>(null)
   const onCommandRef = useRef(onCommand)
   const onIsCellEditingRef = useRef(onIsCellEditing)
+  const openingWorkbookRef = useRef(openingWorkbook)
   onCommandRef.current = onCommand
   onIsCellEditingRef.current = onIsCellEditing
+  openingWorkbookRef.current = openingWorkbook
   useEffect(() => {
     // Shortcuts that write to the sheet must not fire from a text field —
     // neither app fields (AI chat, dialogs) nor Univer's own (find/replace,
@@ -432,6 +436,7 @@ export function ExcelShell({
     // container. isGridKeyTarget tells the grid's hidden focus host apart
     // from all of those; only Univer knows whether a cell is being edited.
     const onKeyDown = (event: KeyboardEvent): void => {
+      if (openingWorkbookRef.current) return
       const action = resolveGlobalShortcut(event, {
         modalOpen: isModalOpen(),
         cellEditing: onIsCellEditingRef.current(),
@@ -456,6 +461,7 @@ export function ExcelShell({
   // mounted once: re-binding after Univer starts would lose capture order.
   useEffect(() => {
     const onKeyDownCapture = (event: KeyboardEvent): void => {
+      if (openingWorkbookRef.current) return
       if (!shouldInterceptClearSelection(event, onIsCellEditingRef.current())) return
       event.preventDefault()
       event.stopImmediatePropagation()
@@ -514,7 +520,11 @@ export function ExcelShell({
   const saveAsTitle = `${t('appSaveAs')} (${platformShortcuts('⇧⌘S')})`
 
   return (
-    <main className={`app-shell ${isCopilotOpen ? '' : 'copilot-collapsed'}`}>
+    <main
+      className={`app-shell ${isCopilotOpen ? '' : 'copilot-collapsed'}`}
+      inert={openingWorkbook}
+      aria-busy={openingWorkbook}
+    >
       <header className={`excel-header ${collapse.rootClass}`} ref={collapse.rootRef}>
         <nav
           className={`ribbon-tabs ${IN_TAB ? '' : IS_MAC ? 'ribbon-tabs-mac' : 'ribbon-tabs-win'}`}

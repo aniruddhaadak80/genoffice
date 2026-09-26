@@ -756,12 +756,42 @@ function matchRelationship(relsXml: string, type: string): { id: string; target:
 }
 
 export function resolveRelTarget(fromPart: string, target: string): string {
-  const base = fromPart.split('/').slice(0, -1)
-  for (const segment of target.split('/')) {
-    if (segment === '..') base.pop()
-    else if (segment !== '.' && segment !== '') base.push(segment)
+  const trimmed = target.trim()
+  const withoutFragment = trimmed.split('#', 1)[0] ?? ''
+  if (withoutFragment.length === 0) throw new Error('Invalid OPC relationship target.')
+  let decoded: string
+  try {
+    decoded = decodeURIComponent(withoutFragment)
+  } catch {
+    throw new Error('Invalid OPC relationship target.')
   }
-  return base.join('/')
+  if (
+    decoded.length === 0 ||
+    decoded.includes('\0') ||
+    decoded.startsWith('//') ||
+    decoded.startsWith('\\') ||
+    /^[A-Za-z][A-Za-z0-9+.-]*:/.test(decoded)
+  ) {
+    throw new Error('Invalid OPC relationship target.')
+  }
+  const base = decoded.startsWith('/')
+    ? []
+    : fromPart
+        .replaceAll('\\', '/')
+        .split('/')
+        .slice(0, -1)
+        .filter((segment) => segment !== '' && segment !== '.')
+  for (const segment of decoded.replaceAll('\\', '/').split('/')) {
+    if (segment === '' || segment === '.') continue
+    if (segment === '..') {
+      if (base.pop() === undefined) throw new Error('Invalid OPC relationship target.')
+      continue
+    }
+    base.push(segment)
+  }
+  const resolved = base.join('/')
+  if (resolved.length === 0) throw new Error('Invalid OPC relationship target.')
+  return resolved
 }
 
 /// Adds a relationship (creating the rels part when missing); returns its id.
