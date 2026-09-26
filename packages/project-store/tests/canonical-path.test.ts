@@ -9,9 +9,14 @@ import {
   symlinkSync,
   writeFileSync,
 } from 'node:fs'
-import { join } from 'node:path'
+import { join, sep } from 'node:path'
 import { tmpdir } from 'node:os'
 import { ProjectStore, canonicalPathKey } from '../src/store.js'
+
+function withDotSegment(filePath: string): string {
+  const cut = filePath.lastIndexOf(sep)
+  return `${filePath.slice(0, cut)}${sep}.${sep}${filePath.slice(cut + 1)}`
+}
 
 function readIndex(tmpDir: string): {
   fileMap: Record<string, string>
@@ -38,8 +43,8 @@ describe('canonical path identity', () => {
     it('resolves an existing file to its real path', () => {
       const filePath = join(tmpDir, 'exists.docx')
       writeFileSync(filePath, 'doc', 'utf8')
-      expect(canonicalPathKey(filePath)).toBe(canonicalPathKey(join(tmpDir, '.', 'exists.docx')))
-      expect(canonicalPathKey(filePath)).not.toBe(join(tmpDir, '.', 'exists.docx'))
+      expect(canonicalPathKey(filePath)).toBe(canonicalPathKey(withDotSegment(filePath)))
+      expect(canonicalPathKey(filePath)).not.toBe(withDotSegment(filePath))
     })
 
     it('keys a missing file under its resolved directory', () => {
@@ -63,7 +68,7 @@ describe('canonical path identity', () => {
   it('resolves equivalent spellings of one file to a single membership and chat', () => {
     const filePath = join(tmpDir, 'plan.docx')
     writeFileSync(filePath, 'doc', 'utf8')
-    const dotted = join(tmpDir, '.', 'plan.docx')
+    const dotted = withDotSegment(filePath)
 
     const first = store.resolveChatForFile(filePath)
     store.appendChatMessage(first.projectId, first.chatId, { role: 'user', text: 'q' })
@@ -82,7 +87,7 @@ describe('canonical path identity', () => {
   it('appends through either spelling land in the same transcript', () => {
     const filePath = join(tmpDir, 'plan.docx')
     writeFileSync(filePath, 'doc', 'utf8')
-    const dotted = join(tmpDir, '.', 'plan.docx')
+    const dotted = withDotSegment(filePath)
 
     const first = store.resolveChatForFile(filePath)
     store.appendChatMessage(first.projectId, first.chatId, { role: 'user', text: 'q' })
@@ -101,7 +106,7 @@ describe('canonical path identity', () => {
   it('finds a chat an older version wrote under the raw path hash', () => {
     const filePath = join(tmpDir, 'legacy.docx')
     writeFileSync(filePath, 'doc', 'utf8')
-    const dotted = join(tmpDir, '.', 'legacy.docx')
+    const dotted = withDotSegment(filePath)
 
     // How the previous version derived the id: sha256 of the raw spelling
     const legacyId = createHash('sha256').update(dotted).digest('hex').slice(0, 16)
@@ -129,7 +134,7 @@ describe('canonical path identity', () => {
 
     const renamed = join(tmpDir, 'after.docx')
     renameFile(filePath, renamed)
-    store.fileRenamed(join(tmpDir, '.', 'before.docx'), renamed)
+    store.fileRenamed(withDotSegment(filePath), renamed)
 
     const after = store.resolveChatForFile(renamed)
     expect(after.chatId).toBe(ids.chatId)
@@ -139,7 +144,7 @@ describe('canonical path identity', () => {
   it('moves a file into another project through an equivalent spelling', () => {
     const filePath = join(tmpDir, 'movable.docx')
     writeFileSync(filePath, 'doc', 'utf8')
-    const dotted = join(tmpDir, '.', 'movable.docx')
+    const dotted = withDotSegment(filePath)
     const ids = store.resolveChatForFile(filePath)
     store.appendChatMessage(ids.projectId, ids.chatId, { role: 'user', text: 'q' })
     store.appendChatMessage(ids.projectId, ids.chatId, { role: 'assistant', text: 'a' })
@@ -158,7 +163,7 @@ describe('canonical path identity', () => {
     writeFileSync(filePath, 'doc', 'utf8')
     expect(ProjectStore.chatIdForFile(filePath)).toMatch(/^[0-9a-f]{16}$/)
     expect(ProjectStore.chatIdForFile(filePath)).toBe(
-      ProjectStore.chatIdForFile(join(tmpDir, '.', 'stable.docx')),
+      ProjectStore.chatIdForFile(withDotSegment(filePath)),
     )
   })
 })
