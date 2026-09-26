@@ -1,6 +1,7 @@
 use std::borrow::Cow;
 
 use super::*;
+use crate::xml_util::MAX_EAGER_XML_BYTES;
 
 #[test]
 fn normalizes_crlf_and_stray_cr_to_lf() {
@@ -3559,4 +3560,104 @@ fn source_linked_chart_formats_follow_the_cells() {
     assert_eq!(style.color.as_deref(), Some("#FFFFFF"));
     assert_eq!(style.size, Some(12.0));
     assert_eq!(style.bold, Some(true));
+}
+
+/// A tiny archive whose eagerly-read metadata entry inflates far past the
+/// budget must be refused on the bytes actually produced, not on the size the
+/// entry declares.
+fn metadata_bomb_fixture(part: &str) -> (tempfile::TempDir, PathBuf) {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("fixture.xlsx");
+    // A comment is valid XML and compresses to almost nothing, so the entry
+    // stays small on disk while expanding past the cap on read.
+    let bomb = format!("<!--{}-->", "x".repeat(MAX_EAGER_XML_BYTES as usize + 4096));
+    let sheet = r#"<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData><row r="1"><c r="A1"><v>1</v></c></row></sheetData></worksheet>"#;
+    let entries: Vec<(&str, String)> = vec![
+        (
+            "xl/workbook.xml",
+            format!(
+                r#"<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">{bomb}<sheets><sheet name="S" sheetId="1" r:id="rId1"/></sheets></workbook>"#
+            ),
+        ),
+        (
+            "xl/_rels/workbook.xml.rels",
+            format!(
+                r#"<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">{bomb}<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>"#
+            ),
+        ),
+        ("xl/worksheets/sheet1.xml", sheet.to_owned()),
+    ];
+    let mut writer = zip::ZipWriter::new(File::create(&path).unwrap());
+    let options = zip::write::SimpleFileOptions::default()
+        .compression_method(zip::CompressionMethod::Deflated);
+    for (name, content) in &entries {
+        writer.start_file(*name, options).unwrap();
+        if *name == part {
+            writer.write_all(content.as_bytes()).unwrap();
+        } else {
+            // The bomb belongs to the part under test only.
+            writer
+                .write_all(content.replace(&bomb, "").as_bytes())
+                .unwrap();
+        }
+    }
+    writer.finish().unwrap();
+    (dir, path)
+}
+
+#[test]
+fn eager_metadata_parts_are_capped_on_actual_bytes() {
+    let (_dir, path) = metadata_bomb_fixture("xl/workbook.xml");
+    // The entry is tiny on disk: the cap must be about the expanded bytes.
+    assert!(
+        std::fs::metadata(&path).unwrap().len() < 1024 * 1024,
+        "the bomb fixture should stay small on disk"
+    );
+    let mut sessions = WorkbookSessions::new();
+    let error = sessions.open(&path).unwrap_err().to_string();
+    assert!(
+        error.contains("metadata limit") && error.contains("xl/workbook.xml"),
+        "open must fail closed on the metadata cap, got: {error}"
+    );
+}
+
+/// The cap is on the bytes the reader produces, and it admits a part exactly at
+/// the budget while rejecting one byte past it.
+#[test]
+fn capped_read_boundary_is_exact() {
+    let at_budget = "x".repeat(MAX_EAGER_XML_BYTES as usize);
+    let read = crate::xml_util::read_capped_string(&mut at_budget.as_bytes(), "at.xml");
+    assert_eq!(read.unwrap().len(), MAX_EAGER_XML_BYTES as usize);
+    let over_budget = "x".repeat(MAX_EAGER_XML_BYTES as usize + 1);
+    let error = crate::xml_util::read_capped_string(&mut over_budget.as_bytes(), "over.xml")
+        .unwrap_err()
+        .to_string();
+    assert!(error.contains("metadata limit"), "got: {error}");
+}
+
+/// The cap covers eager metadata reads only. Worksheets and shared strings are
+/// streamed, and their size is the workbook's own, so an oversized one must
+/// still open.
+#[test]
+fn streamed_worksheet_parts_stay_uncapped() {
+    let bomb = format!("<!--{}-->", "x".repeat(MAX_EAGER_XML_BYTES as usize + 4096));
+    let sheet = format!(
+        r#"<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">{bomb}<sheetData><row r="1"><c r="A1"><v>7</v></c></row></sheetData></worksheet>"#
+    );
+    let (_dir, path) = open_fixture(&[
+        (
+            "xl/workbook.xml",
+            r#"<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="S" sheetId="1" r:id="rId1"/></sheets></workbook>"#,
+        ),
+        (
+            "xl/_rels/workbook.xml.rels",
+            r#"<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>"#,
+        ),
+        ("xl/worksheets/sheet1.xml", &sheet),
+    ]);
+    let mut sessions = WorkbookSessions::new();
+    let metadata = sessions
+        .open(&path)
+        .expect("an oversized worksheet still opens");
+    assert_eq!(metadata.sheets[0].name, "S");
 }

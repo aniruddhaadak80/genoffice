@@ -971,7 +971,10 @@ pub(crate) fn read_ole_objects(
     worksheet_path: &str,
     sheet_relationships: &HashMap<String, Relationship>,
 ) -> Result<Vec<OleObjectRecord>, SidecarError> {
-    let xml = read_xml(archive, worksheet_path)?;
+    // A worksheet, not metadata: this whole-part read exists only to skip the
+    // DOM parse when the sheet holds no OLE object, and the metadata cap must
+    // not reject a large sheet over it. Worksheets stay uncapped by design.
+    let xml = read_uncapped_xml(archive, worksheet_path)?;
     if !xml.contains("oleObject") {
         return Ok(Vec::new());
     }
@@ -1677,9 +1680,17 @@ pub(crate) fn read_optional_xml(
     let Ok(mut entry) = crate::zip_entry(archive, path) else {
         return Ok(None);
     };
+    Ok(Some(crate::xml_util::read_capped_string(&mut entry, path)?))
+}
+
+/// Whole-part read with no metadata cap, for the streamed sheet/shared-string
+/// parts whose size legitimately belongs to the workbook.
+fn read_uncapped_xml(archive: &mut ZipArchive<File>, path: &str) -> Result<String, SidecarError> {
+    let mut entry = crate::zip_entry(archive, path)
+        .map_err(|_| SidecarError::Workbook(format!("Workbook is missing {path}.")))?;
     let mut xml = String::new();
     entry.read_to_string(&mut xml)?;
-    Ok(Some(xml))
+    Ok(xml)
 }
 
 pub(crate) fn parse_document<'a>(xml: &'a str, path: &str) -> Result<Document<'a>, SidecarError> {
