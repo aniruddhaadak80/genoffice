@@ -1383,6 +1383,17 @@ describe('date axis chronological order', () => {
     expect(m.categories).toEqual(['Apr-26', 'May-26', 'Jun-26'])
     expect(m.series[0]!.values).toEqual([10, 20, 30])
   })
+
+  it('moves value-from-cells labels with their points', () => {
+    const dlbls = `<c:dLbls><c:extLst><c:ext uri="{CE6537A1-D6FC-4f65-9D91-7224C49458BB}" xmlns:c15="http://schemas.microsoft.com/office/drawing/2012/chart"><c15:showDataLabelsRange val="1"/></c:ext></c:extLst></c:dLbls>`
+    const dlblRange = `<c:extLst><c:ext uri="{02D57815-91ED-43cb-92C2-25804820EDAC}" xmlns:c15="http://schemas.microsoft.com/office/drawing/2012/chart"><c15:datalabelsRange><c15:dlblRangeCache><c:pt idx="0"><c:v>Jun cell</c:v></c:pt><c:pt idx="1"><c:v>May cell</c:v></c:pt><c:pt idx="2"><c:v>Apr cell</c:v></c:pt></c15:dlblRangeCache></c15:datalabelsRange></c:ext></c:extLst>`
+    const xml = chartXml('maxMin', [46174, 46143, 46113])
+      .replace('<c:cat>', `${dlbls}<c:cat>`)
+      .replace('</c:val>', `</c:val>${dlblRange}`)
+    const m = parseChartXml(xml, undefined as never)!
+    // sheet order Jun/May/Apr carries labels Jun/May/Apr: the plot reads Apr/May/Jun
+    expect(m.series[0]!.pointLabels).toEqual(['Apr cell', 'May cell', 'Jun cell'])
+  })
 })
 
 describe('series-level data-label format and box', () => {
