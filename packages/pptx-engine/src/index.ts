@@ -3815,6 +3815,8 @@ export function setTableColWidth(
   if (!el || el.type !== 'table') return false
   const table = el as TableElement
   if (col < 0 || col >= table.colWidths.length) return false
+  // a non-finite EMU (NaN, 1e308 overflow) would serialize verbatim into w=
+  if (!Number.isFinite(wEmu)) return false
 
   let xml = patchedElementXml(el)
   const gc = gridColSpans(xml)[col]
@@ -3860,6 +3862,7 @@ export function setTableRowHeight(
   if (!el || el.type !== 'table') return false
   const table = el as TableElement
   if (row < 0 || row >= table.rowHeights.length) return false
+  if (!Number.isFinite(hEmu)) return false
 
   let xml = patchedElementXml(el)
   const tr = nthTagSpan(xml, 'a:tr', row)
