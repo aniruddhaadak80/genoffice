@@ -37,11 +37,14 @@ import {
   runHeadlessRendererExport,
 } from '@genoffice/electron-utils/headless-export'
 import {
+  commitActiveCellEditor,
   installJournalSuppressionUndoFilter,
   installLoadAutoHeightGate,
   journalSuppression,
   lazySheetMeta,
   lazySheetScreenExtent,
+  pendingEditsForClose,
+  type ActiveCellEditor,
   type ActiveWorkbook,
   type LazyWorkbookState,
   type UniverRuntime,
@@ -291,6 +294,7 @@ import { installCfDisplayKeyCompare } from './cf-duplicate-key'
 import { installCfFormulaFold } from './cf-formula-fold'
 import { installSheetRenameFix } from './sheet-rename-fix'
 import { installArrowCollapse } from './arrow-collapse-fix'
+import { installCtrlDragFill } from './ctrl-drag-fill'
 import { installContextSubmenuReopenFix } from './context-submenu-reopen-fix'
 import { installMenuInputEnter } from './menu-input-enter'
 import { installClipboardAnchorTile } from './clipboard-anchor-tile'
@@ -521,7 +525,9 @@ export function App({
   }, [workbookFile, recomputeSheetContent])
   // The close guard lives in the main process; keep it fed with the badge count.
   useEffect(() => {
-    window.desktopApi?.notifyPendingEdits?.(pendingEdits)
+    window.desktopApi?.notifyPendingEdits?.(
+      pendingEditsForClose(pendingEdits, editingCellRef.current),
+    )
   }, [pendingEdits])
   const [autoSave, setAutoSave] = useAutoSavePref('ai-sheets-auto-save', window.desktopApi)
   // Ref mirror for callbacks captured when an AI run starts
@@ -699,6 +705,11 @@ export function App({
   /// Latest MCP bridge handlers (assigned each render; see the install below).
   const mcpSheetHandlersRef = useRef<McpSheetHandlers | null>(null)
   const closeSaveRef = useRef<() => Promise<void>>(() => Promise.resolve())
+  const commitActiveEditor = useCallback(async (): Promise<boolean> => {
+    const editor = univerRef.current?.univerAPI.getActiveWorkbook() as
+      ActiveCellEditor | null | undefined
+    return commitActiveCellEditor(editor).catch(() => false)
+  }, [])
   const refreshSelectionFormatRef = useRef<() => void>(() => {})
   const chartEditRef = useRef<(chartPath: string, edit: ChartEditData) => void>(() => {})
   const chartVectorRef = useRef<(chartPath: string, range: string) => Promise<ChartVectorRead>>(
@@ -1590,6 +1601,13 @@ export function App({
     installFilterRangeOutlineSuppression(runtime)
     loadSnapshotIntoUniver(runtime, initialSnapshot, 'new-workbook', 'Untitled')
     univerRef.current = runtime
+    // The hidden spare can have a canvas/editor before Univer finishes booting.
+    // Expose its lifecycle readiness only to explicitly enabled e2e drivers.
+    if ((window as unknown as Record<string, unknown>).__genofficeDebugHooks === true) {
+      ;(window as unknown as Record<string, unknown>).__genofficeSpareViewReady = () =>
+        runtime.univerAPI.getCurrentLifecycleStage() ===
+        runtime.univerAPI.Enum.LifecycleStages.Steady
+    }
     // a throwing construction must not poison the injector's depth counter
     installInjectorResolutionGuard(runtime)
     // find-bar reveals share scrollToCell's broken freeze offset (r135)
@@ -1739,6 +1757,7 @@ export function App({
     // Arrows on a multi-cell selection collapse to the active cell first,
     // then move one step (Excel), instead of stepping past the range edge.
     const arrowCollapseDisposable = installArrowCollapse(runtime)
+    const ctrlDragFillDisposable = installCtrlDragFill(runtime)
     // A context-menu submenu re-hovered within Univer's close delay stays
     // invisible; re-trigger its positioning (genoffice#337).
     const contextSubmenuReopenDisposable = installContextSubmenuReopenFix()
@@ -1864,10 +1883,21 @@ export function App({
     )
     // In-cell editor open/closed, read by the AutoSave tick: saving reloads
     // the workbook and would wipe an in-progress edit.
+    // The main-process close guard only sees what the renderer reports, so an
+    // open editor counts as one pending edit until it closes (its commit, if
+    // any, then lands in the journal). Reported on open/close only — never per
+    // keystroke.
+    const syncCellEditorPending = (): void => {
+      const state = lazyWorkbookRef.current
+      window.desktopApi?.notifyPendingEdits?.(
+        pendingEditsForClose(state ? journalSize(state.editJournal) : 0, editingCellRef.current),
+      )
+    }
     const editStartDisposable = runtime.univerAPI.addEvent(
       runtime.univerAPI.Event.SheetEditStarted,
       () => {
         editingCellRef.current = true
+        syncCellEditorPending()
         setAiSelectionAskAnchor(null)
       },
     )
@@ -1875,6 +1905,7 @@ export function App({
       runtime.univerAPI.Event.SheetEditEnded,
       () => {
         editingCellRef.current = false
+        syncCellEditorPending()
       },
     )
     const sheetDisposable = runtime.univerAPI.addEvent(
@@ -2901,6 +2932,7 @@ export function App({
       sheetRenameFixDisposable.dispose()
       selectionWrapGuardDisposable.dispose()
       arrowCollapseDisposable.dispose()
+      ctrlDragFillDisposable.dispose()
       contextSubmenuReopenDisposable.dispose()
       multiRowAutofitDisposable.dispose()
       cfFormulaFoldDisposable.dispose()
@@ -3155,7 +3187,10 @@ export function App({
    * — auto-apply never bypasses the "workbook changed since preview" check.
    * When apply fails, the preview card stays up as a manual fallback.
    */
-  function autoApplySafePlan(plan: ChangePlan): Promise<ApplyOutcome> {
+  async function autoApplySafePlan(plan: ChangePlan): Promise<ApplyOutcome> {
+    if (!(await commitActiveEditor())) {
+      return { ok: false, reason: t('appApplyTxFailed') }
+    }
     const opCount =
       plan.cellChanges.length +
       plan.formatChanges.length +
@@ -3757,10 +3792,11 @@ export function App({
     return state.hyperlinkTargets.get(sheetId)?.get(`${row}:${column}`) ?? null
   }
 
-  function openLazyWorkbook(
+  async function openLazyWorkbook(
     opened: WorkbookFile,
     opts?: { continueChat?: boolean; onInitialRangeLoaded?: () => void },
-  ): void {
+  ): Promise<boolean> {
+    if (!(await commitActiveEditor())) return false
     if (opts?.continueChat) chatContinuesRef.current = true
     const selected: WorkbookFile = {
       ...opened,
@@ -4056,6 +4092,7 @@ export function App({
     } else {
       opts?.onInitialRangeLoaded?.()
     }
+    return true
   }
 
   async function handleInspectWorkbook(): Promise<void> {
@@ -4076,7 +4113,11 @@ export function App({
         finishOpening()
         return
       }
-      openLazyWorkbook(selected, { onInitialRangeLoaded: finishOpening })
+      if (!(await openLazyWorkbook(selected, { onInitialRangeLoaded: finishOpening }))) {
+        finishOpening()
+        setMessage(t('appOpenFailed'))
+        return
+      }
       setEmptyCsvNotice(selected.emptyCsv === true)
       setMessage(selected.emptyCsv ? '' : t('appOpened', { name: selected.name }))
     } catch (error: unknown) {
@@ -4090,9 +4131,14 @@ export function App({
     quiet = false,
     explicitTarget?: { path: string; overwrite: boolean },
   ): Promise<SaveOutcome> {
+    if (!(await commitActiveEditor())) return { ok: false }
     return handleSaveImpl(saveContext(), mode, quiet, explicitTarget)
   }
   closeSaveRef.current = async () => {
+    if (!(await commitActiveEditor())) {
+      window.desktopApi?.reportCloseSaveResult?.(false)
+      return
+    }
     const state = lazyWorkbookRef.current
     if (!state || journalSize(state.editJournal) === 0) {
       window.desktopApi?.reportCloseSaveResult?.(true)
