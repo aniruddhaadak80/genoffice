@@ -3,6 +3,7 @@ import type { ChangeEvent, PointerEvent as ReactPointerEvent, ReactElement } fro
 import { cssRgb } from './DrawLayer'
 import type { TFunc } from './i18n/locale'
 import type { SavedSignature, SignatureData, SignatureStrokes } from '../shared/ipc'
+import { useModalDialog } from './modal-dialog'
 
 export type { SignatureData, SignatureStrokes }
 
@@ -157,6 +158,7 @@ export function SignatureDialog({
   const [saved, setSaved] = useState<SavedSignature[]>([])
   const [saveForReuse, setSaveForReuse] = useState(true)
   const fileRef = useRef<HTMLInputElement>(null)
+  const dialogRef = useModalDialog(onCancel)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const pathsRef = useRef<number[][]>([])
   const curRef = useRef<number[] | null>(null)

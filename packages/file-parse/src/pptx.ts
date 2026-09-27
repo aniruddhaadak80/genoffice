@@ -95,6 +95,54 @@ async function zipText(zip: JSZip, path: string): Promise<string | undefined> {
   return file ? file.async('text') : undefined
 }
 
+const NOTES_SLIDE_REL =
+  'http://schemas.openxmlformats.org/officeDocument/2006/relationships/notesSlide'
+
+async function notesXmlForSlide(zip: JSZip, slidePath: string): Promise<string | undefined> {
+  const slash = slidePath.lastIndexOf('/')
+  const relsPath = `${slidePath.slice(0, slash)}/_rels/${slidePath.slice(slash + 1)}.rels`
+  const relsXml = await zipText(zip, relsPath)
+  if (!relsXml) return undefined
+  const doc = manifestParser.parse(relsXml) as {
+    Relationships?: { Relationship?: Record<string, string> | Record<string, string>[] }
+  }
+  for (const rel of asArray(doc.Relationships?.Relationship)) {
+    if (String(rel['@_Type'] ?? '') !== NOTES_SLIDE_REL) continue
+    if (String(rel['@_TargetMode'] ?? '').toLowerCase() === 'external') continue
+    const target = String(rel['@_Target'] ?? '')
+    return target ? zipText(zip, resolveTarget(slidePath, target)) : undefined
+  }
+  return undefined
+}
+
+/** body placeholder only: the notes page's slide-number field would read as a stray digit */
+function notesParagraphs(notesXml: string): string[] {
+  const out: string[] = []
+  for (const m of notesXml.matchAll(/<p:sp>[\s\S]*?<\/p:sp>/g)) {
+    if (!/<p:ph\b[^>]*type="body"/.test(m[0])) continue
+    collectParagraphs(parser.parse(m[0]), out)
+  }
+  return out
+}
+
+/**
+ * One compatibility branch of an mc:AlternateContent element: the Fallback when the
+ * producer wrote one, else the first Choice. Reading both branches would duplicate
+ * every run and every picture the element carries. The parser strips namespace
+ * prefixes, so the branches arrive as AlternateContent / Choice / Fallback.
+ */
+function mcBranch(value: readonly unknown[]): readonly unknown[] {
+  let choice: readonly unknown[] | undefined
+  for (const entry of value) {
+    if (entry == null || typeof entry !== 'object') continue
+    for (const [key, branch] of Object.entries(entry)) {
+      if (key === 'Fallback') return Array.isArray(branch) ? branch : []
+      if (key === 'Choice' && !choice && Array.isArray(branch)) choice = branch
+    }
+  }
+  return choice ?? []
+}
+
 /**
  * One paragraph's text in document order. Only #text directly under a:t counts: untrimmed, the
  * whitespace laying out any other element is a value too. <a:br> is a soft line break, <a:tab>
@@ -111,7 +159,8 @@ function collectText(nodes: readonly unknown[], out: string[], isText = false): 
       } else if (key === 'tab') {
         out.push('\t')
       } else if (Array.isArray(value)) {
-        collectText(value, out, key === 't')
+        if (key === 'AlternateContent') collectText(mcBranch(value), out)
+        else collectText(value, out, key === 't')
       }
     }
   }
@@ -129,7 +178,7 @@ function collectParagraphs(nodes: readonly unknown[], out: string[]): void {
         const line = texts.join('')
         if (line.trim()) out.push(line)
       } else {
-        collectParagraphs(value, out)
+        collectParagraphs(key === 'AlternateContent' ? mcBranch(value) : value, out)
       }
     }
   }
@@ -141,7 +190,8 @@ function countPictures(nodes: readonly unknown[]): number {
     if (node == null || typeof node !== 'object') continue
     for (const [key, value] of Object.entries(node)) {
       if (key === 'pic') count += 1
-      else if (Array.isArray(value)) count += countPictures(value)
+      else if (Array.isArray(value))
+        count += countPictures(key === 'AlternateContent' ? mcBranch(value) : value)
     }
   }
   return count
@@ -158,15 +208,22 @@ interface SlideSection {
   pictures: number
 }
 
-function slideSection(heading: string, xml: string): SlideSection {
+function slideSection(heading: string, xml: string, notesXml?: string): SlideSection {
   const tree = parser.parse(xml)
   const paras: string[] = []
   collectParagraphs(tree, paras)
+  const notes = notesXml ? notesParagraphs(notesXml) : []
+  const notesBlock = notes.length > 0 ? ['### Notes', ...notes] : []
   if (paras.length > 0)
-    return { section: [heading, ...paras].join('\n'), hasText: true, pictures: 0 }
+    return {
+      section: [heading, ...paras, ...notesBlock].join('\n'),
+      hasText: true,
+      pictures: 0,
+    }
   const pictures = countPictures(tree)
   const note = `[picture-only slide: ${pictures} image${pictures === 1 ? '' : 's'}, no extractable text]`
-  return { section: pictures > 0 ? `${heading}\n${note}` : heading, hasText: false, pictures }
+  const lines = [heading, ...(pictures > 0 ? [note] : []), ...notesBlock]
+  return { section: lines.join('\n'), hasText: notes.length > 0, pictures }
 }
 
 function joinSections(sections: SlideSection[]): string {
@@ -187,14 +244,16 @@ export async function pptxToText(bytes: Uint8Array): Promise<string> {
       if (path === null) continue
       const xml = await zipText(zip, path)
       if (!xml) continue
-      sections.push(slideSection(`## Slide ${index + 1}`, xml))
+      sections.push(slideSection(`## Slide ${index + 1}`, xml, await notesXmlForSlide(zip, path)))
     }
     return joinSections(sections)
   }
   for (const path of legacySlidePaths(zip)) {
     const xml = await zipText(zip, path)
     if (!xml) continue
-    sections.push(slideSection(`## Slide ${slideNumber(path)}`, xml))
+    sections.push(
+      slideSection(`## Slide ${slideNumber(path)}`, xml, await notesXmlForSlide(zip, path)),
+    )
   }
   return joinSections(sections)
 }

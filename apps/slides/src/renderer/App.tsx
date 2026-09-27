@@ -38,6 +38,7 @@ import { ZOOM_MAX, ZOOM_MIN, clampZoom, nextPreset, notchStep, prevPreset } from
 import type { DrawRect } from './draw-shape'
 import { paragraphsBlank } from './textbox-insert'
 import { SlideThumb } from './SlideThumb'
+import { useVisibleThumbs } from './use-visible-thumbs'
 import { MasterView } from './MasterView'
 import {
   TextEditOverlay,
@@ -327,6 +328,11 @@ function collectRtls(node: RenderNode, out: Set<boolean>) {
   if (node.type === 'shape' || node.type === 'text') collectBodyRtls(node.text, out)
   else if (node.type === 'table') for (const cell of node.cells) collectBodyRtls(cell.text, out)
   else if (node.type === 'group') for (const child of node.children) collectRtls(child, out)
+}
+
+/** Same box a SlideThumb Stage would occupy, so an unmounted thumbnail keeps the list's scroll geometry */
+function thumbBox(slide: RenderSlide, width: number) {
+  return { width, height: (slide.heightPx * width) / slide.widthPx }
 }
 
 export function App() {
@@ -2193,6 +2199,18 @@ export function App() {
     () => groupSections(sections, slides.length),
     [sections, slides.length],
   )
+  const sorterViewRef = useRef<HTMLDivElement | null>(null)
+  const visibleThumbs = useVisibleThumbs(thumbsListRef, '.thumb', [
+    slides.length,
+    sectionGroups,
+    collapsedSecs,
+    showThumbs,
+    viewMode,
+  ])
+  const visibleSorterItems = useVisibleThumbs(sorterViewRef, '.sorter-item', [
+    slides.length,
+    viewMode,
+  ])
 
   /** Canvas right-click: select the hit element first (replace the selection if it isn't in it), clear selection on blank */
   const onCanvasContextMenu = useCallback(
@@ -3568,6 +3586,7 @@ export function App() {
                 className="sorter-view"
                 role="listbox"
                 tabIndex={0}
+                ref={sorterViewRef}
                 onContextMenu={(e) => onGapContextMenu(e, true)}
               >
                 {slides.map((s, i) => (
@@ -3586,7 +3605,11 @@ export function App() {
                     }}
                     onContextMenu={(e) => openThumbMenu(i, e)}
                   >
-                    <SlideThumb slide={s} images={images} width={208} />
+                    {visibleSorterItems.has(i) ? (
+                      <SlideThumb slide={s} images={images} width={208} />
+                    ) : (
+                      <div className="thumb-placeholder" style={thumbBox(s, 208)} />
+                    )}
                     <span className="sorter-num">{i + 1}</span>
                     {pasteFloater?.index === i && (
                       <PasteOptionsFloater
@@ -3654,7 +3677,11 @@ export function App() {
                               onClick={(e) => selectThumb(i, e)}
                               onContextMenu={(e) => openThumbMenu(i, e)}
                             >
-                              <SlideThumb slide={s} images={images} width={thumbW} />
+                              {visibleThumbs.has(i) ? (
+                                <SlideThumb slide={s} images={images} width={thumbW} />
+                              ) : (
+                                <div className="thumb-placeholder" style={thumbBox(s, thumbW)} />
+                              )}
                               <span className="thumb-num">{i + 1}</span>
                               {pasteFloater?.index === i && (
                                 <PasteOptionsFloater

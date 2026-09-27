@@ -222,6 +222,54 @@ function assertModuleTreesPresent() {
   }
 }
 
+const CLI_BUNDLE_REL = '../../packages/cli/dist/genoffice.cjs'
+const CLI_BUILD_REL = '../../packages/cli/build.mjs'
+const CLI_VERSION_ENV = 'GENOFFICE_APP_VERSION'
+const CLI_VERSION_BANNER = /^const __cliAppVersion = ("(?:[^"\\]|\\.)*");$/m
+
+/**
+ * The version the packaged app reports: CI's -c.extraMetadata.version deep-merges
+ * into the block below, and without it electron-builder ships apps/shell/package.json.
+ */
+function packagedAppVersion() {
+  const injected = config.extraMetadata && config.extraMetadata.version
+  if (typeof injected === 'string' && injected.trim()) return injected.trim()
+  return require('./package.json').version
+}
+
+function bundledCliVersion(bundlePath) {
+  const baked = CLI_VERSION_BANNER.exec(readFileSync(bundlePath, 'utf-8'))
+  if (!baked) return null
+  try {
+    return JSON.parse(baked[1])
+  } catch {
+    return null
+  }
+}
+
+/**
+ * `genoffice --version` is baked into the CLI bundle, which is built before
+ * electron-builder runs and therefore before a release version is known. Rebuild
+ * it here with the app version whenever the two disagree, so the packaged
+ * command line can never answer with the workspace CLI version.
+ */
+function ensureCliBundleCarriesAppVersion() {
+  const bundlePath = join(__dirname, CLI_BUNDLE_REL)
+  const appVersion = packagedAppVersion()
+  if (bundledCliVersion(bundlePath) === appVersion) return
+  execFileSync(process.execPath, [join(__dirname, CLI_BUILD_REL)], {
+    stdio: 'inherit',
+    env: { ...process.env, [CLI_VERSION_ENV]: appVersion },
+  })
+  const baked = bundledCliVersion(bundlePath)
+  if (baked !== appVersion) {
+    throw new Error(
+      `packaged genoffice CLI reports ${baked ?? 'no version'} but the app ships ${appVersion} ` +
+        `(rebuild it with ${CLI_VERSION_ENV}=${appVersion})`,
+    )
+  }
+}
+
 const NOTICE_PATH = join(__dirname, 'build/THIRD-PARTY-NOTICES.txt')
 const PDFIUM_NOTICE_TERMS = ['@embedpdf/pdfium', 'Copyright 2014 PDFium Authors', 'Apache License']
 
@@ -415,6 +463,14 @@ const config = {
       mimeType: 'text/csv',
     },
     {
+      // opens as a converted copy and saves as .xlsx (genoffice#1146)
+      ext: 'tsv',
+      name: 'TSV Document',
+      role: 'Editor',
+      icon: 'xlsx',
+      mimeType: 'text/tab-separated-values',
+    },
+    {
       ext: 'pdf',
       name: 'PDF Document',
       role: 'Editor',
@@ -579,6 +635,13 @@ const config = {
     publish: null,
     afterInstall: 'build/linux-after-install.sh',
     afterRemove: 'build/linux-after-remove.sh',
+    // rpmbuild links every packaged ELF file into /usr/lib/.build-id/<hash>.
+    // Two Electron apps built on the same Electron release ship identical
+    // binaries, so the links are identical too and dnf refuses the install
+    // with a file conflict against the other app (#1145). The links exist only
+    // to locate detached debuginfo, which this package does not ship, so turn
+    // them off. rpm-level `fpm` (not linux-level) keeps it away from the deb.
+    fpm: ['--rpm-rpmbuild-define=_build_id_links none'],
   },
   nsis: {
     oneClick: false,
@@ -589,6 +652,7 @@ const config = {
     assertExtraResourceSources()
     ensureThirdPartyNotices()
     assertModuleTreesPresent()
+    ensureCliBundleCarriesAppVersion()
     if (context.electronPlatformName === 'darwin' && includeMacX64) {
       assertUniversalSidecar()
       assertUniversalVisionOcr()

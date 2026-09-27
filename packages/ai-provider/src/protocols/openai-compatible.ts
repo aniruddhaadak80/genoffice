@@ -6,6 +6,7 @@ import { modelEchoesReasoning } from '../registry'
 import type { AiChatResponse, AiProviderConfig } from '../types'
 import { createStreamWatchdog, type StreamWatchdog } from '../watchdog'
 import {
+  endpointUrl,
   jsonBodyInsteadOfSse,
   parseToolInput,
   readCappedResponseText,
@@ -87,7 +88,10 @@ function emitOpenAiJsonMessage(bodyText: string, cb: StreamCallbacks): void {
   if (msg.error) throw new Error(sseErrorText(msg.error, 'Model error'))
   const choice = msg.choices?.[0]
   let emitted = false
-  if (choice?.message?.reasoning_content) cb.onReasoningDelta?.(choice.message.reasoning_content)
+  if (choice?.message?.reasoning_content) {
+    emitted = true
+    cb.onReasoningDelta?.(choice.message.reasoning_content)
+  }
   if (choice?.message?.content) {
     emitted = true
     cb.onDelta(choice.message.content)
@@ -152,7 +156,7 @@ async function openAiCompatibleTurn(
     wd.touch()
     cb.onActivity?.()
   }
-  const response = await aiFetch(`${baseUrl.replace(/\/$/, '')}/chat/completions`, {
+  const response = await aiFetch(endpointUrl(baseUrl, 'chat/completions'), {
     method: 'POST',
     signal: wd.signal,
     headers: {
@@ -254,7 +258,10 @@ async function openAiCompatibleTurn(
     const choice = event.choices?.[0]
     if (!choice) continue
     const reasoning = choice.delta?.reasoning_content ?? choice.delta?.reasoning
-    if (typeof reasoning === 'string' && reasoning) cb.onReasoningDelta?.(reasoning)
+    if (typeof reasoning === 'string' && reasoning) {
+      emitted = true
+      cb.onReasoningDelta?.(reasoning)
+    }
     if (choice.delta?.content) {
       emitted = true
       cb.onDelta(choice.delta.content)
@@ -306,6 +313,9 @@ async function openAiCompatibleTurn(
     }
   }
   flushTools()
+  if (!sawFinish && !sawDone && emitted) {
+    throw new Error('The model stream ended before a finish_reason or [DONE] marker')
+  }
   // e.g. finish_reason=content_filter with no output, or a stream with no
   // message framing at all (gateway soft-failure) — surface both instead of an
   // empty success; a genuine empty turn still carries finish_reason=stop
@@ -326,7 +336,7 @@ export async function chatOpenAiCompatible(
   user: string,
   options: OpenAiRequestOptions = {},
 ): Promise<AiChatResponse> {
-  const response = await aiFetch(`${baseUrl.replace(/\/$/, '')}/chat/completions`, {
+  const response = await aiFetch(endpointUrl(baseUrl, 'chat/completions'), {
     method: 'POST',
     signal: wd.signal,
     headers: {
