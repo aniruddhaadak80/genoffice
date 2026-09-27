@@ -28,8 +28,9 @@ function vAlignOf(xml: string): 'center' | 'both' | 'bottom' | undefined {
   return v as 'center' | 'both' | 'bottom' | undefined
 }
 
+/** Integer attribute of a tag; XML allows either quote style, so match both. */
 function intAttr(tag: string, name: string, fallback: number): number {
-  const m = new RegExp(`${name}="(-?\\d+)"`).exec(tag)
+  const m = new RegExp(`${name}=["'](-?\\d+)["']`).exec(tag)
   const v = m ? parseInt(m[1], 10) : NaN
   return Number.isFinite(v) ? v : fallback
 }
