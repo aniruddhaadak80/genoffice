@@ -98,6 +98,27 @@ describe('readSections enumerates all sections', () => {
     )
   })
 
+  it('single-quoted page attributes are read, not silently defaulted', () => {
+    // XML permits ' as the attribute delimiter; the old pattern only matched "
+    // and quietly substituted the 1-inch US Letter defaults for the real page
+    const sectPr =
+      "<w:sectPr><w:pgSz w:w='11906' w:h='16838'/>" +
+      "<w:pgMar w:top='720' w:right='900' w:bottom='1080' w:left='1440' w:header='360' w:footer='360' w:gutter='0'/>" +
+      "<w:cols w:num='2' w:space='240'/></w:sectPr>"
+    expect(sectionSettingsFromXml(sectPr)).toMatchObject({
+      pageWidth: 11906,
+      pageHeight: 16838,
+      marginTop: 720,
+      marginRight: 900,
+      marginBottom: 1080,
+      marginLeft: 1440,
+      headerDist: 360,
+      footerDist: 360,
+      columns: 2,
+      colSpace: 240,
+    })
+  })
+
   it('a section-break paragraph with visible text stays an editable paragraph (tdf#159032)', async () => {
     const withText =
       '<w:p><w:pPr><w:spacing w:after="0"/><w:sectPr>' +
