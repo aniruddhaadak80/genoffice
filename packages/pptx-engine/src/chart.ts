@@ -1272,7 +1272,9 @@ function parseAxis(ax: any, theme?: Theme): ChartAxisStyle | undefined {
   if (defRPr) {
     const c = resolveColorNode(defRPr['a:solidFill'], theme)
     if (c) out.labelColor = c
-    if (defRPr['@_sz']) out.labelSizePt = parseInt(defRPr['@_sz'], 10) / 100
+    // sz="auto" parses to NaN, and a NaN labelSizePt beats the render default
+    const axSz = parseInt(defRPr['@_sz'], 10)
+    if (Number.isFinite(axSz) && axSz > 0) out.labelSizePt = axSz / 100
     if (defRPr['@_b'] === '1') out.labelBold = true
     // INT_MIN baseline sentinel (Aspose-written): PowerPoint reserves the label space
     // but renders nothing there

@@ -45,6 +45,19 @@ describe('parseChartXml', () => {
     expect(m.valAxis?.labelSizePt).toBe(12)
   })
 
+  /**
+   * sz="auto" is a legal attribute value that parseInt turns into NaN, and a
+   * NaN labelSizePt is not nullish: the render layer's
+   * `valAxis?.labelSizePt ?? default` takes the NaN and the value axis label
+   * gutter collapses.
+   */
+  it('ignores a non-numeric axis label size instead of storing NaN', () => {
+    const m = parseChartXml(LINE_CHART.replace('sz="1200"', 'sz="auto"'))!
+    expect(m.valAxis?.labelSizePt).toBeUndefined()
+    // the rest of the axis text properties still parse
+    expect(m.valAxis?.labelColor).toBe('#666666')
+  })
+
   it('parses clustered bar chart with fill color and gapWidth', () => {
     const m = parseChartXml(BAR_CHART)!
     expect(m.kind).toBe('bar')
