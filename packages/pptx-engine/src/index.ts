@@ -2551,9 +2551,18 @@ export function setSlideSize(opened: OpenedPptx, cx: number, cy: number): boolea
   if (old.cx === cx && old.cy === cy) return false
   const presPath = 'ppt/presentation.xml'
   const pres = archive.readText(presPath)
-  if (!pres || !/<p:sldSz\b[^>]*\/?>/.test(pres)) return false
-  const next = pres.replace(/<p:sldSz\b[^>]*?(\/?)>/, (tag) =>
-    tag.replace(/\bcx="\d+"/, `cx="${cx}"`).replace(/\bcy="\d+"/, `cy="${cy}"`),
+  if (!pres) return false
+  const sldSz = /<p:sldSz\b[^>]*?\/?>/.exec(pres)?.[0]
+  if (!sldSz) return false
+  // re-emit the tag from its parsed attributes: cx=/cy= are rewritten whatever
+  // quote style they were written in, and a tag carrying neither cannot be
+  // resized — reporting success would rescale the model while the saved file
+  // kept the old size
+  const hasCx = /\bcx=["']\d+["']/.test(sldSz)
+  const hasCy = /\bcy=["']\d+["']/.test(sldSz)
+  if (!hasCx && !hasCy) return false
+  const next = pres.replace(sldSz, () =>
+    sldSz.replace(/\bcx=["']\d+["']/, `cx="${cx}"`).replace(/\bcy=["']\d+["']/, `cy="${cy}"`),
   )
   archive.entries.set(presPath, Buffer.from(next, 'utf8'))
   deck.size = { cx, cy }
