@@ -4,24 +4,15 @@ import { Plugin } from '@tiptap/pm/state'
 import { DOMParser as ProseMirrorDOMParser, DOMSerializer } from '@tiptap/pm/model'
 import { BlockMath, InlineMath } from '@tiptap/extension-mathematics'
 import { openMathEditor } from './mathEdit'
+import { matchInlineMath } from './mathSyntax'
 
-/**
- * Stricter inline tokenizer than the upstream default (`$...$` with any
- * content): the content must not start or end with whitespace, an escaped `$`
- * never delimits, and the closing `$` must not be followed by a digit or a
- * second `$`, so running text with currency amounts ("paid $5 and $10") and
- * escaped currency ("costs \$5") never turn into formulas.
- */
-const STRICT_INLINE_MATH_RE = /^(?<![\\$])\$(?![\s$])([^$\n]*[^\\\s$])\$(?![\d$])/
+/** An escaped dollar ("costs \$5") never opens a formula, so the tokenizer has to
+ * start at the first unescaped one instead of the first `$` in the source. */
 const UNESCAPED_DOLLAR_RE = /(?<!\\)(?:\\\\)*\$/
 
 function strictInlineMathStart(src: string): number {
   const match = UNESCAPED_DOLLAR_RE.exec(src)
   return match ? match.index + match[0].length - 1 : -1
-}
-
-function strictInlineMathMatch(src: string): RegExpExecArray | null {
-  return STRICT_INLINE_MATH_RE.exec(src)
 }
 
 const StrictInlineMath = InlineMath.extend({
@@ -30,9 +21,8 @@ const StrictInlineMath = InlineMath.extend({
     level: 'inline',
     start: strictInlineMathStart,
     tokenize: (src: string) => {
-      const match = strictInlineMathMatch(src)
-      if (!match) return undefined
-      return { type: 'inlineMath', raw: match[0], latex: match[1].trim() }
+      const match = matchInlineMath(src)
+      return match && { type: 'inlineMath', ...match }
     },
   },
 })
