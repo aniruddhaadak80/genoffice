@@ -646,6 +646,35 @@ describe('pgNumType page numbering', () => {
   })
 })
 
+describe('sectPr tags written as empty element pairs', () => {
+  it('applyPageNumType / applySectionStartType / applyTitlePg replace the pair, never both', async () => {
+    const { applyPageNumType, applyTitlePg } = await import('../src/index')
+    // <w:pgNumType ...></w:pgNumType> is as valid as the self-closing spelling; the
+    // strip only understood the latter, so the rewrite left the old copy in place and
+    // wrote the tag a second time into the same sectPr
+    const base =
+      '<w:sectPr><w:type w:val="continuous"></w:type>' +
+      '<w:pgSz w:w="11906" w:h="16838"/>' +
+      '<w:pgNumType w:fmt="lowerRoman" w:start="3"></w:pgNumType>' +
+      '<w:cols w:space="425"/><w:titlePg></w:titlePg></w:sectPr>'
+
+    const numbered = applyPageNumType(base, 'upperRoman', 5)
+    expect(numbered.match(/<w:pgNumType/g)).toHaveLength(1)
+    expect(numbered).toContain('<w:pgNumType w:fmt="upperRoman" w:start="5"/><w:cols')
+    const started = applySectionStartType(base, 'oddPage')
+    expect(started.match(/<w:type/g)).toHaveLength(1)
+    expect(started).toContain('<w:type w:val="oddPage"/><w:pgSz')
+    const titled = applyTitlePg(base, true)
+    expect(titled.match(/<w:titlePg/g)).toHaveLength(1)
+    expect(titled).toContain('<w:titlePg/>')
+
+    // the removal paths take the pair with them
+    expect(applyPageNumType(base, undefined, undefined)).not.toContain('pgNumType')
+    expect(applySectionStartType(base, 'nextPage')).not.toContain('<w:type')
+    expect(applyTitlePg(base, false)).not.toContain('titlePg')
+  })
+})
+
 describe('SaveOptions.numbering write-back', () => {
   const P2 = (text: string) => `<w:p><w:r><w:t>${text}</w:t></w:r></w:p>`
   const LI = (numId: number, text: string) =>
