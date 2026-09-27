@@ -2268,6 +2268,7 @@ const agentToolCallSchema = z
     id: z.string(),
     name: z.string(),
     input: z.record(z.string(), z.unknown()),
+    signature: z.string().optional(),
   })
   .strict()
 
