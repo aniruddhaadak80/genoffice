@@ -1149,6 +1149,7 @@ function sortByDate(model: ChartModel, serials: number[]): void {
   const newIdx = new Map(order.map((i, k) => [i, k]))
   for (const s of model.series) {
     s.values = permute(s.values).map((v) => v ?? null)
+    if (s.pointLabels) s.pointLabels = permute(s.pointLabels)
     s.pointColors = pick(s.pointColors)
     s.pointFills = pick(s.pointFills)
     s.pointNoFill = pick(s.pointNoFill)
