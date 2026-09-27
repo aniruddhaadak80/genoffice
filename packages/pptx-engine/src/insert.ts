@@ -154,7 +154,8 @@ function buildCxnSpXml(
 export function nextCNvPrId(slide: Slide): number {
   let max = 1
   const scan = (xml: string) => {
-    for (const m of xml.matchAll(/<p:cNvPr\s[^>]*\bid="(\d+)"/g)) {
+    // quote-agnostic: a writer that single-quotes its attributes still owns those ids
+    for (const m of xml.matchAll(/<p:cNvPr\s[^>]*\bid=["'](\d+)["']/g)) {
       max = Math.max(max, Number(m[1]))
     }
   }
