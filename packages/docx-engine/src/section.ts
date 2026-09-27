@@ -296,6 +296,16 @@ export function sectionFromSectPr(
 }
 
 /**
+ * Remove every occurrence of an element written either self-closing
+ * (<w:pgNumType .../>) or as an empty element pair (<w:pgNumType ...></w:pgNumType>).
+ * Both spellings are valid OOXML, and stripping only the self-closing one left the
+ * paired copy behind, so the tag got written twice into a single sectPr.
+ */
+function stripElement(xml: string, tag: string): string {
+  return xml.replace(new RegExp(`<${tag}[^>]*\\/>|<${tag}[^>]*>[\\s\\S]*?<\\/${tag}>`, 'g'), '')
+}
+
+/**
  * Rewrite the sectPr page numbering w:pgNumType (fmt = number format, start = starting
  * page number; undefined fields are omitted, and the tag is removed when both are unset).
  * Schema order: pgNumType comes after pgMar/pgBorders and before cols/docGrid.
@@ -305,7 +315,7 @@ export function applyPageNumType(
   fmt: string | undefined,
   start: number | undefined,
 ): string {
-  const xml = sectPrXml.replace(/<w:pgNumType[^>]*\/>/, '')
+  const xml = stripElement(sectPrXml, 'w:pgNumType')
   if (fmt === undefined && start === undefined) return xml
   const tag = `<w:pgNumType${fmt !== undefined ? ` w:fmt="${fmt}"` : ''}${start !== undefined ? ` w:start="${start}"` : ''}/>`
   return insertBefore(xml, tag, PG_NUM_TYPE_FOLLOWERS)
@@ -486,7 +496,7 @@ export function applySectionStartType(
   sectPrXml: string,
   type: 'nextPage' | 'continuous' | 'evenPage' | 'oddPage' | 'nextColumn',
 ): string {
-  let xml = sectPrXml.replace(/<w:type[^>]*\/>/, '')
+  let xml = stripElement(sectPrXml, 'w:type')
   if (type === 'nextPage') return xml
   const tag = `<w:type w:val="${type}"/>`
   if (/<w:pgSz/.test(xml)) xml = xml.replace(/(<w:pgSz)/, `${tag}$1`)
@@ -496,7 +506,7 @@ export function applySectionStartType(
 
 /** set or remove w:titlePg (different first page) at its CT_SectPr position */
 export function applyTitlePg(sectPrXml: string, on: boolean): string {
-  const xml = sectPrXml.replace(/<w:titlePg[^>]*\/>/, '')
+  const xml = stripElement(sectPrXml, 'w:titlePg')
   return on ? insertBefore(xml, '<w:titlePg/>', TITLE_PG_FOLLOWERS) : xml
 }
 
