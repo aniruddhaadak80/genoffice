@@ -1495,8 +1495,12 @@ function setRangeOrigin(operation: SetRangeOperation): { startRow: number; start
   const width = operation.values[0]?.length ?? 0
   const jaggedIndex = operation.values.findIndex((row) => row.length !== width)
   if (jaggedIndex !== -1) {
+    // Name the array position, not a sheet row: `values` is 0-based, so
+    // "row ${jaggedIndex + 1}" pointed one line below the offending row and
+    // read like a spreadsheet row number. Matches the operations[index] and
+    // seriesData[index=] convention used elsewhere in this file.
     throw new Error(
-      `set_range values must be rectangular: row 1 has ${width} cell(s) but row ${jaggedIndex + 1} has ${operation.values[jaggedIndex]?.length}. ` +
+      `set_range values must be rectangular: values[0] has ${width} cell(s) but values[${jaggedIndex}] has ${operation.values[jaggedIndex]?.length}. ` +
         'Use null for cells that should be cleared, or split into separate set_range operations.',
     )
   }
