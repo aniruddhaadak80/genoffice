@@ -1,6 +1,13 @@
 import { z } from 'zod'
 import { ADDABLE_SHAPE_TYPES } from '../shared/shape-types'
-import { columnIndex, columnLabel, formatAddress, parseRange, rangeCellCount } from './cell-address'
+import {
+  columnIndex,
+  columnLabel,
+  formatAddress,
+  parseAddress,
+  parseRange,
+  rangeCellCount,
+} from './cell-address'
 import { computeSortChanges } from './sort-range'
 import {
   describeStyleColor,
@@ -10,9 +17,28 @@ import {
   THEME_SLOT_NAMES,
 } from './style-color'
 
-const cellAddressSchema = z.string().regex(/^[A-Z]{1,3}[1-9][0-9]{0,6}$/)
+const MAX_GRID_ROWS = 1_048_576
+const MAX_GRID_COLUMNS = 16_384
+
+/// An address past the last grid row or column names no cell that can exist in
+/// the file: the write is accepted here and the value is gone on reopen.
+const withinGrid = (address: string): boolean => {
+  const { row, column } = parseAddress(address)
+  return row + 1 <= MAX_GRID_ROWS && column + 1 <= MAX_GRID_COLUMNS
+}
+
+const cellAddressSchema = z
+  .string()
+  .regex(/^[A-Z]{1,3}[1-9][0-9]{0,6}$/)
+  .refine(withinGrid, 'Address is outside the worksheet grid (XFD1048576)')
 const cellRangeSchema = z.string().regex(/^[A-Z]{1,3}[1-9][0-9]{0,6}(:[A-Z]{1,3}[1-9][0-9]{0,6})?$/)
-const columnLabelSchema = z.string().regex(/^[A-Z]{1,3}$/)
+const columnLabelSchema = z
+  .string()
+  .regex(/^[A-Z]{1,3}$/)
+  .refine(
+    (label) => columnIndex(label) + 1 <= MAX_GRID_COLUMNS,
+    'Column is past the last grid column (XFD)',
+  )
 const sheetNameSchema = z
   .string()
   .trim()
