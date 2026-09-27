@@ -6,7 +6,7 @@ import {
   planCellEditsToXlsx,
 } from '@genoffice/xlsx-gateway/gateway/xlsx-gateway'
 import type { SheetNoteState } from '@genoffice/xlsx-gateway/gateway/xlsx-gateway'
-import { buildEditFixture } from './fixture-builder'
+import { buildEditFixture, buildKitchenSinkFixture } from './fixture-builder'
 
 async function planNotes(noteStates: SheetNoteState[], fixture?: Buffer) {
   const source = await createBufferEntrySource(fixture ?? (await buildEditFixture()))
