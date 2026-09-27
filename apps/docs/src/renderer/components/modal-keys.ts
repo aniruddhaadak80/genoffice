@@ -18,6 +18,17 @@ export function useModalKeys(onClose: () => void) {
     ;(first ?? el).focus()
   }, [])
 
+  // Clicking a canvas/img inside the modal blurs to body, where the React handler never sees Esc.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape' || !focusOutsideModal(ref.current)) return
+      e.preventDefault()
+      onClose()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
   const onKeyDown = (e: ReactKeyboardEvent) => {
     if (e.key === 'Escape') {
       e.preventDefault()
@@ -31,7 +42,13 @@ export function useModalKeys(onClose: () => void) {
   return { ref, onKeyDown }
 }
 
-const FOCUSABLE = 'button, input, textarea, select, [tabindex]:not([tabindex="-1"])'
+export function focusOutsideModal(container: HTMLElement | null): boolean {
+  const active = document.activeElement
+  return !active || active === document.body || !container?.contains(active)
+}
+
+const FOCUSABLE =
+  'button, input, textarea, select, a[href], [contenteditable]:not([contenteditable="false"]), [tabindex]:not([tabindex="-1"])'
 
 /** Cycle Tab/Shift+Tab inside a container (pure DOM helper, exported for tests). */
 export function trapTab(

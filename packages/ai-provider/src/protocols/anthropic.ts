@@ -5,6 +5,7 @@ import { gensparkAttributionHeaders, opencodeSessionHeaders } from '../providers
 import type { AiChatResponse, AiProviderConfig } from '../types'
 import { createStreamWatchdog, type StreamWatchdog } from '../watchdog'
 import {
+  endpointUrl,
   jsonBodyInsteadOfSse,
   parseToolInput,
   readCappedResponseText,
@@ -129,7 +130,7 @@ async function anthropicTurn(
   }
   let response: Response
   try {
-    response = await aiFetch(`${baseUrl.replace(/\/$/, '')}/v1/messages`, {
+    response = await aiFetch(endpointUrl(baseUrl, 'v1/messages'), {
       method: 'POST',
       signal: wd.signal,
       headers: {
@@ -261,6 +262,9 @@ async function anthropicTurn(
   if (!emitted && completedTools.length === 0 && !stopReason) {
     throw new Error('Claude returned no content (empty stream)')
   }
+  if (!stopReason) {
+    throw new Error('Claude stream ended before a stop_reason')
+  }
   if (stopReason) cb.onStopReason?.(stopReason)
 }
 
@@ -271,7 +275,7 @@ export async function chatAnthropic(
   user: string,
   baseUrl = ANTHROPIC_BASE_URL,
 ): Promise<AiChatResponse> {
-  const response = await aiFetch(`${baseUrl.replace(/\/$/, '')}/v1/messages`, {
+  const response = await aiFetch(endpointUrl(baseUrl, 'v1/messages'), {
     method: 'POST',
     signal: wd.signal,
     headers: {

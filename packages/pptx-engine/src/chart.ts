@@ -1194,7 +1194,7 @@ function formatDateSerial(serial: number, fmt: string, date1904: boolean): strin
 
 /** c:pt list → value array ordered by idx. */
 /** Largest point count honored: a hostile ptCount must not allocate the array. */
-const MAX_CHART_POINTS = 10000
+const MAX_CHART_POINTS = 1_048_576
 /** Largest series count honored: bounds the series spreads and per-series work. */
 const MAX_CHART_SERIES = 256
 
