@@ -774,6 +774,9 @@ describe('parseFileToText: xlsx', () => {
     expect(wb('worksheets/sheet1.xml')).toBe('xl/worksheets/sheet1.xml')
     expect(wb('worksheets\\sheet1.xml')).toBe('xl/worksheets/sheet1.xml')
     expect(wb('/xl/worksheets/sheet1.xml')).toBe('xl/worksheets/sheet1.xml')
+    // a backslash-rooted target is still root-anchored: the root test has to
+    // run on the normalized string, or it resolves relative and the part is lost
+    expect(wb('\\xl\\worksheets\\sheet1.xml')).toBe('xl/worksheets/sheet1.xml')
     expect(wb('../customXml/item1.xml')).toBe('customXml/item1.xml')
     expect(wb('../../xl/worksheets/sheet1.xml')).toBe('xl/worksheets/sheet1.xml')
   })
