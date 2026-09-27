@@ -1968,7 +1968,8 @@ function buildCommentsExtendedXml(comments: CommentInfo[]): string {
 /** Aligned with parseComments' textOf: each w:p's w:t text, '\n' between paragraphs */
 function commentPlainText(commentXml: string): string {
   const paras: string[] = []
-  const pRe = /<w:p[\s>][\s\S]*?<\/w:p>|<w:p\/>/g
+  // the self-closing form first: the open-to-close alternative would swallow it
+  const pRe = /<w:p(?:\s[^>]*)?\/>|<w:p[\s>][\s\S]*?<\/w:p>/g
   let p: RegExpExecArray | null
   while ((p = pRe.exec(commentXml)) !== null) {
     const texts: string[] = []
