@@ -2034,11 +2034,13 @@ function tableLookXml(look: NonNullable<TableModel['tableLook']>): string {
 }
 
 export function generateTableModelXml(model: TableModel, originalTableXml?: string): string {
-  const columnCount = Math.max(
-    1,
-    model.colWidthsPct?.length ?? 0,
-    ...model.rows.map((row) => row.reduce((sum, cell) => sum + cellSpan(cell), 0)),
-  )
+  // the widest row decides the column count; folding it in a loop keeps the
+  // argument count off the call (a spread here blew the stack past ~125k rows)
+  let columnCount = Math.max(1, model.colWidthsPct?.length ?? 0)
+  for (const row of model.rows) {
+    const span = row.reduce((sum, cell) => sum + cellSpan(cell), 0)
+    if (span > columnCount) columnCount = span
+  }
   const percentages =
     model.colWidthsPct?.length === columnCount
       ? model.colWidthsPct
