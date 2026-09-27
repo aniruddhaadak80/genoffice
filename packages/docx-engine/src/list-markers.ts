@@ -14,9 +14,13 @@ const BULLET_GLYPHS: Record<string, string> = {
 const DEFAULT_BULLETS = ['•', '◦', '▪', '•', '◦', '▪', '•', '◦', '▪']
 
 function toLetters(value: number): string {
-  // Word: 1..26 -> A..Z, 27 -> AA (repeated same letter, not positional notation)
-  const n = ((value - 1) % 26) + 1
-  const repeat = Math.floor((value - 1) / 26) + 1
+  // Word: 1..26 -> A..Z, 27 -> AA (repeated same letter, not positional notation).
+  // A level without w:start starts at 0, and the modulo left that with nothing to
+  // print, so the marker collapsed to bare lvlText punctuation; clamp to 1 the way
+  // toRoman does, which is why the roman family never showed this
+  const v = Math.max(1, value)
+  const n = ((v - 1) % 26) + 1
+  const repeat = Math.floor((v - 1) / 26) + 1
   return String.fromCharCode(64 + n).repeat(repeat)
 }
 
