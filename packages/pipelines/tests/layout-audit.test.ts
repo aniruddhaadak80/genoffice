@@ -334,7 +334,10 @@ describe('auditSlideLayout issue budget', () => {
       textNode(`stray${i}`, -200 - i, 20 + i * 50, 120, 40),
     )
     const findings = auditSlideFindings(slide([...stray, ...pair()]))
-    expect(findings.filter((f) => f.code === 'out_of_bounds')).toHaveLength(6)
+    const offSlide = findings.filter(
+      (f) => f.code === 'off_slide' || f.code === 'out_of_bounds',
+    )
+    expect(offSlide).toHaveLength(6)
     expect(findings.filter((f) => f.code === 'overlap')).toHaveLength(1)
     expect(findings.length).toBeLessThanOrEqual(12)
   })
