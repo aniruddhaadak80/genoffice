@@ -24,7 +24,7 @@ export const DEFAULT_SECTION: SectionSettings = {
 
 /** Vertical alignment of page content (sectPr w:vAlign); top/default returns undefined */
 function vAlignOf(xml: string): 'center' | 'both' | 'bottom' | undefined {
-  const v = strAttr(/<w:vAlign[^>]*\/?>/.exec(xml)?.[0] ?? '', 'w:val')
+const v = strAttr(/<w:vAlign[^>]*\/?>/.exec(xml)?.[0] ?? '', 'w:val')
   return v === 'center' || v === 'both' || v === 'bottom' ? v : undefined
 }
 
@@ -188,7 +188,7 @@ export function sectionSettingsFromXml(
     colSpace: intAttr(/<w:cols[^>]*\/?>/.exec(xml)?.[0] ?? '', 'w:space', 720),
     ...(colWidths.length >= 2 ? { colWidths } : {}),
     ...(lineNumbers ? { lineNumbers } : {}),
-    ...(/<w:bidi\s*\/>/.test(xml) ? { bidi: true } : {}),
+    ...(/<w:bidi(?=[\s/>])[^>]*>/.test(xml) ? { bidi: true } : {}),
     ...(docGrid ? { docGrid } : {}),
     ...(textDirectionOf(xml) ? { textDirection: textDirectionOf(xml) } : {}),
     ...(footnotePr ? { footnotePr } : {}),
