@@ -234,6 +234,7 @@ import type {
   ShapeKey,
   SetEffectsPatch,
 } from '../shared/ipc'
+import { DECK_LINK_PROTOCOLS } from '../shared/run-link'
 import { planSlideDuplicates, planSlideMoves } from '../shared/slide-selection'
 import { buildPrintDocumentHtml } from '../shared/print-html'
 
@@ -3940,12 +3941,10 @@ export function registerSlidesIpc(): void {
   ipcMain.handle('slides:set-link', (e, op: SetLinkOp) => {
     const session = sessions.get(e.sender.id)
     if (!session) return null
-    // Renderer-typed URLs are allowlisted before they enter the deck: a
-    // javascript:/file: target must never be saved into the package.
-    // The suite-wide openExternal gate (http/https) plus mailto for deck links.
+    // A javascript:/file: target must never be saved into the package.
     if (
       op.target?.kind === 'url' &&
-      safeExternalUrl(op.target.url, { allowedProtocols: ['http:', 'https:', 'mailto:'] }) === null
+      safeExternalUrl(op.target.url, { allowedProtocols: DECK_LINK_PROTOCOLS }) === null
     ) {
       return null
     }

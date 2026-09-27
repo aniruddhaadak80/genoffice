@@ -1,4 +1,4 @@
-import type { AgentMessage, AgentToolDef } from '@genoffice/agent-core'
+import type { AgentMessage, AgentToolCall, AgentToolDef } from '@genoffice/agent-core'
 import { aiFetch } from '../fetch'
 import { httpBodyDetail } from '../http-error'
 import { gensparkAttributionHeaders, opencodeSessionHeaders } from '../providers'
@@ -6,6 +6,8 @@ import type { AiChatResponse, AiProviderConfig } from '../types'
 import { createStreamWatchdog, type StreamWatchdog } from '../watchdog'
 import { toGeminiSchema } from './gemini-schema'
 import {
+  endpointUrl,
+  isPlainObject,
   jsonBodyInsteadOfSse,
   readCappedResponseText,
   sseErrorText,
@@ -16,6 +18,34 @@ import {
 } from './shared'
 
 export const GEMINI_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta'
+
+// Gemini 3 rejects a model turn whose first functionCall lacks its thoughtSignature;
+// calls that never had one (other provider's history) go back with Google's bypass sentinel.
+const SKIP_SIGNATURE = 'skip_thought_signature_validator'
+
+interface GeminiPart {
+  text?: string
+  functionCall?: { name?: string; args?: Record<string, unknown> }
+  thoughtSignature?: string
+  /** snake_case spelling some gateways forward verbatim */
+  thought_signature?: string
+}
+
+function geminiToolCall(part: GeminiPart): AgentToolCall {
+  const signature = part.thoughtSignature ?? part.thought_signature
+  const args: unknown = part.functionCall?.args
+  const inputError =
+    args === undefined || isPlainObject(args)
+      ? undefined
+      : `tool input must be a JSON object; raw: ${JSON.stringify(args).slice(0, 500)}`
+  return {
+    id: crypto.randomUUID(),
+    name: part.functionCall?.name ?? '',
+    input: isPlainObject(args) ? args : {},
+    ...(inputError ? { inputError } : {}),
+    ...(signature ? { signature } : {}),
+  }
+}
 
 function geminiContents(messages: AgentMessage[]): unknown[] {
   return messages.map((m) => {
@@ -32,8 +62,12 @@ function geminiContents(messages: AgentMessage[]): unknown[] {
     if (m.role === 'assistant') {
       const parts: unknown[] = []
       if (m.text) parts.push({ text: m.text })
-      for (const call of m.toolCalls ?? []) {
-        parts.push({ functionCall: { name: call.name, args: call.input } })
+      for (const [i, call] of (m.toolCalls ?? []).entries()) {
+        const signature = call.signature ?? (i === 0 ? SKIP_SIGNATURE : undefined)
+        parts.push({
+          functionCall: { name: call.name, args: call.input },
+          ...(signature ? { thoughtSignature: signature } : {}),
+        })
       }
       // Gemini rejects model turns with empty parts lists.
       if (parts.length === 0) parts.push({ text: '(no content)' })
@@ -65,12 +99,7 @@ function emitGeminiJsonMessage(bodyText: string, cb: StreamCallbacks): void {
   }
   const events = (Array.isArray(parsed) ? parsed : [parsed]) as Array<{
     candidates?: Array<{
-      content?: {
-        parts?: Array<{
-          text?: string
-          functionCall?: { name?: string; args?: Record<string, unknown> }
-        }>
-      }
+      content?: { parts?: GeminiPart[] }
       finishReason?: string
     }>
     promptFeedback?: { blockReason?: string }
@@ -98,11 +127,7 @@ function emitGeminiJsonMessage(bodyText: string, cb: StreamCallbacks): void {
         // A complete JSON body carries the whole turn at once, so the per-turn
         // tool budget of the streamed path has to be applied here as well
         throwIfToolCountOverBudget(++toolCallCount, 'gemini')
-        cb.onToolCall({
-          id: crypto.randomUUID(),
-          name: part.functionCall.name,
-          input: part.functionCall.args ?? {},
-        })
+        cb.onToolCall(geminiToolCall(part))
       }
     }
   }
@@ -152,7 +177,7 @@ async function geminiTurn(
     wd.touch()
     cb.onActivity?.()
   }
-  const url = `${baseUrl.replace(/\/$/, '')}/models/${config.model}:streamGenerateContent?alt=sse`
+  const url = endpointUrl(baseUrl, `models/${config.model}:streamGenerateContent`, '?alt=sse')
   const response = await aiFetch(url, {
     method: 'POST',
     signal: wd.signal,
@@ -216,12 +241,7 @@ async function geminiTurn(
     try {
       event = JSON.parse(payload) as {
         candidates?: Array<{
-          content?: {
-            parts?: Array<{
-              text?: string
-              functionCall?: { name?: string; args?: Record<string, unknown> }
-            }>
-          }
+          content?: { parts?: GeminiPart[] }
           finishReason?: string
         }>
         promptFeedback?: { blockReason?: string }
@@ -247,11 +267,7 @@ async function geminiTurn(
       if (part.functionCall?.name) {
         throwIfToolCountOverBudget(++toolCallCount, 'gemini')
         emitted = true
-        cb.onToolCall({
-          id: crypto.randomUUID(),
-          name: part.functionCall.name,
-          input: part.functionCall.args ?? {},
-        })
+        cb.onToolCall(geminiToolCall(part))
       }
     }
   }
@@ -264,6 +280,9 @@ async function geminiTurn(
   if (!emitted && !sawFinish) {
     throw new Error('Gemini returned no content (empty stream)')
   }
+  if (!sawFinish) {
+    throw new Error('Gemini stream ended before a finishReason')
+  }
   if (stopReason) cb.onStopReason?.(stopReason)
 }
 
@@ -275,7 +294,7 @@ export async function chatGemini(
   baseUrl = GEMINI_BASE_URL,
   options: GeminiRequestOptions = {},
 ): Promise<AiChatResponse> {
-  const url = `${baseUrl.replace(/\/$/, '')}/models/${config.model}:generateContent`
+  const url = endpointUrl(baseUrl, `models/${config.model}:generateContent`)
   const response = await aiFetch(url, {
     method: 'POST',
     signal: wd.signal,
