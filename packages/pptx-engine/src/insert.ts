@@ -368,10 +368,16 @@ function tableCellXml(
   cell: NewTableCellSpec,
   colIdx: number,
   border: NewTableGridOptions['border'],
+  maxGridSpan: number,
+  maxRowSpan: number,
 ): string {
   const attrs: string[] = []
-  if ((cell.gridSpan ?? 1) > 1) attrs.push(`gridSpan="${Math.floor(cell.gridSpan!)}"`)
-  if ((cell.rowSpan ?? 1) > 1) attrs.push(`rowSpan="${Math.floor(cell.rowSpan!)}"`)
+  // cap a span at the cells remaining right of / below it, as buildTableXml
+  // does: Math.floor alone emits gridSpan="Infinity" for a hostile payload
+  const gridSpan = cell.gridSpan !== undefined ? clampInt(cell.gridSpan, 1, maxGridSpan) : 1
+  const rowSpan = cell.rowSpan !== undefined ? clampInt(cell.rowSpan, 1, maxRowSpan) : 1
+  if (gridSpan > 1) attrs.push(`gridSpan="${gridSpan}"`)
+  if (rowSpan > 1) attrs.push(`rowSpan="${rowSpan}"`)
   if (cell.hMerge) attrs.push('hMerge="1"')
   if (cell.vMerge) attrs.push('vMerge="1"')
   const tcAttrs = attrs.length ? ` ${attrs.join(' ')}` : ''
@@ -425,6 +431,7 @@ function tableCellXml(
  */
 export function buildTableGridXml(slide: Slide, opts: NewTableGridOptions): string {
   const id = nextCNvPrId(slide)
+  const cols = opts.colWidthsEmu.length
   const grid = opts.colWidthsEmu
     .map((w) => `<a:gridCol w="${Math.max(1, Math.round(w))}"/>`)
     .join('')
@@ -432,7 +439,11 @@ export function buildTableGridXml(slide: Slide, opts: NewTableGridOptions): stri
     .map((row, r) => {
       const h = Math.max(1, Math.round(opts.rowHeightsEmu[r] ?? 1))
       // one <a:tc> per grid column (covered columns keep their own hMerge tc)
-      const tcs = row.map((cell, colIdx) => tableCellXml(cell, colIdx, opts.border)).join('')
+      const tcs = row
+        .map((cell, colIdx) =>
+          tableCellXml(cell, colIdx, opts.border, cols - colIdx, opts.cells.length - r),
+        )
+        .join('')
       return `<a:tr h="${h}">${tcs}</a:tr>`
     })
     .join('')
