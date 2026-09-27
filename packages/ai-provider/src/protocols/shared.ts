@@ -1,5 +1,26 @@
 import type { AgentToolCall } from '@genoffice/agent-core'
 
+// ---- endpoint URL composition ----
+
+/**
+ * Append a provider endpoint path to a base URL without string concatenation.
+ *
+ * A custom base URL may carry a query string (Azure-style `?api-version=…`,
+ * gateways that pin a version) and a fragment. Concatenating would push the
+ * path into the query component, so the request 404s or lands on the wrong
+ * route. Setting `pathname` keeps the query in place and the fragment is
+ * dropped — it is never sent to the server anyway.
+ */
+export function endpointUrl(baseUrl: string, path: string, search?: string): string {
+  const url = new URL(baseUrl)
+  const base = url.pathname.replace(/\/+$/, '')
+  const suffix = path.replace(/^\/+/, '')
+  url.pathname = suffix ? `${base}/${suffix}` : base
+  url.hash = ''
+  if (search !== undefined) url.search = search
+  return url.toString()
+}
+
 // ---- streaming (SSE line splitting shared by all providers) ----
 
 /** Max buffered SSE line: a gateway sending GB without newline would OOM main. */
@@ -259,14 +280,23 @@ export function throwIfCreditsNotice(bodyText: string): void {
 /** Don't throw on parse failure (it would kill the whole stream); return error so the loop feeds it back for retry */
 export function parseToolInput(json: string): { input: Record<string, unknown>; error?: string } {
   if (!json.trim()) return { input: {} }
+  let parsed: unknown
   try {
-    return { input: JSON.parse(json) as Record<string, unknown> }
+    parsed = JSON.parse(json)
   } catch (e) {
     try {
-      return { input: JSON.parse(repairUnescapedQuotes(json)) as Record<string, unknown> }
+      parsed = JSON.parse(repairUnescapedQuotes(json))
     } catch {
       const msg = e instanceof Error ? e.message : String(e)
       return { input: {}, error: `${msg}; raw: ${json.slice(0, 500)}` }
     }
   }
+  if (!isPlainObject(parsed)) {
+    return { input: {}, error: `tool input must be a JSON object; raw: ${json.slice(0, 500)}` }
+  }
+  return { input: parsed }
+}
+
+export function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
