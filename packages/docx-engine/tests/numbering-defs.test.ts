@@ -128,6 +128,33 @@ describe('missing w:start default', () => {
     )
     expect(markers).toEqual(['0.', '1.'])
   })
+
+  it('a letter numFmt without w:start still prints a letter, not bare punctuation', async () => {
+    // the start-0 value reached toLetters, whose modulo left it nothing to print, so
+    // the marker was just the lvlText dot; clamping to 1 the way toRoman does makes the
+    // letter family behave like the roman one, where 0 and 1 both render the first symbol
+    expect(formatNumber(0, 'upperLetter')).toBe('A')
+    expect(formatNumber(0, 'lowerLetter')).toBe('a')
+    expect(formatNumber(0, 'upperRoman')).toBe(formatNumber(1, 'upperRoman'))
+    const li = (text: string) =>
+      '<w:p><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="1"/></w:numPr></w:pPr>' +
+      `<w:r><w:t>${text}</w:t></w:r></w:p>`
+    const doc = await parseDocx(
+      await buildDocx({
+        bodyXml: li('a') + li('b'),
+        numberingXml: NO_START_NUMBERING.replace('w:val="decimal"', 'w:val="upperLetter"'),
+      }),
+    )
+    const markers = computeListMarkers(
+      [
+        { numId: '1', ilvl: 0 },
+        { numId: '1', ilvl: 0 },
+      ],
+      doc.numbering,
+    )
+    expect(markers).toEqual(['A.', 'A.'])
+    expect(markers.every((m) => m !== '.')).toBe(true)
+  })
 })
 
 describe('greek letter formats', () => {
