@@ -575,6 +575,20 @@ describe('column widths + section bidi (P3 pdf2docx support)', () => {
     expect(applySectionSettings(once, parsed)).toBe(once)
   })
 
+  it('colWidths is read back from w:col written as an empty element pair', async () => {
+    const { sectionSettingsFromXml } = await import('../src/index')
+    // the old pattern required the self-closing spelling, so a paired w:col left
+    // colWidths undefined and the unequal widths were lost on the next save
+    const paired =
+      '<w:sectPr><w:pgSz w:w="11906" w:h="16838"/>' +
+      '<w:cols w:num="3" w:space="425" w:equalWidth="0">' +
+      '<w:col w:w="2000"></w:col><w:col w:w="3000" w:space="425"/>' +
+      '<w:col w:w="4390"></w:col></w:cols></w:sectPr>'
+    const parsed = sectionSettingsFromXml(paired)
+    expect(parsed.columns).toBe(3)
+    expect(parsed.colWidths).toEqual([2000, 3000, 4390])
+  })
+
   it('undefined bidi leaves an existing w:bidi untouched; false removes it', async () => {
     const { sectionSettingsFromXml } = await import('../src/index')
     const withBidi = BASE.replace('</w:sectPr>', '<w:bidi/></w:sectPr>')
