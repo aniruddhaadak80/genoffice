@@ -201,7 +201,9 @@ function noteEntriesOf(
 ): Array<{ id: string; text: string; xml: string }> {
   const out: Array<{ id: string; text: string; xml: string }> = []
   const entry = ENTRY[kind]
-  const re = new RegExp(`<${entry}(\\s[^>]*)?>([\\s\\S]*?)</${entry}>`, 'g')
+  // the attribute run must not end in "/" so a self-closing empty entry
+  // ("<w:footnote w:id="1"/>") is not read as an open tag over the next entry
+  const re = new RegExp(`<${entry}(\\s[^>]*[^/>])?>([\\s\\S]*?)</${entry}>`, 'g')
   let m: RegExpExecArray | null
   while ((m = re.exec(xml)) !== null) {
     const attrs = m[1] ?? ''
