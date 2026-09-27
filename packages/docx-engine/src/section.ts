@@ -146,9 +146,11 @@ export function sectionSettingsFromXml(
     }
   }
 
-  // explicit unequal column widths (w:cols > w:col children)
+  // explicit unequal column widths (w:cols > w:col children). w:col is an empty
+  // element, so matching its start tag covers both the self-closing and the paired
+  // spelling, and either attribute quote style
   const colsElement = /<w:cols[^>]*>[\s\S]*?<\/w:cols>/.exec(xml)?.[0]
-  const colWidths = (colsElement?.match(/<w:col [^>]*w:w="\d+"[^>]*\/>/g) ?? [])
+  const colWidths = (colsElement?.match(/<w:col [^>]*w:w=["']\d+["'][^>]*>/g) ?? [])
     .map((tag) => intAttr(tag, 'w:w', 0))
     .filter((w) => w > 0)
 
