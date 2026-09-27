@@ -610,6 +610,22 @@ describe('column widths + section bidi (P3 pdf2docx support)', () => {
     expect(parsed.colWidths).toEqual([2000, 3000, 4390])
   })
 
+  it('vAlign and bidi are read from the empty element pair spelling', async () => {
+    const { sectionSettingsFromXml } = await import('../src/index')
+    // both flags were matched self-closing only, so a paired spelling was read as
+    // "not set": the page lost its vertical alignment and an RTL section came back LTR
+    const paired =
+      '<w:sectPr><w:pgSz w:w="11906" w:h="16838"/>' +
+      '<w:bidi></w:bidi><w:vAlign w:val="center"></w:vAlign></w:sectPr>'
+    expect(sectionSettingsFromXml(paired)).toMatchObject({ vAlign: 'center', bidi: true })
+    // the self-closing spelling still reads, and w:bidiVisual is not w:bidi
+    const selfClosing =
+      '<w:sectPr><w:pgSz w:w="11906" w:h="16838"/>' +
+      '<w:bidiVisual/><w:vAlign w:val="both"/></w:sectPr>'
+    expect(sectionSettingsFromXml(selfClosing)).toMatchObject({ vAlign: 'both' })
+    expect(sectionSettingsFromXml(selfClosing).bidi).toBeUndefined()
+  })
+
   it('undefined bidi leaves an existing w:bidi untouched; false removes it', async () => {
     const { sectionSettingsFromXml } = await import('../src/index')
     const withBidi = BASE.replace('</w:sectPr>', '<w:bidi/></w:sectPr>')

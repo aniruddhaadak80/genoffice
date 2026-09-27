@@ -24,7 +24,10 @@ export const DEFAULT_SECTION: SectionSettings = {
 
 /** Vertical alignment of page content (sectPr w:vAlign); top/default returns undefined */
 function vAlignOf(xml: string): 'center' | 'both' | 'bottom' | undefined {
-  const v = /<w:vAlign w:val="(center|both|bottom)"\s*\/>/.exec(xml)?.[1]
+  // w:vAlign is an empty element, so read the value off its start tag: that covers
+  // the paired spelling as well as the self-closing one
+  const tag = /<w:vAlign(?=[\s/>])[^>]*>/.exec(xml)?.[0]
+  const v = tag ? /w:val="(center|both|bottom)"/.exec(tag)?.[1] : undefined
   return v as 'center' | 'both' | 'bottom' | undefined
 }
 
@@ -186,7 +189,7 @@ export function sectionSettingsFromXml(
     colSpace: intAttr(/<w:cols[^>]*\/?>/.exec(xml)?.[0] ?? '', 'w:space', 720),
     ...(colWidths.length >= 2 ? { colWidths } : {}),
     ...(lineNumbers ? { lineNumbers } : {}),
-    ...(/<w:bidi\s*\/>/.test(xml) ? { bidi: true } : {}),
+    ...(/<w:bidi(?=[\s/>])[^>]*>/.test(xml) ? { bidi: true } : {}),
     ...(docGrid ? { docGrid } : {}),
     ...(textDirectionOf(xml) ? { textDirection: textDirectionOf(xml) } : {}),
     ...(footnotePr ? { footnotePr } : {}),
