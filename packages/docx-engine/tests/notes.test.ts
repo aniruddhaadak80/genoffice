@@ -408,6 +408,21 @@ describe('rich-text footnote display runs', () => {
     expect(notes.map((n) => n.text)).toEqual(['spaced', 'paired', 'only a cross-ref'])
   })
 
+  it('keeps a spaced self-closing <w:p/> as its own (empty) paragraph', () => {
+    // the same producers write an empty note paragraph as <w:p w:rsidR="..."/>
+    const footnotesXml =
+      '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+      '<w:footnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">' +
+      '<w:footnote w:id="1">' +
+      '<w:p w:rsidR="00AB1234" w:rsidRDefault="00AB1234"/>' +
+      '<w:p><w:r><w:footnoteRef/></w:r>' +
+      '<w:r><w:rPr><w:b/></w:rPr><w:t>bold tail</w:t></w:r></w:p>' +
+      '</w:footnote>' +
+      '</w:footnotes>'
+    const notes = parseNotesXml(footnotesXml, 'footnote')
+    expect(notes[0].richParas).toEqual([[], [{ text: 'bold tail', bold: true }]])
+  })
+
   it('serializes richParas runs with size/font formatting for fresh notes (P17)', async () => {
     const { buildNotesXml, parseNotesXml } = await import('../src/notes')
     const xml = buildNotesXml(
