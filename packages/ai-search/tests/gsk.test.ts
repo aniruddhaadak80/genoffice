@@ -30,6 +30,21 @@ describe('parseGskOutput', () => {
     expect(parseGskOutput(out)).toEqual({ a: 1 })
   })
 
+  it('parses a payload behind more log lines than the scan cap', () => {
+    // A [INFO] line is itself a balanced bracket block, so it must not count
+    // against the cap: a verbose gsk run emits far more than eight log lines
+    // before the payload, and counting them threw on input this used to parse.
+    const lines = Array.from({ length: 9 }, (_, i) => '[INFO] step ' + i)
+    lines.push('{"status":"ok"}')
+    expect(parseGskOutput(lines.join('\n'))).toEqual({ status: 'ok' })
+  })
+
+  it('still gives up after enough unterminated opener lines', () => {
+    // the unbalanced case is the expensive one, so the cap still applies to it
+    const lines = Array.from({ length: 20 }, (_, i) => '[INFO] progress {' + i)
+    expect(() => parseGskOutput(lines.join('\n'))).toThrow(/No JSON found/)
+  })
+
   it('skips trailing log lines after JSON', () => {
     const out = '{"status":"ok","data":[1,2]}\n[INFO] done in 120ms'
     expect(parseGskOutput(out)).toEqual({ status: 'ok', data: [1, 2] })
@@ -48,6 +63,50 @@ describe('parseGskOutput', () => {
 
   it('throws when no JSON present', () => {
     expect(() => parseGskOutput('[INFO] nothing here')).toThrow()
+  })
+
+  it('recovers past a log line that only looks like an array opener', () => {
+    expect(parseGskOutput('[INFO] progress {50%}\n{"status":"ok"}')).toEqual({ status: 'ok' })
+  })
+
+  it('takes the outer block, not the first inner one, of a large pretty payload', () => {
+    const rows = Array.from({ length: 2000 }, (_, i) => `    { "id": ${i}, "t": "row ${i}" },`)
+    const out = [
+      '[INFO] Calling /tools...',
+      '[INFO] cache hit',
+      '{',
+      '  "status": "ok",',
+      '  "data": [',
+      ...rows.slice(0, -1),
+      rows.at(-1)!.replace(/,$/, ''),
+      '  ]',
+      '}',
+      '[INFO] done in 900ms',
+    ].join('\n')
+    const parsed = parseGskOutput(out) as { status: string; data: unknown[] }
+    expect(parsed.status).toBe('ok')
+    expect(parsed.data).toHaveLength(2000)
+    expect(parsed.data[0]).toEqual({ id: 0, t: 'row 0' })
+  })
+
+  it('locates a large payload in linear time', () => {
+    const rows = Array.from({ length: 20_000 }, (_, i) => `  { "id": ${i} },`)
+    const out = [
+      '[INFO] starting',
+      '{',
+      '  "data": [',
+      ...rows.slice(0, -1),
+      rows.at(-1)!.replace(/,$/, ''),
+      '  ]',
+      '}',
+      '[INFO] done',
+    ].join('\n')
+    const started = performance.now()
+    const parsed = parseGskOutput(out) as { data: unknown[] }
+    const elapsed = performance.now() - started
+    expect(parsed.data).toHaveLength(20_000)
+    // the previous nested slice-and-reparse scan needed minutes at this size
+    expect(elapsed).toBeLessThan(5_000)
   })
 })
 
