@@ -1,8 +1,8 @@
 /**
- * Speaker notes (notesSlide) read/write — archive surgery, same approach as
+ * Speaker notes (notesSlide) read/write â€” archive surgery, same approach as
  * duplicateSlide.
  *
- * - Read: slide rels → notesSlide part → body placeholder <a:t> text (\n-separated).
+ * - Read: slide rels â†’ notesSlide part â†’ body placeholder <a:t> text (\n-separated).
  * - Write: patch the existing notesSlide's body txBody; if there is no notesSlide,
  *   create one (creating a notesMaster too if needed and registering it in
  *   presentation.xml).
@@ -58,7 +58,8 @@ export function notesPathForSlide(archive: PackageArchive, slidePath: string): s
 /** Find the body placeholder sp block in the notesSlide xml. */
 function findBodySp(xml: string): { xml: string; start: number; end: number } | null {
   for (const m of xml.matchAll(/<p:sp>[\s\S]*?<\/p:sp>/g)) {
-    if (/<p:ph\b[^>]*type="body"/.test(m[0])) {
+    // quote-agnostic: a deck written with type='body' is still a body placeholder
+    if (/<p:ph\b[^>]*\btype=["']body["']/.test(m[0])) {
       return { xml: m[0], start: m.index!, end: m.index! + m[0].length }
     }
   }
@@ -85,7 +86,7 @@ export function getSlideNotes(archive: PackageArchive, slidePath: string): strin
   return paras.join('\n')
 }
 
-/** text (\n-separated) → notes txBody. */
+/** text (\n-separated) â†’ notes txBody. */
 function buildNotesTxBody(text: string): string {
   const lines = text.split('\n')
   const paras = lines.every((l) => l === '')
