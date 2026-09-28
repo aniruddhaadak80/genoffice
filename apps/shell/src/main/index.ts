@@ -952,6 +952,7 @@ const tMain = createI18n({
       'Tệp bị hỏng hoặc không phải là tệp PDF hợp lệ và không thể chuyển đổi.',
     dlgPickSaveDir: 'Chọn vị trí lưu mặc định',
     errSaveDirUnusable: 'Thư mục đã chọn không thể ghi và không thể dùng làm vị trí lưu mặc định',
+    errPdfSaveAsFailed: 'Could not save the PDF copy',
   },
   ja: {
     dlgAddFolderRoot: 'フォルダーをホームに追加',
