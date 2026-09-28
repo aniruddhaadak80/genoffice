@@ -40,6 +40,7 @@ import {
   hfReferenceRId,
   hfReferenceTags,
   hfReferenceType,
+  injectIntoSectPr,
 } from './section'
 import {
   CUSTOM_XML_REL_TYPE,
@@ -1252,7 +1253,7 @@ export async function saveDocx(
     // (the reference must be the first sectPr child)
     const refTags = fbDocxIndex !== undefined ? sectionRefTags.get(fbDocxIndex) : undefined
     if (refTags && refTags.length > 0) {
-      xml = xml.replace(/(<w:sectPr[^>]*>)/, `$1${refTags.join('')}`)
+      xml = injectIntoSectPr(xml, refTags.join(''))
     }
     if (fbDocxIndex !== undefined) xml = unlinkSectionHf(xml, fbDocxIndex)
     // The ink list is authoritative: old aidocs-ink runs go away, the desired
@@ -1299,7 +1300,7 @@ export async function saveDocx(
         if (options.titlePg !== undefined) xml = applyTitlePg(xml, options.titlePg)
         // headerReference/footerReference must be the first sectPr children
         if (hfRefTags.length > 0) {
-          xml = xml.replace(/(<w:sectPr[^>]*>)/, `$1${hfRefTags.join('')}`)
+          xml = injectIntoSectPr(xml, hfRefTags.join(''))
         }
         xml = unlinkSectionHf(xml, block.docxIndex)
       }

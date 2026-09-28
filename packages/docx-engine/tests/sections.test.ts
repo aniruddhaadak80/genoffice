@@ -247,6 +247,43 @@ describe('readSections enumerates all sections', () => {
     )
   })
 
+  it('self-closing w:sectPr is expanded so a rewritten child lands inside it', async () => {
+    // The open-tag anchor also matched <w:sectPr/> whole, so the new child was
+    // written after the element: a sibling of w:sectPr, not a CT_SectPr child.
+    const settings = sectionSettingsFromXml(
+      '<w:sectPr><w:pgSz w:w="11906" w:h="16838"/>' +
+        '<w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440"/></w:sectPr>',
+    )
+    const rewritten = applySectionSettings('<w:sectPr/>', settings)
+    expect(rewritten).toBe(
+      '<w:sectPr>' +
+        '<w:pgSz w:w="11906" w:h="16838"/>' +
+        '<w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440" w:header="708" w:footer="708" w:gutter="0"/>' +
+        '</w:sectPr>',
+    )
+    expect(applySectionStartType('<w:sectPr/>', 'continuous')).toBe(
+      '<w:sectPr><w:type w:val="continuous"/></w:sectPr>',
+    )
+
+    // same anchor on the save path, for the per-section reference injection
+    const parsed = await parseDocx(
+      await buildDocx({ bodyXml: P('a') + '<w:p><w:pPr><w:sectPr/></w:pPr></w:p>' + P('b') }),
+    )
+    const sections = readSections(parsed)
+    const visible: SaveBlock[] = parsed.blocks
+      .filter((b) => !b.hidden && b.docxIndex !== null)
+      .map((b) => ({ kind: 'original', docxIndex: b.docxIndex! }))
+    const saved = await saveDocx(parsed, visible, {
+      sectionHf: [
+        { lastBlockIndex: sections[0].lastBlockIndex, kind: 'header', hf: { text: '第一节页眉' } },
+      ],
+    })
+    const zip = await (await import('jszip')).default.loadAsync(saved)
+    const docXml = await zip.file('word/document.xml')!.async('string')
+    expect(docXml).toMatch(/<w:pPr><w:sectPr><w:headerReference w:type="default"/)
+    expect(docXml).not.toContain('<w:sectPr/>')
+  })
+
   it('section edit round-trip: non-final sectPr rewritten via kind:xml, final section via options.section', async () => {
     const bytes = await buildDocx({
       bodyXml: P('第一节') + sectBreakPara({ landscape: true }) + P('第二节'),
