@@ -48,6 +48,8 @@ function toCjkNum(n: number): string {
  * only exist up to ⑳/⓴; PowerPoint falls back to plain arabic beyond that.
  */
 export function formatAutoNum(n: number, numType: string | undefined): string {
+  // A buAutoNum startAt of 0 or less is legal, but numbering starts at 1
+  n = Math.max(1, n)
   const t = numType ?? 'arabicPeriod'
   if (t.startsWith('circleNum')) {
     if (t === 'circleNumWdBlackPlain')
