@@ -72,7 +72,7 @@ function syncFileBestEffortSync(path: string): void {
  * write — losing atomicity for that one save beats failing a save the previous
  * plain writeFileSync would have completed.
  */
-export async function atomicWriteFile(filePath: string, data: Buffer): Promise<void> {
+export async function atomicWriteFile(filePath: string, data: Uint8Array): Promise<void> {
   const tmp = tempPathBeside(filePath)
   try {
     await writeFile(tmp, data)
