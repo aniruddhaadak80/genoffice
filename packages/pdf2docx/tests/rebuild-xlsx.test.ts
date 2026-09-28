@@ -658,6 +658,24 @@ describe('splitBandRows via rebuildXlsx (P40)', () => {
     expect(texts.some((t2) => t2.includes('R-0') && t2.includes('R-3'))).toBe(true)
   })
 
+  it('keeps list markers and TOC page numbers on the split cells', async () => {
+    const t = bandTable(4)
+    const ref = t.rows[1]![0]!.blocks[0] as TextBlock
+    ref.list = { kind: 'bullet', level: 0, marker: '•' }
+    ref.firstLineIndentPt = 12
+    const desc = t.rows[1]![1]!.blocks[0] as TextBlock
+    desc.tocEntry = { level: 1, pageNumber: '7' }
+    const { sheets } = await rebuildXlsx([page({ blocks: [t] })])
+    const texts = sheets[0]!.cells
+      .filter((c) => c.value?.kind === 'text')
+      .map((c) => (c.value as { text: string }).text)
+    // every split row keeps the block attributes its lines were analyzed under
+    for (let i = 0; i < 4; i++) {
+      expect(texts.some((x) => x.includes(`• R-${i}`))).toBe(true)
+      expect(texts.some((x) => x.includes(`LABEL-${i}`) && x.endsWith('\t7'))).toBe(true)
+    }
+  })
+
   it('staggered column baselines collapse into one row (no phantom 3pt rows)', async () => {
     // two column groups start each transaction 3pt apart — both clusters can
     // win the vote, but boundaries closer than the row pitch must merge

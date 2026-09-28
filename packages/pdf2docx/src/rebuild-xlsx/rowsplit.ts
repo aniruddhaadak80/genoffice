@@ -101,8 +101,15 @@ function subCell(
       lines,
       box: lineBox,
       align: src.align,
-      firstLineIndentPt: 0,
+      // splitting runs at emission, after analysis, so the block's own marker /
+      // TOC page number are already there: carry them or flattenBlockText drops
+      // them. The measured first-line indent belongs to the block's first line
+      // only (the continuation rule in analyze/blocks.ts).
+      firstLineIndentPt: rowLines[0]!.line === src.lines[0] ? src.firstLineIndentPt : 0,
       dir: src.dir,
+      ...(src.list ? { list: src.list } : {}),
+      ...(src.tocEntry ? { tocEntry: src.tocEntry } : {}),
+      ...(src.border ? { border: src.border } : {}),
     },
   ]
   return base
