@@ -45,6 +45,11 @@ describe('classifyFormatCode', () => {
     expect(classifyFormatCode('[Red]0.0;[Blue]-0.0')).toBeNull()
     expect(classifyFormatCode('0.00E+00')).toBeNull()
   })
+
+  it('recognises - and / as minute-adjacency separators', () => {
+    expect(classifyFormatCode('h-m')).toMatchObject({ date: false, time: true })
+    expect(classifyFormatCode('mm/ss')).toMatchObject({ date: false, time: true, seconds: true })
+  })
 })
 
 describe('builtinDateFormat', () => {
