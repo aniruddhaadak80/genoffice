@@ -1,7 +1,7 @@
 // Field-code display (PAGE, TOC, REF, ...) and TOC entry numbering.
 import { inlineEqFieldResults } from './eq-field'
 import { computeListMarkers, type ListItemRef } from './list-markers'
-import { decodeEntities, lineTwipsOf, plainText } from './parse-xml-text'
+import { decodeEntities, lineTwipsOf, onOffTagIn, plainText } from './parse-xml-text'
 import type { Block, FieldDisplay, NumberingDef, StyleInfo, TabStop } from './types'
 
 /**
@@ -165,7 +165,7 @@ export function fieldDisplayOf(
           (m) => m[1],
         ).join('')
         font = leadingRunFont(rPr, text) ?? ''
-        bold = /<w:b(?:\s*\/>|\s(?![^>]*w:val="(?:0|false|none|off)")[^>]*\/>)/i.test(rPr)
+        bold = onOffTagIn(rPr, 'w:b') === true
       }
     }
     return {
