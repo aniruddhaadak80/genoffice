@@ -197,6 +197,7 @@ export function ColorPicker({
   // leave every swatch at tabIndex={-1}, skipping the palette in the tab order.
   const hasPos = (pos: string): boolean => {
     const [r, c] = pos.split('-').map(Number)
+    if (r === undefined || c === undefined) return false
     return Boolean(rows[r]?.[c])
   }
   const activePos = focusPos && hasPos(focusPos) ? focusPos : selectedPos
