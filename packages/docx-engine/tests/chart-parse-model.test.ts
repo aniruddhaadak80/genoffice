@@ -164,6 +164,19 @@ describe('parseChartPartXml scatter and bubble', () => {
     expect(display.series[0].line).toBeUndefined()
   })
 
+  it('renders 1900-era date serials on their own day, not one day early', () => {
+    // the epoch was the 1899-12-30 one every serial, which is only right from
+    // serial 61 on: below it Excel counts a 29-Feb-1900 that never existed
+    const ser =
+      '<c:ser><c:idx val="0"/><c:order val="0"/>' +
+      strCache('tx', ['S1']) +
+      numCache('cat', [1, 59, 61, 37377], 'm/d/yyyy') +
+      numCache('val', [1, 2, 3, 4]) +
+      '</c:ser>'
+    const display = parseChartPartXml(chartSpace(`<c:lineChart>${ser}</c:lineChart>`), 'p')!
+    expect(display.categories).toEqual(['1/1/1900', '2/28/1900', '3/1/1900', '5/1/2002'])
+  })
+
   it('keeps the line for lineMarker series without noFill', () => {
     const ser =
       `<c:ser><c:idx val="0"/><c:order val="0"/>${numCache('xVal', [1, 2])}` +
