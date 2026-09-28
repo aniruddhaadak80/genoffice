@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import JSZip from 'jszip'
 import { parseFileToText } from '../src/index'
 import { buildPdfFixture, writeFixture } from './helpers/fixtures'
 
@@ -16,5 +17,14 @@ describe('parseFileToText: pdf', () => {
     const result = await parseFileToText(path)
     expect(result.ok).toBe(false)
     expect(result.error).toBeTruthy()
+  })
+
+  it('rejects a ZIP named .pdf with a content-mismatch error', async () => {
+    const zip = new JSZip()
+    zip.file('test.txt', 'hello')
+    const path = writeFixture('sneaky.pdf', await zip.generateAsync({ type: 'uint8array' }))
+    const result = await parseFileToText(path)
+    expect(result.ok).toBe(false)
+    expect(result.error).toContain('Content mismatch')
   })
 })
