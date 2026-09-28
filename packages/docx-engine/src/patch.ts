@@ -2226,13 +2226,18 @@ export function removeHfReference(
 
 /** set or remove an on/off settings flag right after the settings root opens */
 function applySettingsFlag(xml: string, tag: string, on: boolean): string {
-  const out = xml.replace(new RegExp(`<${tag}(?=[\\s/>])[^>]*/>`), '')
+  // Match the start tag and an optional paired end tag. Matching only the
+  // self-closing form left a paired element in place, so switching the flag ON
+  // then appended a second one and the output held both spellings of a
+  // zero-or-one element, which is schema-invalid; switching it OFF did nothing
+  // at all. A producer that writes <w:mirrorMargins></w:mirrorMargins> is legal.
+  const out = xml.replace(new RegExp(`<${tag}(?=[\\s/>])[^>]*>(?:<\\/${tag}>)?`), '')
   return on ? out.replace(/(<w:settings[^>]*>)/, `$1<${tag}/>`) : out
 }
 
 /** set or remove <w:evenAndOddHeaders/> right after the settings root opens */
 function applyEvenAndOddHeaders(xml: string, on: boolean): string {
-  const out = xml.replace(/<w:evenAndOddHeaders[^>]*\/>/, '')
+  const out = xml.replace(/<w:evenAndOddHeaders(?=[\s/>])[^>]*>(?:<\/w:evenAndOddHeaders>)?/, '')
   return on ? out.replace(/(<w:settings[^>]*>)/, '$1<w:evenAndOddHeaders/>') : out
 }
 
