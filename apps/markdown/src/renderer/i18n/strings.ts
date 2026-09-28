@@ -410,6 +410,7 @@ export const strings = {
     zoomOut: 'Zoom out',
   },
   vi: {
+    imageTooLarge: 'Image is larger than {mb} MB and cannot be inserted',
     appExportingImages: 'Đang xuất hình ảnh…',
     appExportImagesProgress: 'Đang xuất {count} hình ảnh…',
     appExportImagesDone: 'Đã xuất {count} hình ảnh sang {dir}',

@@ -7,6 +7,7 @@ export const vi = {
   saveFailed: 'Lưu thất bại: {error}',
   saveFailedStatus: 'Lưu thất bại',
   exportFailed: 'Xuất thất bại',
+  exportHtmlSkipped: 'Exported, but {count} asset(s) could not be inlined (e.g. {first})',
   viewPreview: 'Xem trước',
   viewSplit: 'Chia đôi',
   viewSource: 'Mã nguồn',
@@ -33,14 +34,11 @@ export const vi = {
   redo: 'Làm lại',
   cursorPos: 'Dòng {line}, Cột {col}',
   charCount: '{n} ký tự',
-  previewNeedsSave:
-    'Hình ảnh và kiểu dáng có đường dẫn tương đối sẽ hiển thị trong bản xem trước sau khi tệp được lưu',
+  previewNeedsSave: 'Hình ảnh và kiểu dáng có đường dẫn tương đối sẽ hiển thị trong bản xem trước sau khi tệp được lưu',
   inspectHint: 'Nhấp vào một phần tử trong bản xem trước để chọn, nhấp đúp để chỉnh sửa văn bản',
-  nodeDynamic:
-    'Phần tử này được tạo bởi tập lệnh trang và không có mã nguồn; hãy chỉnh sửa qua mã nguồn hoặc AI',
+  nodeDynamic: 'Phần tử này được tạo bởi tập lệnh trang và không có mã nguồn; hãy chỉnh sửa qua mã nguồn hoặc AI',
   nodeDynamicShort: 'tạo bởi tập lệnh',
-  nodeDirty:
-    'Tập lệnh trang đã thay đổi phần tử này; các chỉnh sửa ghi vào mã nguồn có thể bị tập lệnh ghi đè',
+  nodeDirty: 'Tập lệnh trang đã thay đổi phần tử này; các chỉnh sửa ghi vào mã nguồn có thể bị tập lệnh ghi đè',
   nodeDirtyShort: 'tập lệnh đã sửa đổi',
   elementDelete: 'Xóa phần tử',
   elementDuplicate: 'Nhân bản phần tử',
@@ -54,7 +52,6 @@ export const vi = {
   save: 'Lưu (⌘S)',
   saveAs: 'Lưu dưới dạng…',
   ribbonCollapse: 'Thu gọn dải băng',
-  ribbonPin: 'Ghim dải băng',
   ribbonExpand: 'Mở rộng dải băng',
   ribbonGroupInsert: 'Chèn',
   editText: 'Chỉnh sửa văn bản',
@@ -129,10 +126,8 @@ export const vi = {
   imageRemoveBg: 'Xóa nền',
   imageResetSize: 'Đặt lại kích thước',
   imageCutoutTolerance: 'Độ dung sai',
-  imageCutoutHint:
-    'Màu nền được lấy mẫu từ các cạnh của hình ảnh; độ dung sai cao hơn sẽ xóa nhiều màu tương đồng hơn. Đã xóa khoảng {pct}% số pixel trong bản xem trước này.',
-  imageCropHint:
-    'Kéo các chốt hoặc di chuyển hộp để chọn vùng muốn giữ lại; nhấn Enter để áp dụng, Esc để hủy',
+  imageCutoutHint: 'Màu nền được lấy mẫu từ các cạnh của hình ảnh; độ dung sai cao hơn sẽ xóa nhiều màu tương đồng hơn. Đã xóa khoảng {pct}% số pixel trong bản xem trước này.',
+  imageCropHint: 'Kéo các chốt hoặc di chuyển hộp để chọn vùng muốn giữ lại; nhấn Enter để áp dụng, Esc để hủy',
   imageApply: 'Áp dụng',
   imageProcessing: 'Đang xử lý…',
   imageLoading: 'Đang tải…',
