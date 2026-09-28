@@ -39,6 +39,20 @@ describe('parsePageSpec', () => {
     expect(r.spec.elements).toHaveLength(1)
   })
 
+  it('stops at the spec when the trailing prose carries a brace', () => {
+    // A brace in the run text and a brace in the model's sign-off: the spec
+    // itself is intact, so neither may decide where the JSON ends.
+    const raw =
+      'Here is the design:\n```json\n{"background":"#0E1A2B","elements":[' +
+      JSON.stringify(textSpec('Close } brace')) +
+      ']}\n```\nLet me know if you want changes {x}'
+    const r = parsePageSpec(raw)
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    expect(r.spec.background).toBe('#0E1A2B')
+    expect(r.spec.elements).toHaveLength(1)
+  })
+
   it('rejects output without a usable JSON object', () => {
     expect(parsePageSpec('sorry, I cannot').ok).toBe(false)
     expect(parsePageSpec('{"elements":[]}').ok).toBe(false)
