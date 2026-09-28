@@ -251,13 +251,23 @@ function mergeChatFiles(oldPath: string, newPath: string): number {
   return seq - 1
 }
 
-function readJson<T>(filePath: string): T | null {
+/**
+ * Reads JSON, telling a file that is absent apart from one that is there but
+ * will not parse. Only a caller that can recover from corruption needs the
+ * difference, and it is cheaper to answer it here than to re-stat the path.
+ */
+function readJsonState<T>(filePath: string): { kind: 'absent' | 'corrupt' } | { value: T } {
+  if (!existsSync(filePath)) return { kind: 'absent' }
   try {
-    if (!existsSync(filePath)) return null
-    return JSON.parse(readFileSync(filePath, 'utf8')) as T
+    return { value: JSON.parse(readFileSync(filePath, 'utf8')) as T }
   } catch {
-    return null
+    return { kind: 'corrupt' }
   }
+}
+
+function readJson<T>(filePath: string): T | null {
+  const result = readJsonState<T>(filePath)
+  return 'value' in result ? result.value : null
 }
 
 /** Atomic write: write to .tmp then rename, so a process interruption can't leave half-written JSON */
@@ -386,6 +396,22 @@ export class ProjectStore {
     writeJson(this.projectJsonPath(data.id), data)
   }
 
+  /**
+   * Move an unparseable project.json aside so the store can recover, keeping
+   * the original bytes for a human to inspect. If it cannot be moved the
+   * caller is left with the file in place rather than overwritten.
+   */
+  private quarantineProjectJson(filePath: string): void {
+    const aside = `${filePath}.corrupt-${Date.now()}`
+    try {
+      renameSync(filePath, aside)
+    } catch {
+      console.warn(`[project-store] ${filePath} is unreadable and could not be moved aside`)
+      return
+    }
+    console.warn(`[project-store] ${filePath} was unreadable, moved aside to ${aside}`)
+  }
+
   // ────────────────────────────────────────────────────────────
   // Public API
   // ────────────────────────────────────────────────────────────
@@ -395,8 +421,18 @@ export class ProjectStore {
    * Idempotent: returns directly if it already exists.
    */
   ensureDefaultProject(): ProjectData {
-    const existing = this.readProject('default')
-    if (existing) return existing
+    const path = this.projectJsonPath('default')
+    const state = readJsonState<ProjectData>(path)
+    if ('value' in state) return state.value
+
+    // A project.json that is present but will not parse is corrupt, not absent.
+    // Writing the fresh project over it would drop the file list for good, but
+    // refusing to write leaves the store permanently degraded: every resolve
+    // logs a warning, new files never reach the project and nothing recovers.
+    // Move the broken file aside instead: the app comes back up and the bytes
+    // stay on disk for recovery. Moving it aside also means the warning below
+    // is logged once, not on every call.
+    if (state.kind === 'corrupt') this.quarantineProjectJson(path)
 
     const now = nowIso()
     const data: ProjectData = {
