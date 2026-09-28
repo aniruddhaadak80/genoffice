@@ -640,9 +640,15 @@ export class AgentLoop<TSnapshot = unknown> {
           if ((retryEmpty || retryDrop) && !this.cancelled) {
             setTimeout(() => {
               if (generation !== this.generation) return
-              // Stopped during the backoff window: finalize like a normal cancel
+              // Stopped during the backoff window: the turn had already failed, so
+              // end it the way the non-retry path below does. finishTurn would
+              // record an assistant turn - the completed-via-tools placeholder - for
+              // output that never arrived, leaving a failed run that reads as
+              // answered on the next prompt.
               if (this.cancelled) {
-                void this.finishTurn()
+                this.running = false
+                this.rollbackFailedRun()
+                this.options.events?.onError?.(error)
                 return
               }
               this.startTurn(retriesUsed + 1)
