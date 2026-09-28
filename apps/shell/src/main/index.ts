@@ -65,7 +65,12 @@ import {
   setUpdateCheckInvoker,
   installRendererProtocol,
 } from '@genoffice/electron-utils'
-import { readAppSettings, writeAppSetting, writeAppSettings } from './app-settings'
+import {
+  readAppSettings,
+  writeAppSetting,
+  writeAppSettings,
+  writeAppSettingThen,
+} from './app-settings'
 import { OPEN_DOCUMENTS_FILE, clearOpenDocuments, publishOpenDocuments } from './open-documents'
 import { startControlServer, type ControlServer } from './control-server'
 import { controlHandler } from './control-handlers'
@@ -477,9 +482,12 @@ function currentLang(): Lang {
 }
 
 function persistLang(lang: Lang): void {
-  uiLang = lang
-  setUiLang(lang)
-  writeAppSetting(APP_SETTINGS_PATH(), 'language', lang)
+  // write first: app-settings.json can be unwritable, and a language committed to
+  // memory before the write survives only until the next launch
+  writeAppSettingThen(APP_SETTINGS_PATH(), 'language', lang, (persisted) => {
+    uiLang = persisted
+    setUiLang(persisted)
+  })
 }
 
 let cachedUpdateChannel: UpdateChannel | null = null
