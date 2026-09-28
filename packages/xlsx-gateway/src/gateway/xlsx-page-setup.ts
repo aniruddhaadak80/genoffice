@@ -226,8 +226,12 @@ function encodeHeaderFooterSections(parts: HeaderFooterParts): string {
   ]
   return sections
     .filter(([, text]) => text !== undefined && text !== '')
-    .map(([marker, text]) => marker + (text ?? ''))
+    .map(([marker, text]) => marker + escapeLiteralAmpersand(text ?? ''))
     .join('')
+}
+
+function escapeLiteralAmpersand(text: string): string {
+  return text.replace(/(?<!&)&(?!&)/g, '&&')
 }
 
 /// Assembles `<headerFooter>` from already-XML-escaped odd header/footer

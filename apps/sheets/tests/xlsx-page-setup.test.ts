@@ -150,7 +150,7 @@ describe('buildHeaderFooterXml', () => {
       '<headerFooter><oddHeader>&amp;CReport</oddHeader></headerFooter>',
     )
     expect(buildHeaderFooterXml(null, { left: 'Q1', right: 'Page &P of &N' })).toBe(
-      '<headerFooter><oddFooter>&amp;LQ1&amp;RPage &amp;P of &amp;N</oddFooter></headerFooter>',
+      '<headerFooter><oddFooter>&amp;LQ1&amp;RPage &amp;&amp;P of &amp;&amp;N</oddFooter></headerFooter>',
     )
   })
 
@@ -200,7 +200,9 @@ describe('applyPageSetupState headerFooter', () => {
       sheetName: 'S',
       header: { left: "Revenue $'000", right: 'Ref $& $1 $$' },
     })
-    expect(patched).toContain("<oddHeader>&amp;LRevenue $'000&amp;RRef $&amp; $1 $$</oddHeader>")
+    expect(patched).toContain(
+      "<oddHeader>&amp;LRevenue $'000&amp;RRef $&amp;&amp; $1 $$</oddHeader>",
+    )
     expect(patched).not.toContain('Old')
   })
 
