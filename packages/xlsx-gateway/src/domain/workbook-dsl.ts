@@ -1744,7 +1744,9 @@ export function expandToPrimitiveOps(
           sheetId: operation.sheetId,
           address: change.address,
           value: change.after,
-          expectedValue: change.before,
+          // Guards on the display text: the CAS compares the cell's `value`,
+          // so the raw `before` would fail the check on a formatted cell.
+          expectedValue: change.expectedValue,
         })
       }
     } else if (operation.op === 'add_pivot') {
