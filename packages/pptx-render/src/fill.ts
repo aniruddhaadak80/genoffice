@@ -103,6 +103,7 @@ export function resolveStroke(stroke: Stroke | undefined, vp: Viewport): RenderS
     }
     color = rf.stops[0]!.color
   } else if (rf.type === 'none') return undefined
+  else if (rf.type === 'image' || rf.type === 'pattern') return undefined
   const widthEmu = stroke.width ?? 12700
   const widthPx = Math.max(emuToPx(widthEmu, vp.scale), 0.5)
   const widthPt = widthEmu / EMU_PER_PT
