@@ -155,13 +155,15 @@ export class FileIndexer {
 
   private ask(req: WorkerRequest): Promise<WorkerResponse> {
     const id = this.nextId++
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
       this.waiting.set(id, resolve)
       try {
         this.ensureWorker().postMessage({ ...req, id })
-      } catch (e) {
+      } catch {
+        // a postMessage throw (worker cannot start, unserializable payload) fails the request the
+        // way a crashed worker does, so a refresh cannot strand the queue on a rejection
         this.waiting.delete(id)
-        reject(e)
+        resolve({ id, type: 'extract', result: { kind: 'error', error: 'worker unavailable' } })
       }
     })
   }
