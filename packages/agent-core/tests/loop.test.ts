@@ -912,7 +912,7 @@ describe('AgentLoop', () => {
     expect(onError).toHaveBeenCalledWith('Claude returned no content (empty stream)')
   })
 
-  it('a stop during the retry backoff finalizes as a cancel', async () => {
+  it('a stop during the retry backoff fails the run instead of recording a reply', async () => {
     vi.useFakeTimers()
     try {
       const transport = scriptedTransport([
@@ -921,13 +921,25 @@ describe('AgentLoop', () => {
       const onError = vi.fn()
       const onDone = vi.fn()
       const loop = new AgentLoop({ transport, skill: makeSkill(), events: { onError, onDone } })
+      loop.restore([
+        { role: 'user', text: 'earlier question' },
+        { role: 'assistant', text: 'earlier answer' },
+      ])
       loop.run('question')
       await vi.advanceTimersByTimeAsync(0)
       loop.cancel()
       await vi.advanceTimersByTimeAsync(1_000)
       expect(transport.requests).toHaveLength(1)
-      expect(onError).not.toHaveBeenCalled()
-      expect(onDone).toHaveBeenCalledWith({ text: '', cancelled: true, turnLimit: false })
+      // the turn had already failed when the stop arrived, so the run ends the way an
+      // exhausted retry does instead of being finalized as a cancel
+      expect(onError).toHaveBeenCalledWith('Claude returned no content (empty stream)')
+      expect(onDone).not.toHaveBeenCalled()
+      // nothing was produced, so no user message and above all no placeholder
+      // assistant turn: that reply is what made a failed run read as answered
+      expect(loop.messages).toEqual([
+        { role: 'user', text: 'earlier question' },
+        { role: 'assistant', text: 'earlier answer' },
+      ])
       expect(loop.busy).toBe(false)
     } finally {
       vi.useRealTimers()
