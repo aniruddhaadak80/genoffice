@@ -49,7 +49,10 @@ export const MAX_SAFE_NAME_CHARS = 128
 /** A client-supplied file name reduced to one safe path segment. */
 export function safeName(raw: string | undefined, fallback = 'file'): string {
   const base = basename((raw ?? '').trim().replace(/\\/g, '/'))
-  let clean = base.replace(/[^\w.\- ()]/g, '_').replace(/^\.+/, '')
+  // Letters and digits of any script are allowed: remoteName decodes its source
+  // first, and an ASCII-only class folded `résumé.pdf` to `r_sum_.pdf`, so
+  // distinct uploads collapsed onto the same segment.
+  let clean = base.replace(/[^\p{L}\p{N}._\- ()]/gu, '_').replace(/^\.+/, '')
   if (clean === '') return fallback
   if (clean.length > MAX_SAFE_NAME_CHARS) {
     const ext = extname(clean).slice(0, 16)
