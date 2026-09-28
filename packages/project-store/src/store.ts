@@ -524,8 +524,11 @@ export class ProjectStore {
     const oldKey = canonicalPathKey(oldPath)
     const newKey = canonicalPathKey(newPath)
     const pidKey = this.findMapKey(index.fileMap, oldPath)
-    if (pidKey !== undefined) {
-      const pid = index.fileMap[pidKey]!
+    // Read the owner before the entry is dropped: the chat fallback below is
+    // the only path that can find a transcript an older version wrote under
+    // the raw-path hash, and it needs the projectId to look inside.
+    const pid = pidKey !== undefined ? index.fileMap[pidKey] : undefined
+    if (pidKey !== undefined && pid !== undefined) {
       delete index.fileMap[pidKey]
       index.fileMap[newKey] = pid
       const proj = this.readProject(pid)
@@ -538,9 +541,7 @@ export class ProjectStore {
     // Old data without a mapping: the chatId was derived from the old path hash; register the mapping under that hash on rename so history keeps up
     const chatKey = this.findMapKey(index.chatIdByPath, oldPath)
     const chatId =
-      chatKey !== undefined
-        ? index.chatIdByPath![chatKey]!
-        : this.fallbackChatId(pidKey !== undefined ? index.fileMap[pidKey] : undefined, oldPath)
+      chatKey !== undefined ? index.chatIdByPath![chatKey]! : this.fallbackChatId(pid, oldPath)
     if (chatKey !== undefined) delete index.chatIdByPath![chatKey]
     index.chatIdByPath = { ...(index.chatIdByPath ?? {}), [newKey]: chatId }
     this.writeIndex(index)
