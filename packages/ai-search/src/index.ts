@@ -176,6 +176,12 @@ async function parallelWebSearch(
     const raw: unknown[] = Array.isArray(data.results) ? data.results : []
     const results: WebSearchResult[] = []
     for (const item of raw) {
+      // v1 search has no result-count parameter, so GenOffice's limit is applied
+      // here. Cut the loop off once the list is full instead of slicing the source
+      // first: the URL check below drops entries, and slicing first would both
+      // concatenate excerpts for results that are then thrown away and under-fill
+      // the list whenever the leading items are unusable.
+      if (results.length >= maxResults) break
       const result = asRecord(item)
       if (typeof result.url !== 'string' || !/^https?:\/\//i.test(result.url)) continue
       const excerpts: unknown[] = Array.isArray(result.excerpts) ? result.excerpts : []
@@ -187,9 +193,7 @@ async function parallelWebSearch(
           .join('\n'),
       })
     }
-    // v1 search has no result-count parameter; apply GenOffice's limit locally.
-    const limited = results.slice(0, maxResults)
-    return limited.length ? { results: limited, method: 'parallel' } : null
+    return results.length ? { results, method: 'parallel' } : null
   } catch {
     return null
   }
