@@ -660,11 +660,16 @@ function catFormatCode(container: XNode): string | undefined {
   return code ? textOf(code) : undefined
 }
 
-/** Excel date serial → "m/d/yyyy" display (Word/LO render category dates, not serials) */
+/**
+ * Excel date serial → "m/d/yyyy" display (Word/LO render category dates, not serials).
+ * Excel's epoch counts a 29-Feb-1900 that never existed, so serials below 61 need a
+ * later day zero; serial 60 is that phantom day and has no date to show.
+ */
 function serialDateText(v: string | null): string | null {
   const n = Number(v)
   if (!Number.isFinite(n) || n <= 0 || n > 80000) return null
-  const d = new Date(Date.UTC(1899, 11, 30) + Math.round(n) * 86400000)
+  const base = n < 61 ? Date.UTC(1899, 11, 31) : Date.UTC(1899, 11, 30)
+  const d = new Date(base + Math.round(n) * 86400000)
   return `${d.getUTCMonth() + 1}/${d.getUTCDate()}/${d.getUTCFullYear()}`
 }
 
