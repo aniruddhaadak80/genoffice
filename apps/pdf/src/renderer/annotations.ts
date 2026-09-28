@@ -134,22 +134,6 @@ const crossBounds = (r: ViewRect): [number, number] => [r.top, r.bottom]
 
 const mainBounds = (r: ViewRect): [number, number] => [r.left, r.right]
 
-const rectBounds = (rects: readonly ViewRect[]): ViewRect => {
-  // reduced rather than spread: a selection over a large text page yields enough
-  // boxes to blow the argument limit of Math.min(...rects)
-  let left = Infinity
-  let right = -Infinity
-  let top = Infinity
-  let bottom = -Infinity
-  for (const r of rects) {
-    if (r.left < left) left = r.left
-    if (r.right > right) right = r.right
-    if (r.top < top) top = r.top
-    if (r.bottom > bottom) bottom = r.bottom
-  }
-  return { left, right, top, bottom }
-}
-
 /** Pick the one common line band that overlaps most; ties stay independent. */
 function matchingLine(lines: readonly SelectionLine[], rect: ViewRect): SelectionLine | null {
   const [start, end] = crossBounds(rect)
