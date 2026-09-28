@@ -22,9 +22,25 @@ const MAX_GRID_COLUMNS = 16_384
 
 /// An address past the last grid row or column names no cell that can exist in
 /// the file: the write is accepted here and the value is gone on reopen.
+/// The address pattern above already rejects anything unparseable, and a refine
+/// runs even after that pattern fails, so this must not throw.
 const withinGrid = (address: string): boolean => {
-  const { row, column } = parseAddress(address)
+  let row: number
+  let column: number
+  try {
+    ;({ row, column } = parseAddress(address))
+  } catch {
+    return true
+  }
   return row + 1 <= MAX_GRID_ROWS && column + 1 <= MAX_GRID_COLUMNS
+}
+
+const withinGridColumn = (label: string): boolean => {
+  try {
+    return columnIndex(label) + 1 <= MAX_GRID_COLUMNS
+  } catch {
+    return true
+  }
 }
 
 const cellAddressSchema = z
@@ -35,10 +51,7 @@ const cellRangeSchema = z.string().regex(/^[A-Z]{1,3}[1-9][0-9]{0,6}(:[A-Z]{1,3}
 const columnLabelSchema = z
   .string()
   .regex(/^[A-Z]{1,3}$/)
-  .refine(
-    (label) => columnIndex(label) + 1 <= MAX_GRID_COLUMNS,
-    'Column is past the last grid column (XFD)',
-  )
+  .refine(withinGridColumn, 'Column is past the last grid column (XFD)')
 const sheetNameSchema = z
   .string()
   .trim()
