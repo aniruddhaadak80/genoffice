@@ -761,7 +761,9 @@ const setPageSetupSchema = z.object({
   /** printed header / footer sections; text carries Excel codes (&P page, &N pages, &D date, &F file, &A sheet); null clears */
   header: headerFooterPartsSchema.nullable().optional(),
   footer: headerFooterPartsSchema.nullable().optional(),
-  /** manual page breaks: 1-based row numbers after which a new page starts; [] clears */
+  /** manual page breaks: 1-based row numbers after which a new page starts; [] clears.
+   * Capped at the last ROW: the 16383 in a written rowBreaks brk@max is that
+   * break's column extent, not a bound on its row. */
   rowBreaks: z.array(z.number().int().min(1).max(1_048_575)).max(1_023).optional(),
   /** manual page breaks: 1-based column numbers after which a new page starts; [] clears */
   colBreaks: z.array(z.number().int().min(1).max(16_383)).max(1_023).optional(),

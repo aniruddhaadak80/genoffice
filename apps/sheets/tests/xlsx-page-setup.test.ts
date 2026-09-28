@@ -421,4 +421,23 @@ describe('applyPageSetupState page breaks', () => {
     const xml = applyPageSetupState(BARE, { sheetName: 'S', rowBreaks: [0] })
     expect(xml).toBe(BARE)
   })
+
+  it('keeps a break on the last grid row or column and drops one past it', () => {
+    // brk@id is the position on its own axis; brk@max is the extent across the
+    // other one, so a row break at the last row is the deepest one possible.
+    const edges = applyPageSetupState(BARE, {
+      sheetName: 'S',
+      rowBreaks: [1_048_575],
+      colBreaks: [16_383],
+    })
+    expect(edges).toContain('<brk id="1048575" max="16383" man="1"/>')
+    expect(edges).toContain('<brk id="16383" max="1048575" man="1"/>')
+    // A desktop patch caps the array length, not the ids it carries.
+    const past = applyPageSetupState(BARE, {
+      sheetName: 'S',
+      rowBreaks: [2_000_000],
+      colBreaks: [70_000],
+    })
+    expect(past).toBe(BARE)
+  })
 })

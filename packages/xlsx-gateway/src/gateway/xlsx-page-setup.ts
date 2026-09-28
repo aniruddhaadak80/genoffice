@@ -326,7 +326,11 @@ function setPageBreaks(
   const result = existing
     ? xml.slice(0, existing.index) + xml.slice(existing.index + existing[0].length)
     : xml
-  const ids = [...new Set(breaks)].filter((id) => id > 0).sort((a, b) => a - b)
+  // brk@id is a position on its own axis, so a break past the last row/column
+  // has nothing to sit on. The desktop patch caps the array length only, so
+  // the ids it carries need checking here.
+  const lastId = tag === 'rowBreaks' ? 1_048_575 : 16_383
+  const ids = [...new Set(breaks)].filter((id) => id > 0 && id <= lastId).sort((a, b) => a - b)
   if (ids.length === 0) return result
   // brk@max is the last row/column the break spans across (full-width breaks).
   const max = tag === 'rowBreaks' ? 16_383 : 1_048_575
