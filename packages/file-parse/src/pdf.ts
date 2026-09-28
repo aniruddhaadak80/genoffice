@@ -160,9 +160,20 @@ export async function pdfToText(bytes: Uint8Array): Promise<string> {
       const page = await doc.getPage(i)
       const content = await page.getTextContent()
       let text = ''
+      let prevX = 0
+      let prevY = 0
+      let prevW = 0
       for (const item of content.items) {
         if ('str' in item) {
+          const x = item.transform[4]
+          const y = item.transform[5]
+          if (text.length > 0 && !item.hasEOL && y === prevY && x > prevX + prevW) {
+            text += ' '
+          }
           text += item.str
+          prevX = x
+          prevY = y
+          prevW = item.width
           if (item.hasEOL) text += '\n'
         }
       }
