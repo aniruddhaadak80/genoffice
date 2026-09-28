@@ -85,6 +85,33 @@ describe('formatSerial', () => {
     expect(formatSerial(45292.9999999, dateTime, false)).toBe('2024-01-02 00:00:00')
     expect(formatSerial(1.5, elapsed, false)).toBe('36:00:00')
   })
+
+  it('renders elapsed durations with the correct unit', () => {
+    const elapsedH = {
+      date: false,
+      time: true,
+      seconds: true,
+      elapsed: true,
+      elapsedUnit: 'h' as const,
+    }
+    const elapsedM = {
+      date: false,
+      time: true,
+      seconds: true,
+      elapsed: true,
+      elapsedUnit: 'm' as const,
+    }
+    const elapsedS = {
+      date: false,
+      time: true,
+      seconds: true,
+      elapsed: true,
+      elapsedUnit: 's' as const,
+    }
+    expect(formatSerial(1.5, elapsedH, false)).toBe('36:00:00')
+    expect(formatSerial(1.5, elapsedM, false)).toBe('2160:00')
+    expect(formatSerial(1.5, elapsedS, false)).toBe('129600')
+  })
 })
 
 describe('xlsxToText date cells', () => {
