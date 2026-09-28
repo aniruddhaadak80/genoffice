@@ -35,6 +35,30 @@ describe('parseFileToText: plain-text formats', () => {
     expect(result.ok).toBe(false)
     expect(result.error).toBeTruthy()
   })
+
+  it('strips a UTF-8 BOM from text files', async () => {
+    const bom = Buffer.from([0xef, 0xbb, 0xbf])
+    const body = Buffer.from('hello world', 'utf-8')
+    const path = writeFixture('bom.txt', Buffer.concat([bom, body]))
+    const result = await parseFileToText(path)
+    expect(result).toEqual({ ok: true, kind: 'text', text: 'hello world' })
+  })
+
+  it('decodes UTF-16LE with BOM', async () => {
+    const bom = Buffer.from([0xff, 0xfe])
+    const body = Buffer.from('hello world', 'utf16le')
+    const path = writeFixture('utf16le.txt', Buffer.concat([bom, body]))
+    const result = await parseFileToText(path)
+    expect(result).toEqual({ ok: true, kind: 'text', text: 'hello world' })
+  })
+
+  it('decodes UTF-16BE with BOM', async () => {
+    const bom = Buffer.from([0xfe, 0xff])
+    const body = Buffer.from('hello world', 'utf16le').swap16()
+    const path = writeFixture('utf16be.txt', Buffer.concat([bom, body]))
+    const result = await parseFileToText(path)
+    expect(result).toEqual({ ok: true, kind: 'text', text: 'hello world' })
+  })
 })
 
 describe('OPC relationship targets', () => {

@@ -40,6 +40,25 @@ const TEXT_EXTS = new Set([
   'py',
 ])
 
+const UTF8_BOM = Buffer.from([0xef, 0xbb, 0xbf])
+const UTF16LE_BOM = Buffer.from([0xff, 0xfe])
+const UTF16BE_BOM = Buffer.from([0xfe, 0xff])
+
+function decodeText(bytes: Buffer): string {
+  if (bytes.subarray(0, 3).equals(UTF8_BOM)) return bytes.subarray(3).toString('utf-8')
+  if (bytes.subarray(0, 2).equals(UTF16LE_BOM)) return bytes.subarray(2).toString('utf16le')
+  if (bytes.subarray(0, 2).equals(UTF16BE_BOM)) {
+    const swapped = Buffer.from(bytes.subarray(2))
+    for (let i = 0; i + 1 < swapped.length; i += 2) {
+      const t = swapped[i]
+      swapped[i] = swapped[i + 1]
+      swapped[i + 1] = t
+    }
+    return swapped.toString('utf16le')
+  }
+  return bytes.toString('utf-8')
+}
+
 /** parse an attachment into plain text (or flag it as image / unsupported) */
 export async function parseFileToText(filePath: string): Promise<ParsedFile> {
   const ext = extname(filePath).slice(1).toLowerCase()
@@ -47,7 +66,8 @@ export async function parseFileToText(filePath: string): Promise<ParsedFile> {
   if (imageMime) return { ok: true, kind: 'image', mime: imageMime }
   try {
     if (TEXT_EXTS.has(ext)) {
-      return { ok: true, kind: 'text', text: await readFile(filePath, 'utf-8') }
+      const bytes = await readFile(filePath)
+      return { ok: true, kind: 'text', text: decodeText(bytes) }
     }
     switch (ext) {
       case 'doc':
