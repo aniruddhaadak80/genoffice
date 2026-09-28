@@ -416,7 +416,8 @@ async function generateImageMinimax(
 
 // ── OpenAI-compatible chat understanding ───────────────────────────
 
-function openAiContentText(content: unknown): string {
+/** Flatten an OpenAI `content` field to text: gateways may answer with a string or an array of parts. */
+export function openAiContentText(content: unknown): string {
   if (typeof content === 'string') return content
   if (Array.isArray(content)) {
     return content
