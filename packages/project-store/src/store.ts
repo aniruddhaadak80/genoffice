@@ -257,6 +257,24 @@ function readJson<T>(filePath: string): T | null {
   }
 }
 
+/**
+ * A tool input/output reaches the store typed as a string but arrives from the
+ * model as whatever the provider sent — an object or a number as often as text.
+ * Serializing it keeps the field readable; the fallback keeps an unserializable
+ * value (a cycle) from taking the whole message down with it, which is what a
+ * bare .slice() on a non-string did.
+ */
+function toolFieldText(value: unknown): string {
+  if (typeof value === 'string') return value.slice(0, TOOL_FIELD_MAX_CHARS)
+  let text: string
+  try {
+    text = JSON.stringify(value) ?? String(value)
+  } catch {
+    text = String(value)
+  }
+  return text.slice(0, TOOL_FIELD_MAX_CHARS)
+}
+
 /** Atomic write: write to .tmp then rename, so a process interruption can't leave half-written JSON */
 function writeJson(filePath: string, data: unknown): void {
   ensureDir(dirname(filePath))
@@ -613,8 +631,8 @@ export class ProjectStore {
         // Truncate tool inputs/outputs so one JSONL line can't blow up on a huge payload
         record.tools = msg.tools.map((t) => ({
           ...t,
-          ...(t.input !== undefined ? { input: t.input.slice(0, TOOL_FIELD_MAX_CHARS) } : {}),
-          ...(t.output !== undefined ? { output: t.output.slice(0, TOOL_FIELD_MAX_CHARS) } : {}),
+          ...(t.input !== undefined ? { input: toolFieldText(t.input) } : {}),
+          ...(t.output !== undefined ? { output: toolFieldText(t.output) } : {}),
         }))
       }
       if (msg.attachments !== undefined) record.attachments = msg.attachments
