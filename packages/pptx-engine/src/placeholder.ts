@@ -447,7 +447,7 @@ export function parseMasterTextStyles(
   }
 }
 
-/** Find the lstStyle in a layer's map by placeholder (type, idx). Same match order as geometry inheritance. */
+/** Find the lstStyle in a layer's map by placeholder (type, idx). No idx-only step (see findAnchorInMap). */
 function findStyleInMap(
   map: PlaceholderMap | undefined,
   type: string | undefined,
@@ -458,16 +458,15 @@ function findStyleInMap(
   const i = idx ?? ''
   const styled = map.entries.filter((e) => e.textStyle)
   let hit = styled.find((e) => e.type === t && e.idx === i)
-  if (!hit && i !== '') hit = styled.find((e) => e.idx === i)
   if (!hit) hit = styled.find((e) => e.type === t)
   if (!hit && TITLE_TYPES.has(t)) hit = styled.find((e) => TITLE_TYPES.has(e.type))
   if (!hit && BODY_TYPES.has(t)) hit = styled.find((e) => BODY_TYPES.has(e.type))
   return hit?.textStyle
 }
 
-/** Find the bodyPr anchor in a layer's map by placeholder (type, idx). Unlike
- *  findStyleInMap there is no idx-only step: master placeholders reuse idx values
- *  across types (a dt idx="2" must not anchor a body idx="2" to the bottom). */
+/** Find the bodyPr anchor in a layer's map by placeholder (type, idx). No idx-only
+ *  step: master placeholders reuse idx values across types (a dt idx="2" must not
+ *  anchor a body idx="2" to the bottom). */
 function findAnchorInMap(
   map: PlaceholderMap | undefined,
   type: string | undefined,

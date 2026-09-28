@@ -3,6 +3,7 @@ import { parseDecorations, parseSlide } from '../src/parse'
 import {
   parseDefaultTextStyle,
   parsePlaceholderMap,
+  placeholderStyleChain,
   resolvePlaceholderFillSpPr,
 } from '../src/placeholder'
 
@@ -161,6 +162,20 @@ describe('presentation defaultTextStyle in table cells', () => {
     const tbl = slide.elements[0] as any
     expect(tbl.type).toBe('table')
     expect(tbl.rows[0][0].text.paragraphs[0].runs[0].fontSize).toBe(12)
+  })
+})
+
+describe('placeholder style lookup', () => {
+  it('does not let a dt idx=2 style pollute a body idx=2 lookup', () => {
+    const lvl = (fontSize: number) => ({ levels: [{ fontSize }] }) as any
+    const master = {
+      entries: [
+        { type: 'dt', idx: '2', transform: null, textStyle: lvl(8) },
+        { type: 'body', idx: '5', transform: null, textStyle: lvl(20) },
+      ],
+    } as any
+    const chain = placeholderStyleChain(undefined, master, undefined, 'body', '2')
+    expect(chain[0]?.levels[0]?.fontSize).toBe(20)
   })
 })
 
