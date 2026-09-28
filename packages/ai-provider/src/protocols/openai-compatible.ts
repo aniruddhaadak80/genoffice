@@ -10,8 +10,8 @@ import {
   jsonBodyInsteadOfSse,
   parseToolInput,
   readCappedResponseText,
+  sseDataEvents,
   sseErrorText,
-  sseLines,
   throwIfCreditsNotice,
   throwIfToolCountOverBudget,
   throwIfToolJsonOverBudget,
@@ -222,10 +222,7 @@ async function openAiCompatibleTurn(
     }
     pendingTools.clear()
   }
-  for await (const line of sseLines(response.body, onBytes)) {
-    if (!line.startsWith('data:')) continue
-    const payload = line.slice(5).trim()
-    if (!payload) continue
+  for await (const payload of sseDataEvents(response.body, onBytes)) {
     if (payload === '[DONE]') {
       sawDone = true
       break

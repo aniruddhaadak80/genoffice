@@ -125,6 +125,33 @@ export async function* sseLines(
  */
 export const MAX_TOOL_JSON_CHARS = 512_000
 
+/**
+ * Frames the `data:` payloads of an SSE stream into whole events. Consecutive `data:`
+ * lines are one event, joined with a newline, and a line carrying any other field ends
+ * it. Parsing a line at a time dropped a JSON body split across lines: every fragment
+ * failed JSON.parse and was skipped by the caller's `catch { continue }` with no
+ * diagnostic, so the event vanished. A payload still pending at the end of the stream is
+ * delivered, the way sseLines delivers a final line that has no newline.
+ */
+export async function* sseDataEvents(
+  body: NodeJS.ReadableStream | ReadableStream<Uint8Array>,
+  onBytes?: () => void,
+): AsyncGenerator<string> {
+  let parts: string[] = []
+  for await (const line of sseLines(body, onBytes)) {
+    if (!line.startsWith('data:')) {
+      if (parts.length) {
+        yield parts.join('\n')
+        parts = []
+      }
+      continue
+    }
+    const value = line.slice(5).trim()
+    if (value) parts.push(value)
+  }
+  if (parts.length) yield parts.join('\n')
+}
+
 export function throwIfToolJsonOverBudget(jsonLength: number, provider: string): void {
   if (jsonLength > MAX_TOOL_JSON_CHARS) {
     throw new Error(

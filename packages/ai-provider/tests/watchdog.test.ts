@@ -121,7 +121,7 @@ describe('stream timeouts end to end', () => {
           start(controller) {
             controller.enqueue(
               encoder.encode(
-                'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"hi"}}\n',
+                'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"hi"}}\n\n',
               ),
             )
             // stays open forever; reads reject once the watchdog aborts
