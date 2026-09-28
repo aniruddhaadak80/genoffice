@@ -47,10 +47,13 @@ export const vi = {
   appOpenedFile: 'Đã mở {name}',
   appOpenFailed: 'Mở thất bại: {error}',
   appDocTooLargeBlocks: '{name}: tài liệu quá lớn không thể mở ({blocks} đoạn văn, {chars} ký tự)',
-  appDocLargeReadOnly: 'Tài liệu lớn ({blocks} đoạn văn): đã mở ở chế độ chỉ đọc — nhấn Esc để chỉnh sửa',
-  appDocLargeSpellOff: 'Tài liệu lớn ({blocks} đoạn văn): kiểm tra chính tả khi nhập đang tắt — bật lại trong Xem lại › Chính tả',
+  appDocLargeReadOnly:
+    'Tài liệu lớn ({blocks} đoạn văn): đã mở ở chế độ chỉ đọc — nhấn Esc để chỉnh sửa',
+  appDocLargeSpellOff:
+    'Tài liệu lớn ({blocks} đoạn văn): kiểm tra chính tả khi nhập đang tắt — bật lại trong Xem lại › Chính tả',
   appFontsMissing: 'Thiếu phông chữ trong tài liệu: {names} (đang hiển thị phông chữ thay thế)',
-  appVerticalTextNotice: 'Tài liệu này chứa văn bản dọc (tạm thời hiển thị ngang; không ảnh hưởng khi lưu)',
+  appVerticalTextNotice:
+    'Tài liệu này chứa văn bản dọc (tạm thời hiển thị ngang; không ảnh hưởng khi lưu)',
   appNewDocCreated: 'Đã tạo tài liệu trống. Mô tả nội dung cần tạo trong ngăn AI ở bên trái.',
   appNewFailed: 'Tạo tài liệu thất bại: {error}',
   appSaveFailed: 'Lưu thất bại: {error}',
@@ -62,7 +65,8 @@ export const vi = {
   appBreakContinuous: 'Liên tục',
   appBreakEvenPage: 'Trang chẵn',
   appBreakOddPage: 'Trang lẻ',
-  appSectionSettingsApplied: 'Đã áp dụng thiết lập trang cho phần {n}; sẽ được ghi vào tài liệu khi lưu',
+  appSectionSettingsApplied:
+    'Đã áp dụng thiết lập trang cho phần {n}; sẽ được ghi vào tài liệu khi lưu',
   appNumberingRestarted: 'Đã đánh số lại từ đầu',
   appNumberingContinued: 'Đã tiếp tục đánh số',
   appFieldInserted: 'Đã chèn trường {instr}',
@@ -105,7 +109,8 @@ export const vi = {
   appExportImagesProgress: 'Đang xuất {count} hình ảnh…',
   appExportImagesDone: 'Đã xuất {count} hình ảnh tới {dir}',
   appExportImagesFailed: 'Xuất hình ảnh thất bại: {error}',
-  appMixedExportOpening: 'Nhiều khổ giấy: đang mở bản xem trước phân trang để xuất các trang đã gộp…',
+  appMixedExportOpening:
+    'Nhiều khổ giấy: đang mở bản xem trước phân trang để xuất các trang đã gộp…',
   appSelectTextToComment: 'Chọn đoạn văn bản cần bình luận trước',
   appCommentSelectionLost: 'Vùng chọn không còn hiệu lực; hãy chọn lại đoạn văn bản cần bình luận',
   appCommentAdded: 'Đã thêm bình luận; sẽ được ghi vào tài liệu khi lưu',
@@ -134,12 +139,14 @@ export const vi = {
   appNoRevisionsToHandle: 'Không có thay đổi nào cần xử lý',
   appProtectTitle: 'Bảo vệ tài liệu',
   appProtectSecurity: 'Bảo mật',
-  appProtectDesc: 'Thiết lập mật khẩu mở và sửa đổi, hạn chế chỉnh sửa và tùy chọn quyền riêng tư; thay đổi sẽ có hiệu lực khi lưu tài liệu',
+  appProtectDesc:
+    'Thiết lập mật khẩu mở và sửa đổi, hạn chế chỉnh sửa và tùy chọn quyền riêng tư; thay đổi sẽ có hiệu lực khi lưu tài liệu',
   appOptional: '(tùy chọn)',
   appOptionalBlank: '(có thể để trống)',
   appProtectOpenPwd: 'Mật khẩu mở tài liệu này',
   appProtectModifyPwd: 'Mật khẩu sửa đổi tài liệu này',
-  appProtectPwdKeepHint: 'Mật khẩu hiện tại hiển thị dưới dạng dấu chấm: giữ nguyên để tiếp tục dùng, hoặc xóa trường này để gỡ bỏ',
+  appProtectPwdKeepHint:
+    'Mật khẩu hiện tại hiển thị dưới dạng dấu chấm: giữ nguyên để tiếp tục dùng, hoặc xóa trường này để gỡ bỏ',
   appProtectSectionTitle: 'Bảo vệ',
   appProtectFor: 'Hạn chế chỉnh sửa',
   appProtectModeTracked: 'Theo dõi thay đổi',
@@ -151,7 +158,8 @@ export const vi = {
   appProtectRemovePersonal: 'Xóa siêu dữ liệu tác giả và tổ chức khỏi tệp này khi lưu',
   appProtectUpdated: 'Đã cập nhật cài đặt bảo vệ; sẽ có hiệu lực khi lưu tài liệu',
   appModifyPwdTitle: 'Tài liệu chống ghi',
-  appModifyPwdBody: '"{name}" có mật khẩu sửa đổi. Hãy nhập mật khẩu để chỉnh sửa, hoặc mở ở chế độ chỉ đọc.',
+  appModifyPwdBody:
+    '"{name}" có mật khẩu sửa đổi. Hãy nhập mật khẩu để chỉnh sửa, hoặc mở ở chế độ chỉ đọc.',
   appOpenReadOnly: 'Mở chỉ đọc',
   appProtectPwdOptional: 'Mật khẩu bảo vệ',
   appWrongPassword: 'Mật khẩu không chính xác',
@@ -165,12 +173,15 @@ export const vi = {
   appInksCleared: 'Đã xóa tất cả nét vẽ; sẽ có hiệu lực sau khi lưu',
   appWatermarkSet: 'Đã thiết lập hình mờ "{text}"; sẽ được ghi vào tài liệu khi lưu',
   appWatermarkRemoved: 'Đã xóa hình mờ; sẽ có hiệu lực sau khi lưu',
-  appThemeFontsChanged: 'Đã thay đổi phông chữ chủ đề; sẽ được ghi vào tài liệu khi lưu (các kiểu tham chiếu đến phông chữ chủ đề sẽ có hiệu lực trong Word)',
+  appThemeFontsChanged:
+    'Đã thay đổi phông chữ chủ đề; sẽ được ghi vào tài liệu khi lưu (các kiểu tham chiếu đến phông chữ chủ đề sẽ có hiệu lực trong Word)',
   appThemeColorsApplied: 'Đã áp dụng màu chủ đề "{name}"; sẽ được ghi vào tài liệu khi lưu',
   appSourceAdded: 'Đã thêm nguồn "{title}"; có thể trích dẫn qua Chèn trích dẫn',
-  appTitlePgOn: 'Đã bật "Trang đầu khác biệt"; chuyển đổi ở đầu trang để chỉnh sửa tiêu đề đầu và chân trang của trang đầu',
+  appTitlePgOn:
+    'Đã bật "Trang đầu khác biệt"; chuyển đổi ở đầu trang để chỉnh sửa tiêu đề đầu và chân trang của trang đầu',
   appTitlePgOff: 'Đã tắt "Trang đầu khác biệt"',
-  appEvenOddOn: 'Đã bật "Trang chẵn & lẻ khác biệt"; chuyển đổi ở đầu trang để chỉnh sửa tiêu đề đầu và chân trang của trang chẵn',
+  appEvenOddOn:
+    'Đã bật "Trang chẵn & lẻ khác biệt"; chuyển đổi ở đầu trang để chỉnh sửa tiêu đề đầu và chân trang của trang chẵn',
   appEvenOddOff: 'Đã tắt "Trang chẵn & lẻ khác biệt"',
   appFirstPage: 'Trang đầu',
   appOddPage: 'Trang lẻ',
@@ -207,7 +218,8 @@ export const vi = {
   appPwdShow: 'Hiện mật khẩu',
   appPwdHide: 'Ẩn mật khẩu',
   appDocPwdWrong: 'Mật khẩu không chính xác. Vui lòng thử lại.',
-  appDocPwdUnsupported: 'Không thể giải mã tài liệu này: phương thức mã hóa không được hỗ trợ (ví dụ: mã hóa tài khoản WPS). Hãy gỡ bỏ mã hóa trong ứng dụng gốc và thử lại.',
+  appDocPwdUnsupported:
+    'Không thể giải mã tài liệu này: phương thức mã hóa không được hỗ trợ (ví dụ: mã hóa tài khoản WPS). Hãy gỡ bỏ mã hóa trong ứng dụng gốc và thử lại.',
   appEncConfirmLabel: 'Xác nhận mật khẩu',
   appEncMismatch: 'Mật khẩu không khớp',
   appRecentDocs: 'Tài liệu gần đây',
@@ -327,8 +339,10 @@ export const vi = {
   appSpellIgnoreAll: 'Ignore All',
   appSpellLanguage: 'Language',
   appSynonyms: 'Từ đồng nghĩa',
-  appSynonymsPrompt: 'Có những từ đồng nghĩa hoặc cách diễn đạt gần nghĩa nào hay hơn cho "{text}"? Hãy liệt kê 3-5 từ kèm giải thích ngắn gọn về sự khác biệt; không sửa đổi tài liệu.',
-  appTranslateSelectionPrompt: 'Dịch đoạn văn bản đang được chọn sang {lang}, thay thế văn bản gốc bằng bản dịch và giữ nguyên định dạng: "{text}"',
+  appSynonymsPrompt:
+    'Có những từ đồng nghĩa hoặc cách diễn đạt gần nghĩa nào hay hơn cho "{text}"? Hãy liệt kê 3-5 từ kèm giải thích ngắn gọn về sự khác biệt; không sửa đổi tài liệu.',
+  appTranslateSelectionPrompt:
+    'Dịch đoạn văn bản đang được chọn sang {lang}, thay thế văn bản gốc bằng bản dịch và giữ nguyên định dạng: "{text}"',
   appAiBadgeTip: 'Sử dụng AI',
   appTranslate: 'Dịch',
   appTranslateTo: 'Dịch sang {lang}',
@@ -421,7 +435,7 @@ export const vi = {
   appParaKeepLines: 'Keep lines together',
   appParaPageBreakBefore: 'Page break before',
   appParaSuppressLineNumbers: 'Suppress line numbers',
-  appParaNoSpaceSameStyle: 'Don\'t add space between paragraphs of the same style',
+  appParaNoSpaceSameStyle: "Don't add space between paragraphs of the same style",
   appParaSpecial: 'Special',
   appParaSpecialNone: '(none)',
   appParaSpecialFirstLine: 'First line',
@@ -482,7 +496,8 @@ export const vi = {
   appPvCommented: 'Có bình luận',
   appTotalPagesN: 'Tổng cộng {n} trang',
   appPvHint: 'Bản chụp chỉ đọc; mở lại sau khi chỉnh sửa · Esc để đóng',
-  appPvExportTip: 'Xuất từng trang theo bản xem trước; tiêu đề đầu trang, chân trang và số trang khớp với những gì hiển thị',
+  appPvExportTip:
+    'Xuất từng trang theo bản xem trước; tiêu đề đầu trang, chân trang và số trang khớp với những gì hiển thị',
   appStylesTitle: 'Kiểu',
   appParagraphStyles: 'Kiểu đoạn văn',
   appCharacterStyles: 'Kiểu ký tự',

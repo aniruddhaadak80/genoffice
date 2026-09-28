@@ -252,4 +252,5 @@ export const vi = {
   appStatusSummaryZoomInserted: 'Đã chèn trang chiếu Thu phóng tóm tắt với {count} ô thu nhỏ',
   appSectionSummary: 'Phần tóm tắt',
   appSectionN: 'Phần {n}',
+  appStatusPasteTruncated: 'Pasted text was too long and has been truncated',
 } satisfies Record<keyof typeof zh, string>

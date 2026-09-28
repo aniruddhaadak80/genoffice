@@ -651,7 +651,7 @@ export const vi = {
   appTabData: 'Dữ liệu',
   appTabReview: 'Xem lại',
   appRibbonCollapse: 'Thu gọn Ribbon',
-  appRibbonPin: 'Ghim ribbon',
+  appRibbonExpand: 'Ghim ribbon',
   appTabView: 'Xem',
   appTabAi: 'AI',
   appTabChartDesign: 'Thiết kế Biểu đồ',

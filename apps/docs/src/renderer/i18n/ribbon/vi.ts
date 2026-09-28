@@ -4,7 +4,8 @@ import type { zh } from './zh'
 // to their English text until translated.
 export const vi = {
   ribbonAiCreditNote: 'Sử dụng AI và tiêu tốn tín dụng',
-  ribbonAiRewriteConfirm: 'Thao tác này sẽ gọi trợ lý AI: tiêu tốn tín dụng và có thể viết lại toàn bộ nội dung. Tiếp tục? (Bạn sẽ không được hỏi lại nữa.)',
+  ribbonAiRewriteConfirm:
+    'Thao tác này sẽ gọi trợ lý AI: tiêu tốn tín dụng và có thể viết lại toàn bộ nội dung. Tiếp tục? (Bạn sẽ không được hỏi lại nữa.)',
   ribbonTabFile: 'Tệp',
   ribbonTabHome: 'Trang đầu',
   ribbonTabInsert: 'Chèn',
@@ -35,7 +36,8 @@ export const vi = {
   ribbonFlipH: 'Lật ngang',
   ribbonFlipV: 'Lật dọc',
   ribbonCropTip: 'Cắt xén hình ảnh (kéo các chốt, Enter để xác nhận)',
-  ribbonCropHint: 'Kéo các chốt hoặc di chuyển khung để chọn vùng giữ lại; Enter để áp dụng, Esc để hủy',
+  ribbonCropHint:
+    'Kéo các chốt hoặc di chuyển khung để chọn vùng giữ lại; Enter để áp dụng, Esc để hủy',
   ribbonReplacePicture: 'Thay thế hình ảnh',
   ribbonReplacePictureTip: 'Thay thế hình ảnh, giữ nguyên kích thước và cách ngắt dòng hiện tại',
   ribbonResetSize: 'Đặt lại kích thước',
@@ -51,7 +53,8 @@ export const vi = {
   ribbonImageLoadFail: 'Không thể tải hình ảnh',
   ribbonImageProcessFail: 'Xử lý hình ảnh thất bại',
   ribbonCutoutTolerance: 'Độ dung sai',
-  ribbonCutoutHint: 'Màu nền được lấy mẫu từ các cạnh của hình ảnh; độ dung sai cao hơn sẽ xóa nhiều màu tương đồng hơn. Khoảng {pct}% pixel đã bị xóa trong bản xem trước này.',
+  ribbonCutoutHint:
+    'Màu nền được lấy mẫu từ các cạnh của hình ảnh; độ dung sai cao hơn sẽ xóa nhiều màu tương đồng hơn. Khoảng {pct}% pixel đã bị xóa trong bản xem trước này.',
   ribbonOk: 'OK',
   ribbonCancel: 'Hủy',
   ribbonClose: 'Đóng',
@@ -67,7 +70,8 @@ export const vi = {
   ribbonCutTip: 'Cắt (⌘X)',
   ribbonCopyTip: 'Sao chép (⌘C)',
   ribbonPainterTip: 'Sao chép định dạng: nhấp vào đây, sau đó chọn văn bản cần định dạng',
-  ribbonPainterActiveTip: 'Sao chép định dạng đang bật: chọn văn bản đích để áp dụng (nhấp lại để hủy)',
+  ribbonPainterActiveTip:
+    'Sao chép định dạng đang bật: chọn văn bản đích để áp dụng (nhấp lại để hủy)',
   ribbonCopyFormat: 'Copy Formatting',
   ribbonPasteFormat: 'Paste Formatting',
   ribbonGroupClipboard: 'Bảng nhớ tạm',
@@ -342,12 +346,14 @@ export const vi = {
   ribbonEquationTip: 'Chèn phương trình',
   ribbonGroupSymbols: 'Ký hiệu',
   ribbonBookmarkNamePh: 'Tên thẻ đánh dấu',
-  ribbonBookmarkNameInvalid: 'Tên thẻ đánh dấu phải bắt đầu bằng một chữ cái và không chứa khoảng trắng hoặc dấu câu',
+  ribbonBookmarkNameInvalid:
+    'Tên thẻ đánh dấu phải bắt đầu bằng một chữ cái và không chứa khoảng trắng hoặc dấu câu',
   ribbonBookmarkExists: 'Thẻ đánh dấu với tên này đã tồn tại',
   ribbonBookmarkNoCursor: 'Trước tiên hãy đặt con trỏ vào một đoạn văn bản nội dung',
   ribbonBookmarkEmpty: 'Chưa có thẻ đánh dấu nào trong tài liệu này',
   ribbonBookmarkDeleteTip: 'Xóa thẻ đánh dấu',
-  ribbonCrossRefEmpty: 'Chưa có thẻ đánh dấu nào. Hãy dùng "Chèn → Thẻ đánh dấu" để đánh dấu vị trí bạn muốn tham chiếu.',
+  ribbonCrossRefEmpty:
+    'Chưa có thẻ đánh dấu nào. Hãy dùng "Chèn → Thẻ đánh dấu" để đánh dấu vị trí bạn muốn tham chiếu.',
   ribbonChartInsertTitle: 'Chèn biểu đồ',
   ribbonChartTitlePh: 'Tiêu đề biểu đồ',
   ribbonChartBar: 'Cột',
@@ -567,12 +573,14 @@ export const vi = {
   ribbonTwoColumns: 'Hai',
   ribbonThreeColumns: 'Ba',
   ribbonBreaks: 'Breaks',
-  ribbonBreaksTip: 'Add a break at the current location to pick up again on the next page, section, or column',
+  ribbonBreaksTip:
+    'Add a break at the current location to pick up again on the next page, section, or column',
   ribbonBreaksPageGroup: 'Page Breaks',
   ribbonBreakPage: 'Page',
   ribbonBreakPageDesc: 'Mark the point at which one page ends and the next page begins (⌘↩)',
   ribbonBreakColumn: 'Column',
-  ribbonBreakColumnDesc: 'Indicate that the text following the column break will begin in the next column (⇧⌘↩)',
+  ribbonBreakColumnDesc:
+    'Indicate that the text following the column break will begin in the next column (⇧⌘↩)',
   ribbonBreakTextWrapping: 'Text Wrapping',
   ribbonBreakTextWrappingDesc: 'Separate text around objects, such as caption text from body text',
   ribbonSectionBreak: 'Dấu ngắt phần',
@@ -598,7 +606,8 @@ export const vi = {
   ribbonTocUpdate: 'Cập nhật bảng',
   ribbonTocUpdateTip: 'Cập nhật mục lục để khớp với các tiêu đề hiện tại',
   ribbonTocNoHeadings: 'Không có tiêu đề (Heading 1-6) nào trong tài liệu, không thể tạo mục lục.',
-  ribbonTocNotFound: 'Không tìm thấy trường mục lục để cập nhật; vui lòng chèn một mục lục bằng nút "Mục lục" trước.',
+  ribbonTocNotFound:
+    'Không tìm thấy trường mục lục để cập nhật; vui lòng chèn một mục lục bằng nút "Mục lục" trước.',
   ribbonTocFieldLabel: 'Trường TOC',
   ribbonIndexFieldLabel: 'Trường Index',
   ribbonFootnote: 'Chèn chú thích cuối trang',
@@ -625,7 +634,8 @@ export const vi = {
   ribbonIndexTip: 'Đánh dấu các mục chỉ mục và chèn bảng chỉ mục',
   ribbonMarkEntry: 'Đánh dấu mục (XE)',
   ribbonInsertIndex: 'Chèn chỉ mục',
-  ribbonNoIndexEntries: 'Không có mục chỉ mục nào trong tài liệu. Hãy chọn văn bản và sử dụng "Đánh dấu mục" trước.',
+  ribbonNoIndexEntries:
+    'Không có mục chỉ mục nào trong tài liệu. Hãy chọn văn bản và sử dụng "Đánh dấu mục" trước.',
   ribbonMarkEntryTitle: 'Đánh dấu mục chỉ mục',
   ribbonMarkEntryPh: 'Văn bản mục chính',
   ribbonGroupCitationsIndex: 'Trích dẫn & Chỉ mục',
@@ -646,15 +656,20 @@ export const vi = {
   ribbonSourcePublisher: 'Nhà xuất bản',
   ribbonEditorBtn: 'Trình biên tập',
   ribbonEditorTip: 'AI kiểm tra chính tả, ngữ pháp và dấu câu',
-  ribbonEditorPrompt: 'Hiệu đính toàn bộ tài liệu: sửa lỗi chính tả, dấu câu và ngữ pháp trong khi vẫn giữ nguyên ý nghĩa ban đầu và cấu trúc đoạn văn.',
+  ribbonEditorPrompt:
+    'Hiệu đính toàn bộ tài liệu: sửa lỗi chính tả, dấu câu và ngữ pháp trong khi vẫn giữ nguyên ý nghĩa ban đầu và cấu trúc đoạn văn.',
   ribbonGroupProofing: 'Soát lại',
   ribbonSpellcheckBtn: 'Chính tả',
-  ribbonSpellcheckTip: 'Kiểm tra chính tả khi nhập — gạch chân màu đỏ các từ có thể bị sai chính tả',
+  ribbonSpellcheckTip:
+    'Kiểm tra chính tả khi nhập — gạch chân màu đỏ các từ có thể bị sai chính tả',
   ribbonTranslate: 'Dịch',
   ribbonTranslateTip: 'AI dịch tài liệu',
-  ribbonTranslatePrompt: 'Dịch toàn bộ tài liệu sang {lang}, giữ nguyên cấu trúc đoạn văn và cấp độ tiêu đề.',
-  ribbonTranslateSelectionPrompt: 'Dịch nội dung đã chọn sang {lang}, giữ nguyên cấu trúc đoạn văn.',
-  ribbonEditorSelectionPrompt: 'Hiệu đính nội dung đã chọn: sửa lỗi chính tả, dấu câu và ngữ pháp trong khi vẫn giữ nguyên ý nghĩa ban đầu và cấu trúc đoạn văn.',
+  ribbonTranslatePrompt:
+    'Dịch toàn bộ tài liệu sang {lang}, giữ nguyên cấu trúc đoạn văn và cấp độ tiêu đề.',
+  ribbonTranslateSelectionPrompt:
+    'Dịch nội dung đã chọn sang {lang}, giữ nguyên cấu trúc đoạn văn.',
+  ribbonEditorSelectionPrompt:
+    'Hiệu đính nội dung đã chọn: sửa lỗi chính tả, dấu câu và ngữ pháp trong khi vẫn giữ nguyên ý nghĩa ban đầu và cấu trúc đoạn văn.',
   ribbonTranslateTo: 'Dịch sang {lang}',
   ribbonLangEnglish: 'Tiếng Anh',
   ribbonLangSimplifiedChinese: 'Tiếng Trung Giản thể',
@@ -678,13 +693,18 @@ export const vi = {
   ribbonNextCommentTip: 'Go to the next comment',
   ribbonAiComments: 'AI giải quyết nhận xét',
   ribbonAiRevisions: 'Tóm tắt sửa đổi bằng AI',
-  ribbonAiRevisionsTip: 'AI đọc {count} bản sửa đổi đang chờ xử lý, tóm tắt các thay đổi theo từng phần và gắn cờ các rủi ro',
-  ribbonAiRevisionsPrompt: 'Tóm tắt tất cả các bản sửa đổi đang theo dõi đang chờ xử lý trong tài liệu: bắt đầu bằng số liệu thống kê tổng thể (số lượng chèn/xóa, tác giả, phạm vi ngày), sau đó mô tả các thay đổi theo từng phần (trích dẫn chỉ số khối), và kết thúc bằng danh sách các mối quan ngại tiềm ẩn (ví dụ: các nghĩa vụ hoặc điều kiện bổ nghĩa bị xóa, các con số/ngày tháng/số tiền bị thay đổi). Chỉ tóm tắt — không sửa đổi tài liệu hoặc chấp nhận/từ chối bất kỳ sửa đổi nào.',
-  ribbonAiCommentsTip: 'AI xử lý {count} nhận xét chưa giải quyết: chỉnh sửa theo từng nhận xét, trả lời nội dung đã thay đổi, sau đó giải quyết',
-  ribbonAiCommentsPrompt: 'Xử lý mọi nhận xét chưa được giải quyết trong tài liệu: với mỗi nhận xét, áp dụng thay đổi được yêu cầu, phản hồi mô tả những gì đã thay đổi, sau đó giải quyết; nếu nhận xét là một câu hỏi hoặc chưa rõ ràng, hãy trả lời mà không sửa đổi tài liệu.',
+  ribbonAiRevisionsTip:
+    'AI đọc {count} bản sửa đổi đang chờ xử lý, tóm tắt các thay đổi theo từng phần và gắn cờ các rủi ro',
+  ribbonAiRevisionsPrompt:
+    'Tóm tắt tất cả các bản sửa đổi đang theo dõi đang chờ xử lý trong tài liệu: bắt đầu bằng số liệu thống kê tổng thể (số lượng chèn/xóa, tác giả, phạm vi ngày), sau đó mô tả các thay đổi theo từng phần (trích dẫn chỉ số khối), và kết thúc bằng danh sách các mối quan ngại tiềm ẩn (ví dụ: các nghĩa vụ hoặc điều kiện bổ nghĩa bị xóa, các con số/ngày tháng/số tiền bị thay đổi). Chỉ tóm tắt — không sửa đổi tài liệu hoặc chấp nhận/từ chối bất kỳ sửa đổi nào.',
+  ribbonAiCommentsTip:
+    'AI xử lý {count} nhận xét chưa giải quyết: chỉnh sửa theo từng nhận xét, trả lời nội dung đã thay đổi, sau đó giải quyết',
+  ribbonAiCommentsPrompt:
+    'Xử lý mọi nhận xét chưa được giải quyết trong tài liệu: với mỗi nhận xét, áp dụng thay đổi được yêu cầu, phản hồi mô tả những gì đã thay đổi, sau đó giải quyết; nếu nhận xét là một câu hỏi hoặc chưa rõ ràng, hãy trả lời mà không sửa đổi tài liệu.',
   ribbonShowCommentsTip: 'Hiện nhận xét ({count})',
   ribbonTrackChanges: 'Theo dõi thay đổi',
-  ribbonTrackChangesTip: 'Theo dõi thay đổi: ghi lại tất cả các chỉnh sửa từ bây giờ (nội dung chèn được gạch chân, nội dung xóa bị gạch ngang)',
+  ribbonTrackChangesTip:
+    'Theo dõi thay đổi: ghi lại tất cả các chỉnh sửa từ bây giờ (nội dung chèn được gạch chân, nội dung xóa bị gạch ngang)',
   ribbonRevDisplay: 'Đánh dấu',
   ribbonRevDisplayTip: 'Chọn cách hiển thị các thay đổi được theo dõi',
   ribbonRevDisplaySimple: 'Simple Markup',
@@ -768,11 +788,13 @@ export const vi = {
   ribbonWebLayout: 'Bố trí Web',
   ribbonWebLayoutTip: 'Bố trí Web: hiển thị toàn bộ chiều rộng cửa sổ, không ngắt trang',
   ribbonOutlineView: 'Dàn bài',
-  ribbonOutlineViewTip: 'Chế độ xem dàn bài: chỉ hiển thị phân cấp tiêu đề; các tiêu đề vẫn có thể chỉnh sửa',
+  ribbonOutlineViewTip:
+    'Chế độ xem dàn bài: chỉ hiển thị phân cấp tiêu đề; các tiêu đề vẫn có thể chỉnh sửa',
   ribbonReadMode: 'Chế độ đọc',
   ribbonReadModeTip: 'Chế độ đọc: ẩn dải băng để tập trung đọc, nhấn Esc để thoát',
   ribbonPagePreview: 'Xem trước trang',
-  ribbonPagePreviewTip: 'Xem trước trang: phân trang theo kích thước trang thực, hiển thị đầu trang, chân trang và số trang của mỗi trang (chỉ đọc)',
+  ribbonPagePreviewTip:
+    'Xem trước trang: phân trang theo kích thước trang thực, hiển thị đầu trang, chân trang và số trang của mỗi trang (chỉ đọc)',
   ribbonGroupViews: 'Chế độ xem',
   ribbonZoomDialog: 'Zoom',
   ribbonZoomDialogTip: 'Open the Zoom dialog to choose a zoom level or fit mode',

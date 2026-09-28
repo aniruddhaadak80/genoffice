@@ -830,7 +830,7 @@ export const strings = {
     ribbonTabEdit: 'Chỉnh sửa',
     ribbonTabPage: 'Trang',
     ribbonCollapse: 'Thu gọn Ribbon',
-    ribbonPin: 'Ghim Ribbon',
+    ribbonExpand: 'Ghim Ribbon',
     ribbonTabView: 'Xem',
     aiSummarizeBtn: 'Tóm tắt bằng AI',
     aiKeyPointsBtn: 'Ý chính bằng AI',

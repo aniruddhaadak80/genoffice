@@ -575,7 +575,6 @@ const tMain = createI18n({
     menuTableProperties: 'Table Properties…',
     menuAutoCorrect: 'AutoCorrect Options…',
     menuPreferences: 'Preferences…',
-
   },
   ja: {
     dlgOpenDoc: '文書を開く',
