@@ -49,6 +49,36 @@ describe('parseChartPartXml grouping and colors', () => {
     expect(parseChartPartXml(bar('clustered'), 'p')!.grouping).toBeUndefined()
   })
 
+  it('caps the series count and splits the point budget over the series', () => {
+    // nothing capped c:ser, and each one padded its cache out to the full point
+    // limit, so a small part multiplied into hundreds of millions of slots
+    const ser = (i: number, declared: number) =>
+      `<c:ser><c:idx val="${i}"/><c:order val="${i}"/>` +
+      `${strCache('tx', [`S${i}`])}${strCache('cat', ['A', 'B'])}` +
+      `<c:val><c:numRef><c:f>S!$A$1</c:f><c:numCache><c:formatCode>General</c:formatCode>` +
+      `<c:ptCount val="${declared}"/><c:pt idx="0"><c:v>1</c:v></c:pt>` +
+      '</c:numCache></c:numRef></c:val></c:ser>'
+
+    const many = parseChartPartXml(
+      chartSpace(
+        `<c:barChart>${Array.from({ length: 300 }, (_, i) => ser(i, 2)).join('')}</c:barChart>`,
+      ),
+      'p',
+    )!
+    expect(many.series).toHaveLength(256)
+
+    const wide = parseChartPartXml(
+      chartSpace(
+        `<c:barChart>${Array.from({ length: 4 }, (_, i) => ser(i, 1_000_000_000)).join('')}</c:barChart>`,
+      ),
+      'p',
+    )!
+    const slots = wide.series.reduce((n, s) => n + s.values.length, 0)
+    expect(slots).toBeLessThanOrEqual(1_048_576)
+    // the split leaves every series the same, non-degenerate budget
+    expect(wide.series.every((s) => s.values.length === 262_144)).toBe(true)
+  })
+
   it('bounds declared and sparse cache indexes', () => {
     const categories =
       '<c:cat><c:strRef><c:f>S!$A$1</c:f><c:strCache><c:ptCount val="1000000000"/>' +
