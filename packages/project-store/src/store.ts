@@ -178,7 +178,9 @@ function parseChatRecords(raw: string): ChatMessage[] {
     try {
       const msg = JSON.parse(line) as ChatMessage
       if (
-        typeof msg.seq === 'number' &&
+        // A non-finite seq (1e999 parses to Infinity) serializes back as null
+        // and would be dropped on the next read, so it is not a valid record
+        Number.isFinite(msg.seq) &&
         typeof msg.role === 'string' &&
         typeof msg.text === 'string'
       ) {
@@ -220,6 +222,10 @@ function mergeChatFiles(oldPath: string, newPath: string): number {
   const existing = readAllChatRecords(newPath)
   const moved = readAllChatRecords(oldPath)
   let seq = existing.reduce((m, msg) => Math.max(m, msg.seq), -1) + 1
+  // Every moved record is renumbered from here and the source is unlinked
+  // below, so a seq that cannot survive a round trip has to bail out before
+  // anything is written: JSON.stringify would emit null and destroy both sides.
+  if (!Number.isFinite(seq)) throw new Error('cannot merge chats: non-finite seq in the target')
   const movedLines = moved
     .map((message) => JSON.stringify({ ...message, seq: seq++ }) + '\n')
     .join('')
