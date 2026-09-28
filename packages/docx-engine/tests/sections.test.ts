@@ -43,7 +43,8 @@ describe('readSections enumerates all sections', () => {
   })
 
   it('two sections: paragraph-level sectPr ends section 1 with correct block ranges', async () => {
-    const bodyXml = P('第一节') + sectBreakPara({ landscape: true }) + P('第二节') + P('尾段')
+    const bodyXml =
+      P('ç¬¬ä¸€èŠ‚') + sectBreakPara({ landscape: true }) + P('ç¬¬äºŒèŠ‚') + P('å°¾æ®µ')
     const parsed = await parseDocx(await buildDocx({ bodyXml }))
     const sections = readSections(parsed)
     expect(sections.length).toBe(2)
@@ -179,7 +180,11 @@ describe('readSections enumerates all sections', () => {
 
   it('three sections with mixed portrait/landscape', async () => {
     const bodyXml =
-      P('纵向一') + sectBreakPara() + P('横向二') + sectBreakPara({ landscape: true }) + P('纵向三')
+      P('çºµå‘ä¸€') +
+      sectBreakPara() +
+      P('æ¨ªå‘äºŒ') +
+      sectBreakPara({ landscape: true }) +
+      P('çºµå‘ä¸‰')
     const parsed = await parseDocx(await buildDocx({ bodyXml }))
     const sections = readSections(parsed)
     expect(sections.map((s) => s.settings.orientation)).toEqual([
@@ -193,11 +198,11 @@ describe('readSections enumerates all sections', () => {
   it('hfParts: parses all header/footer parts by rId (PAGE field displayed as PAGE_MARK)', async () => {
     const XML = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\r\n'
     const W = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"'
-    const headerXml = `${XML}<w:hdr ${W}><w:p><w:r><w:t>第一节页眉</w:t></w:r></w:p></w:hdr>`
+    const headerXml = `${XML}<w:hdr ${W}><w:p><w:r><w:t>ç¬¬ä¸€èŠ‚é¡µçœ‰</w:t></w:r></w:p></w:hdr>`
     const footerXml =
-      `${XML}<w:ftr ${W}><w:p><w:r><w:t>第 </w:t></w:r>` +
+      `${XML}<w:ftr ${W}><w:p><w:r><w:t>ç¬¬ </w:t></w:r>` +
       '<w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText> PAGE </w:instrText></w:r>' +
-      '<w:r><w:fldChar w:fldCharType="end"/></w:r><w:r><w:t> 页</w:t></w:r></w:p></w:ftr>'
+      '<w:r><w:fldChar w:fldCharType="end"/></w:r><w:r><w:t> é¡µ</w:t></w:r></w:p></w:ftr>'
     const REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships'
     const bytes = await buildDocx({
       bodyXml:
@@ -224,7 +229,7 @@ describe('readSections enumerates all sections', () => {
       ],
     })
     const parsed = await parseDocx(bytes)
-    expect(parsed.hfParts?.rId20?.text).toBe('第一节页眉')
+    expect(parsed.hfParts?.rId20?.text).toBe('ç¬¬ä¸€èŠ‚é¡µçœ‰')
     expect(parsed.hfParts?.rId21?.hasPageNumber).toBe(true)
     expect(parsed.hfParts?.rId21?.text).toContain(PAGE_MARK)
     const sections = readSections(parsed)
@@ -249,11 +254,11 @@ describe('readSections enumerates all sections', () => {
 
   it('section edit round-trip: non-final sectPr rewritten via kind:xml, final section via options.section', async () => {
     const bytes = await buildDocx({
-      bodyXml: P('第一节') + sectBreakPara({ landscape: true }) + P('第二节'),
+      bodyXml: P('ç¬¬ä¸€èŠ‚') + sectBreakPara({ landscape: true }) + P('ç¬¬äºŒèŠ‚'),
     })
     const parsed = await parseDocx(bytes)
     const sections = readSections(parsed)
-    // Section 1: landscape → change to portrait narrow margins (simulating layout applied
+    // Section 1: landscape â†’ change to portrait narrow margins (simulating layout applied
     // to the section under the cursor)
     const edited = {
       ...sections[0].settings,
@@ -306,7 +311,7 @@ describe('readSections enumerates all sections', () => {
 
   it('unedited multi-section document saves byte-identical', async () => {
     const bytes = await buildDocx({
-      bodyXml: P('第一节') + sectBreakPara({ landscape: true }) + P('第二节'),
+      bodyXml: P('ç¬¬ä¸€èŠ‚') + sectBreakPara({ landscape: true }) + P('ç¬¬äºŒèŠ‚'),
     })
     const parsed = await parseDocx(bytes)
     readSections(parsed)
@@ -324,21 +329,25 @@ describe('sectionHf per-section headers/footers', () => {
       .map((b) => ({ kind: 'original', docxIndex: b.docxIndex! }))
 
   it('section without references: new part + reference injected into that sectPr, neighbors unaffected', async () => {
-    const bodyXml = P('第一节') + sectBreakPara() + P('第二节')
+    const bodyXml = P('ç¬¬ä¸€èŠ‚') + sectBreakPara() + P('ç¬¬äºŒèŠ‚')
     const parsed = await parseDocx(await buildDocx({ bodyXml }))
     const sections = readSections(parsed)
     expect(sections[0].headerRefs.default).toBeUndefined()
 
     const saved = await saveDocx(parsed, visibleBlocks(parsed), {
       sectionHf: [
-        { lastBlockIndex: sections[0].lastBlockIndex, kind: 'header', hf: { text: '第一节页眉' } },
+        {
+          lastBlockIndex: sections[0].lastBlockIndex,
+          kind: 'header',
+          hf: { text: 'ç¬¬ä¸€èŠ‚é¡µçœ‰' },
+        },
       ],
     })
     const reparsed = await parseDocx(saved)
     const secs = readSections(reparsed)
     const rId = secs[0].headerRefs.default
     expect(rId).toBeDefined()
-    expect(reparsed.hfParts?.[rId!]?.text).toContain('第一节页眉')
+    expect(reparsed.hfParts?.[rId!]?.text).toContain('ç¬¬ä¸€èŠ‚é¡µçœ‰')
     // The last section did not get a reference stuffed in
     expect(secs[1].headerRefs.default).toBeUndefined()
     // The reference is the first child of that section's sectPr
@@ -350,11 +359,11 @@ describe('sectionHf per-section headers/footers', () => {
   it('section with an existing reference: rewrites the referenced part instead of creating one', async () => {
     const HDR =
       '<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">' +
-      '<w:p><w:r><w:t>旧页眉</w:t></w:r></w:p></w:hdr>'
+      '<w:p><w:r><w:t>æ—§é¡µçœ‰</w:t></w:r></w:p></w:hdr>'
     const bodyXml =
-      P('第一节') +
+      P('ç¬¬ä¸€èŠ‚') +
       sectBreakPara({ extra: '<w:headerReference w:type="default" r:id="rId60"/>' }) +
-      P('第二节')
+      P('ç¬¬äºŒèŠ‚')
     const bytes = await buildDocx({
       bodyXml,
       extraRels:
@@ -373,12 +382,12 @@ describe('sectionHf per-section headers/footers', () => {
 
     const saved = await saveDocx(parsed, visibleBlocks(parsed), {
       sectionHf: [
-        { lastBlockIndex: sections[0].lastBlockIndex, kind: 'header', hf: { text: '新页眉' } },
+        { lastBlockIndex: sections[0].lastBlockIndex, kind: 'header', hf: { text: 'æ–°é¡µçœ‰' } },
       ],
     })
     const zip = await (await import('jszip')).default.loadAsync(saved)
     const hdr = await zip.file('word/header1.xml')!.async('string')
-    expect(hdr).toContain('新页眉')
+    expect(hdr).toContain('æ–°é¡µçœ‰')
     expect(zip.file('word/header2.xml')).toBeNull()
     // Reference count unchanged (no duplicate injection)
     const docXml = await zip.file('word/document.xml')!.async('string')
@@ -386,7 +395,7 @@ describe('sectionHf per-section headers/footers', () => {
   })
 
   it('kind:xml section-break block (layout rewritten in the same pass) can also receive references', async () => {
-    const bodyXml = P('第一节') + sectBreakPara({ landscape: true }) + P('第二节')
+    const bodyXml = P('ç¬¬ä¸€èŠ‚') + sectBreakPara({ landscape: true }) + P('ç¬¬äºŒèŠ‚')
     const parsed = await parseDocx(await buildDocx({ bodyXml }))
     const sections = readSections(parsed)
     const breakBlock = parsed.blocks.find((b) => b.docxIndex === sections[0].lastBlockIndex)!
@@ -407,7 +416,11 @@ describe('sectionHf per-section headers/footers', () => {
       )
     const saved = await saveDocx(parsed, finalBlocks, {
       sectionHf: [
-        { lastBlockIndex: sections[0].lastBlockIndex, kind: 'footer', hf: { text: '第一节页脚' } },
+        {
+          lastBlockIndex: sections[0].lastBlockIndex,
+          kind: 'footer',
+          hf: { text: 'ç¬¬ä¸€èŠ‚é¡µè„š' },
+        },
       ],
     })
     const reparsed = await parseDocx(saved)
@@ -415,7 +428,7 @@ describe('sectionHf per-section headers/footers', () => {
     expect(secs[0].settings.marginTop).toBe(720)
     const rId = secs[0].footerRefs.default
     expect(rId).toBeDefined()
-    expect(reparsed.hfParts?.[rId!]?.text).toContain('第一节页脚')
+    expect(reparsed.hfParts?.[rId!]?.text).toContain('ç¬¬ä¸€èŠ‚é¡µè„š')
   })
 })
 
@@ -592,7 +605,7 @@ describe('column widths + section bidi (P3 pdf2docx support)', () => {
     expect(parsed.columns).toBe(2)
     expect(parsed.colWidths).toEqual([3000, 6000])
     expect(parsed.bidi).toBe(true)
-    // round-trip: parse → apply must not rewrite the element
+    // round-trip: parse â†’ apply must not rewrite the element
     expect(applySectionSettings(once, parsed)).toBe(once)
   })
 
@@ -610,6 +623,61 @@ describe('column widths + section bidi (P3 pdf2docx support)', () => {
     expect(parsed.colWidths).toEqual([2000, 3000, 4390])
   })
 
+  it('vAlign and bidi are read from the empty element pair spelling', async () => {
+    const { sectionSettingsFromXml } = await import('../src/index')
+    // both flags were matched self-closing only, so a paired spelling was read as
+    // "not set": the page lost its vertical alignment and an RTL section came back LTR
+    const paired =
+      '<w:sectPr><w:pgSz w:w="11906" w:h="16838"/>' +
+      '<w:bidi></w:bidi><w:vAlign w:val="center"></w:vAlign></w:sectPr>'
+    expect(sectionSettingsFromXml(paired)).toMatchObject({ vAlign: 'center', bidi: true })
+    // the self-closing spelling still reads, and w:bidiVisual is not w:bidi
+    const selfClosing =
+      '<w:sectPr><w:pgSz w:w="11906" w:h="16838"/>' +
+      '<w:bidiVisual/><w:vAlign w:val="both"/></w:sectPr>'
+    expect(sectionSettingsFromXml(selfClosing)).toMatchObject({ vAlign: 'both' })
+    expect(sectionSettingsFromXml(selfClosing).bidi).toBeUndefined()
+  })
+
+  it('reads w:bidi w:val="0" as false, not as set', async () => {
+    const { sectionSettingsFromXml } = await import('../src/index')
+    // w:bidi is CT_OnOff: an explicit false value must not read as an RTL section
+    const off = '<w:sectPr><w:pgSz w:w="11906" w:h="16838"/>' + '<w:bidi w:val="0"/></w:sectPr>'
+    expect(sectionSettingsFromXml(off).bidi).toBeUndefined()
+    for (const val of ['false', 'off']) {
+      const tag = '<w:bidi w:val="' + val + '"></w:bidi>'
+      const xml = '<w:sectPr><w:pgSz w:w="11906" w:h="16838"/>' + tag + '</w:sectPr>'
+      expect(sectionSettingsFromXml(xml).bidi).toBeUndefined()
+    }
+    // a valueless w:bidi, either spelling, is still true
+    const on = '<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:bidi/></w:sectPr>'
+    expect(sectionSettingsFromXml(on).bidi).toBe(true)
+  })
+
+  it('round-trips a paired w:bidi without adding a second one', async () => {
+    const { sectionSettingsFromXml, applySectionSettings } = await import('../src/index')
+    // The writer tested the self-closing spelling only, so a paired w:bidi was
+    // invisible to it and the write appended a duplicate: schema-invalid.
+    const paired =
+      '<w:sectPr><w:pgSz w:w="11906" w:h="16838"/>' +
+      '<w:bidi></w:bidi><w:docGrid w:linePitch="360"/></w:sectPr>'
+    const settings = sectionSettingsFromXml(paired)
+    expect(settings.bidi).toBe(true)
+    const out = applySectionSettings(paired, settings)
+    expect(out.match(/<w:bidi/g)).toHaveLength(1)
+    // and writing it back out is a fixed point
+    expect(applySectionSettings(out, sectionSettingsFromXml(out))).toBe(out)
+  })
+
+  it('removes a paired w:bidi when it is turned off', async () => {
+    const { sectionSettingsFromXml, applySectionSettings } = await import('../src/index')
+    const paired =
+      '<w:sectPr><w:pgSz w:w="11906" w:h="16838"/>' +
+      '<w:bidi></w:bidi><w:docGrid w:linePitch="360"/></w:sectPr>'
+    const out = applySectionSettings(paired, { ...sectionSettingsFromXml(paired), bidi: false })
+    expect(out).not.toContain('<w:bidi')
+  })
+
   it('undefined bidi leaves an existing w:bidi untouched; false removes it', async () => {
     const { sectionSettingsFromXml } = await import('../src/index')
     const withBidi = BASE.replace('</w:sectPr>', '<w:bidi/></w:sectPr>')
@@ -621,7 +689,7 @@ describe('column widths + section bidi (P3 pdf2docx support)', () => {
   })
 
   it('NewImage posOffsetEmu positions a floating image numerically', async () => {
-    const parsed = await parseDocx(await buildDocx({ bodyXml: P('文字') }))
+    const parsed = await parseDocx(await buildDocx({ bodyXml: P('æ–‡å­—') }))
     const blocks: SaveBlock[] = [
       ...parsed.blocks
         .filter((b) => !b.hidden && b.docxIndex !== null)
@@ -670,7 +738,7 @@ describe('pgNumType page numbering', () => {
   })
 
   it('SaveOptions.pgNumType writes the final section and round-trips', async () => {
-    const parsed = await parseDocx(await buildDocx({ bodyXml: P('正文') }))
+    const parsed = await parseDocx(await buildDocx({ bodyXml: P('æ­£æ–‡') }))
     const blocks: SaveBlock[] = parsed.blocks
       .filter((b) => !b.hidden && b.docxIndex !== null)
       .map((b) => ({ kind: 'original', docxIndex: b.docxIndex! }))
@@ -723,7 +791,7 @@ describe('SaveOptions.numbering write-back', () => {
 
   it('restartNums: appends a w:num pointing at an existing abstractNum + startOverride', async () => {
     const bytes = await buildDocx({
-      bodyXml: LI(5, '一') + LI(5, '二'),
+      bodyXml: LI(5, 'ä¸€') + LI(5, 'äºŒ'),
       numberingXml: NUMBERING,
     })
     const parsed = await parseDocx(bytes)
@@ -745,7 +813,7 @@ describe('SaveOptions.numbering write-back', () => {
   })
 
   it('newDefs: allocates a new abstractNum; creates part/rel/ContentType when numbering.xml is missing', async () => {
-    const bytes = await buildDocx({ bodyXml: P2('正文') })
+    const bytes = await buildDocx({ bodyXml: P2('æ­£æ–‡') })
     const parsed = await parseDocx(bytes)
     const blocks: SaveBlock[] = parsed.blocks
       .filter((b) => !b.hidden && b.docxIndex !== null)
@@ -770,7 +838,7 @@ describe('SaveOptions.numbering write-back', () => {
   })
 
   it('with an existing numbering.xml, newDefs abstracts are inserted before w:num entries', async () => {
-    const bytes = await buildDocx({ bodyXml: LI(5, '一'), numberingXml: NUMBERING })
+    const bytes = await buildDocx({ bodyXml: LI(5, 'ä¸€'), numberingXml: NUMBERING })
     const parsed = await parseDocx(bytes)
     const blocks: SaveBlock[] = parsed.blocks
       .filter((b) => !b.hidden && b.docxIndex !== null)

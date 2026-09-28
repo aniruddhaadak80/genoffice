@@ -22,9 +22,26 @@ export const DEFAULT_SECTION: SectionSettings = {
   footerDist: 720,
 }
 
+/**
+ * CT_OnOff read off a start tag: present means true unless w:val says
+ * otherwise, and the value may be quoted either way. This mirrors onOffOf in
+ * parse-xml-text, which takes a parsed node instead of a raw string.
+ * Returns undefined when the element is absent, so callers can tell
+ * "not set" from "set to false".
+ */
+function onOffTag(tag: string | undefined): boolean | undefined {
+  if (tag === undefined) return undefined
+  const m = /\bw:val=["']([^"']*)["']/.exec(tag)
+  if (!m) return true
+  return !['0', 'false', 'none', 'off'].includes(m[1]!.toLowerCase())
+}
+
 /** Vertical alignment of page content (sectPr w:vAlign); top/default returns undefined */
 function vAlignOf(xml: string): 'center' | 'both' | 'bottom' | undefined {
-  const v = /<w:vAlign w:val="(center|both|bottom)"\s*\/>/.exec(xml)?.[1]
+  // w:vAlign is an empty element, so read the value off its start tag: that covers
+  // the paired spelling as well as the self-closing one
+  const tag = /<w:vAlign(?=[\s/>])[^>]*>/.exec(xml)?.[0]
+  const v = tag ? /w:val="(center|both|bottom)"/.exec(tag)?.[1] : undefined
   return v as 'center' | 'both' | 'bottom' | undefined
 }
 
@@ -186,7 +203,9 @@ export function sectionSettingsFromXml(
     colSpace: intAttr(/<w:cols[^>]*\/?>/.exec(xml)?.[0] ?? '', 'w:space', 720),
     ...(colWidths.length >= 2 ? { colWidths } : {}),
     ...(lineNumbers ? { lineNumbers } : {}),
-    ...(/<w:bidi\s*\/>/.test(xml) ? { bidi: true } : {}),
+    // w:bidi is CT_OnOff and an empty element, so read it off the start tag:
+    // that covers the paired spelling, and w:val="0" is false, not true
+    ...(onOffTag(/<w:bidi(?=[\s/>])[^>]*>/.exec(xml)?.[0]) ? { bidi: true } : {}),
     ...(docGrid ? { docGrid } : {}),
     ...(textDirectionOf(xml) ? { textDirection: textDirectionOf(xml) } : {}),
     ...(footnotePr ? { footnotePr } : {}),
@@ -505,12 +524,15 @@ export function applySectionSettings(sectPrXml: string, settings: SectionSetting
   // section direction (w:bidi, after cols in CT_SectPr): undefined = keep the
   // document's tag untouched; true/false = ensure present/absent
   if (settings.bidi !== undefined) {
-    const hasBidi = /<w:bidi\s*\/>/.test(xml)
+    // Both the detection and the removal have to match the start-tag form, or a
+    // paired w:bidi is invisible here and the write appends a second one, which
+    // is schema-invalid.
+    const hasBidi = /<w:bidi(?=[\s/>])[^>]*>/.test(xml)
     if (settings.bidi && !hasBidi) {
       if (/<w:docGrid/.test(xml)) xml = xml.replace(/(<w:docGrid)/, '<w:bidi/>$1')
       else xml = xml.replace(/<\/w:sectPr>/, '<w:bidi/></w:sectPr>')
     } else if (!settings.bidi && hasBidi) {
-      xml = xml.replace(/<w:bidi\s*\/>/, '')
+      xml = xml.replace(/<w:bidi(?=[\s/>])[^>]*>(?:<\/w:bidi>)?/, '')
     }
   }
   return xml
