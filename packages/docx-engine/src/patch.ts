@@ -877,15 +877,16 @@ export async function saveDocx(
     const block = parsed.blocks.find((b) => b.docxIndex === edit.lastBlockIndex)
     const sectPr =
       block?.originalXml?.match(/<w:sectPr[^>]*\/>|<w:sectPr[\s\S]*?<\/w:sectPr>/)?.[0] ?? ''
-    const refs = sectPr.match(new RegExp(`<w:${edit.kind}Reference[^>]*/>`, 'g')) ?? []
+    const refs = hfReferenceTags(sectPr, edit.kind)
     const variant = edit.variant ?? 'default'
+    // non-schema w:type="odd" and untyped references count as default (mirrors parse)
     const existing =
-      variant === 'default'
-        ? (refs.find((r) => r.includes('w:type="default"')) ??
-          refs.find((r) => r.includes('w:type="odd"')) ??
-          refs.find((r) => !/w:type="/.test(r)))
-        : refs.find((r) => r.includes(`w:type="${variant}"`))
-    const rId = existing ? /r:id="([^"]+)"/.exec(existing)?.[1] : undefined
+      refs.find((r) => hfReferenceType(r) === variant) ??
+      (variant === 'default'
+        ? (refs.find((r) => hfReferenceType(r) === 'odd') ??
+          refs.find((r) => hfReferenceType(r) === undefined))
+        : undefined)
+    const rId = existing ? hfReferenceRId(existing) : undefined
     const target = rId ? relTargets.get(rId) : undefined
     if (target) {
       const path = resolveRelationshipTargetPath(docPath, target)

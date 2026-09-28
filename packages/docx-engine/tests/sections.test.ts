@@ -422,6 +422,45 @@ describe('sectionHf per-section headers/footers', () => {
     expect(docXml.match(/<w:headerReference/g)).toHaveLength(1)
   })
 
+  it('section with a paired reference: rewrites that part, injects no duplicate', async () => {
+    // the loop matched only the self-closing double-quoted form, so this
+    // reference read as absent and a second footerReference was written
+    const FTR =
+      '<w:ftr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">' +
+      '<w:p><w:r><w:t>旧页脚</w:t></w:r></w:p></w:ftr>'
+    const bytes = await buildDocx({
+      bodyXml:
+        P('第一节') +
+        sectBreakPara({
+          extra: '<w:footerReference w:type="default" r:id="rId61"></w:footerReference>',
+        }) +
+        P('第二节'),
+      extraRels:
+        '<Relationship Id="rId61" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footer1.xml"/>',
+      extraParts: [
+        {
+          path: 'word/footer1.xml',
+          xml: FTR,
+          contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml',
+        },
+      ],
+    })
+    const parsed = await parseDocx(bytes)
+    const sections = readSections(parsed)
+    expect(sections[0].footerRefs.default).toBe('rId61')
+
+    const saved = await saveDocx(parsed, visibleBlocks(parsed), {
+      sectionHf: [
+        { lastBlockIndex: sections[0].lastBlockIndex, kind: 'footer', hf: { text: '新页脚' } },
+      ],
+    })
+    const zip = await (await import('jszip')).default.loadAsync(saved)
+    expect(await zip.file('word/footer1.xml')!.async('string')).toContain('新页脚')
+    expect(zip.file('word/footer2.xml')).toBeNull()
+    const docXml = await zip.file('word/document.xml')!.async('string')
+    expect(docXml.match(/<w:footerReference/g)).toHaveLength(1)
+  })
+
   it('kind:xml section-break block (layout rewritten in the same pass) can also receive references', async () => {
     const bodyXml = P('第一节') + sectBreakPara({ landscape: true }) + P('第二节')
     const parsed = await parseDocx(await buildDocx({ bodyXml }))
