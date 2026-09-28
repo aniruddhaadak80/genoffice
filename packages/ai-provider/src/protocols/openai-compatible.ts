@@ -1,6 +1,7 @@
 import type { AgentMessage, AgentToolCall, AgentToolDef } from '@genoffice/agent-core'
 import { aiFetch } from '../fetch'
 import { httpBodyDetail } from '../http-error'
+import { openAiContentText } from '../media-protocols'
 import { gensparkAttributionHeaders, opencodeSessionHeaders } from '../providers'
 import { modelEchoesReasoning } from '../registry'
 import type { AiChatResponse, AiProviderConfig } from '../types'
@@ -72,7 +73,7 @@ function emitOpenAiJsonMessage(bodyText: string, cb: StreamCallbacks): void {
   let msg: {
     choices?: Array<{
       message?: {
-        content?: string | null
+        content?: unknown
         reasoning_content?: string
         tool_calls?: Array<{ id?: string; function?: { name?: string; arguments?: string } }>
       }
@@ -93,8 +94,13 @@ function emitOpenAiJsonMessage(bodyText: string, cb: StreamCallbacks): void {
     cb.onReasoningDelta?.(choice.message.reasoning_content)
   }
   if (choice?.message?.content) {
-    emitted = true
-    cb.onDelta(choice.message.content)
+    // A gateway may answer with `content` as an array of parts; concatenated raw it
+    // reaches the loop as "[object Object]", so flatten it first.
+    const text = openAiContentText(choice.message.content)
+    if (text) {
+      emitted = true
+      cb.onDelta(text)
+    }
   }
   const toolCalls: AgentToolCall[] = []
   for (const tc of choice?.message?.tool_calls ?? []) {
@@ -237,7 +243,7 @@ async function openAiCompatibleTurn(
       event = JSON.parse(payload) as {
         choices?: Array<{
           delta?: {
-            content?: string
+            content?: unknown
             /** DeepSeek/MiniMax native and LiteLLM-normalized thinking stream; OpenRouter uses `reasoning` */
             reasoning_content?: string
             reasoning?: string
@@ -263,8 +269,12 @@ async function openAiCompatibleTurn(
       cb.onReasoningDelta?.(reasoning)
     }
     if (choice.delta?.content) {
-      emitted = true
-      cb.onDelta(choice.delta.content)
+      // Same array-of-parts shape as the JSON body path above.
+      const text = openAiContentText(choice.delta.content)
+      if (text) {
+        emitted = true
+        cb.onDelta(text)
+      }
     }
     for (const tc of choice.delta?.tool_calls ?? []) {
       if (!pendingTools.has(tc.index)) {

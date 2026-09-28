@@ -844,6 +844,34 @@ describe('streamForProvider: gemini', () => {
 })
 
 describe('streamForProvider: openai-compatible', () => {
+  it('flattens a content array into text (streamed and JSON body)', async () => {
+    const parts = [
+      { type: 'text', text: 'Here is ' },
+      { type: 'text', text: 'the change.' },
+    ]
+    const body = sseStream([
+      `data: {"choices":[{"delta":{"content":${JSON.stringify(parts)}}}]}`,
+      'data: {"choices":[{"delta":{},"finish_reason":"stop"}]}',
+      'data: [DONE]',
+    ])
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(okResponse(body)))
+    const streamed = collector()
+    await streamForProvider('openai', { apiKey: 'k', model: 'm' }, 'sys', [], [], 100, streamed.cb)
+    expect(streamed.deltas.join('')).toBe('Here is the change.')
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        jsonResponse({
+          choices: [{ message: { content: parts }, finish_reason: 'stop' }],
+        }),
+      ),
+    )
+    const complete = collector()
+    await streamForProvider('openai', { apiKey: 'k', model: 'm' }, 'sys', [], [], 100, complete.cb)
+    expect(complete.deltas.join('')).toBe('Here is the change.')
+  })
+
   it('reassembles fragmented tool call arguments and flushes on finish_reason', async () => {
     const body = sseStream([
       'data: {"choices":[{"delta":{"content":"partial "}}]}',
