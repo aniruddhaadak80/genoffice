@@ -312,7 +312,7 @@ describe('insert geometry attribute bounds', () => {
     ]) {
       for (const v of xfrmNums(xml)) expect(v).toMatch(/^-?\d+$/)
       expect(xml).not.toMatch(/="(?:NaN|Infinity|1e[+-])/)
-      expect(xml).not.toMatch(/="\-?\d+\.\d+"/)
+      expect(xml).not.toMatch(/="-?\d+\.\d+"/)
     }
 
     // 0.5 rounds to an integer, 1e30 lands on the ST_Coordinate ceiling and the
