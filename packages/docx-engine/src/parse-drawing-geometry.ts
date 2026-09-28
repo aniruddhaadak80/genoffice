@@ -149,9 +149,7 @@ function gradStopRgb(gs: XNode, theme?: ThemeColors | null): number[] | null {
   if (!base && scheme) {
     const slot = SCHEME_CLR_SLOTS[attrsOf(scheme)['val'] ?? '']
     if (!slot) return null
-    base =
-      (theme?.[slot] as string | undefined) ??
-      (slot === 'dk1' ? '000000' : slot === 'lt1' ? 'FFFFFF' : undefined)
+    base = (theme?.[slot] as string | undefined) ?? DEFAULT_THEME_COLORS[slot]
   }
   if (!base || !/^[0-9A-Fa-f]{6}$/.test(base)) return null
   let rgb = [0, 2, 4].map((i) => parseInt(base!.slice(i, i + 2), 16))
@@ -446,9 +444,7 @@ function w14ColorRgb(node: XNode, theme?: ThemeColors | null): number[] | null {
   if (isScheme) {
     const slot = SCHEME_CLR_SLOTS[base ?? '']
     if (!slot) return null
-    base =
-      (theme?.[slot] as string | undefined) ??
-      (slot === 'dk1' ? '000000' : slot === 'lt1' ? 'FFFFFF' : undefined)
+    base = (theme?.[slot] as string | undefined) ?? DEFAULT_THEME_COLORS[slot]
   }
   if (!base || !/^[0-9A-Fa-f]{6}$/.test(base)) return null
   let rgb = [0, 2, 4].map((i) => parseInt(base!.slice(i, i + 2), 16))
