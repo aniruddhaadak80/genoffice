@@ -647,7 +647,7 @@ describe('genoffice sheet apply --ops: pivots, sparklines, print setup', () => {
     expect(sheet).toContain('<xm:sqref>E3</xm:sqref>')
     expect(sheet).toContain('<x14:colorSeries rgb="FFFF0000"/>')
     expect(sheet).toContain('<oddHeader>&amp;CQuarterly</oddHeader>')
-    expect(sheet).toContain('<oddFooter>&amp;RPage &amp;P of &amp;N</oddFooter>')
+    expect(sheet).toContain('<oddFooter>&amp;RPage &amp;&amp;P of &amp;&amp;N</oddFooter>')
     expect(sheet).toContain(
       '<rowBreaks count="1" manualBreakCount="1"><brk id="2" max="16383" man="1"/>',
     )
