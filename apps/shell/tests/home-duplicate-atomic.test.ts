@@ -14,7 +14,10 @@ const duplicateFile = section(source, 'HOME_CHANNELS.duplicateFile', 'HOME_CHANN
 
 describe('Home file creation is atomic', () => {
   it('publishes a blank spreadsheet through a temporary file', () => {
-    expect(newSheetTab).toContain('await atomicWriteFile(filePath, await blankXlsxBuffer())')
+    // Since #1152 the blank sheet is written to a temp backing file and only
+    // lands on its suggested path at the first Save As; nothing may write the
+    // final path directly here.
+    expect(newSheetTab).toMatch(/writeFileSync\(backingPath, await blankXlsxBuffer\(\)\)/)
     expect(newSheetTab).not.toMatch(/writeFileSync\(filePath/)
   })
 
