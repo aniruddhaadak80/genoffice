@@ -1,9 +1,10 @@
-/** build a fake SSE response body from raw lines (each already includes "data: " if needed) */
+/** build a fake SSE response body from raw lines (each already includes "data: " if needed).
+ *  Each entry is one event, terminated by the blank line the spec dispatches on. */
 export function sseStream(lines: string[]): ReadableStream<Uint8Array> {
   const encoder = new TextEncoder()
   return new ReadableStream({
     start(controller) {
-      for (const line of lines) controller.enqueue(encoder.encode(`${line}\n`))
+      for (const line of lines) controller.enqueue(encoder.encode(`${line}\n\n`))
       controller.close()
     },
   })

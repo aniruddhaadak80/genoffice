@@ -40,7 +40,8 @@ function streamingToolArguments(
   const enqueue = (controller: ReadableStreamDefaultController<Uint8Array>) => {
     if (fragments >= maxFragments) return
     const fragment = 'x'.repeat(fragmentLength)
-    controller.enqueue(encoder.encode(`${makeLine(fragment)}\n`))
+    // one event per fragment, terminated by the blank line the spec dispatches on
+    controller.enqueue(encoder.encode(`${makeLine(fragment)}\n\n`))
     fragments += 1
   }
   return {
@@ -308,6 +309,40 @@ describe('streamForProvider: terminal framing', () => {
   })
 })
 
+describe('SSE event split across several data: lines', () => {
+  // Each entry is one event whose JSON body arrived split over two data: lines.
+  it.each([
+    [
+      'openai',
+      { apiKey: 'k', model: 'm' },
+      'data: {"choices":[{"delta":{"content":"hello"},\ndata: "finish_reason":"stop"}]}',
+    ],
+    [
+      'anthropic',
+      { apiKey: 'k', model: 'claude-sonnet-5' },
+      'data: {"type":"content_block_delta","index":0,\ndata: "delta":{"type":"text_delta","text":"hello"}}\n\ndata: {"type":"message_delta","delta":{"stop_reason":"end_turn"}}',
+    ],
+    [
+      'gemini',
+      { apiKey: 'k', model: 'gemini-3-pro' },
+      'data: {"candidates":[{"content":{"parts":[{"text":"hello"}]},\ndata: "finishReason":"STOP"}]}',
+    ],
+  ])('%s joins the fragments into one event', async (provider, config, frames) => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(okResponse(sseStream([frames]))))
+    const { deltas, cb } = collector()
+    await streamForProvider(
+      provider as Parameters<typeof streamForProvider>[0],
+      config,
+      'system',
+      [{ role: 'user', text: 'hi' }],
+      [],
+      100,
+      cb,
+    )
+    expect(deltas.join('')).toBe('hello')
+  })
+})
+
 describe('streamForProvider: anthropic', () => {
   it('emits text deltas and a completed tool call', async () => {
     const body = sseStream([
@@ -349,7 +384,7 @@ describe('streamForProvider: anthropic', () => {
           type: 'content_block_start',
           index: 0,
           content_block: { type: 'tool_use', id: 't1', name: 'do_thing' },
-        })}\n`,
+        })}\n\n`,
       ],
     )
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(okResponse(body)))
