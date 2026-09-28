@@ -19,7 +19,11 @@ export function useModalKeys(onClose: () => void, options?: { restoreFocus?: boo
     const previous =
       restoreFocus && document.activeElement instanceof HTMLElement ? document.activeElement : null
     if (!el.contains(document.activeElement)) {
-      const first = el.querySelector<HTMLElement>('input, textarea, select, button')
+      // skip disabled controls, the same way trapTab does: a modal whose only
+      // early control is disabled would otherwise never take focus at all
+      const first = [...el.querySelectorAll<HTMLElement>('input, textarea, select, button')].find(
+        (c) => !c.hasAttribute('disabled'),
+      )
       ;(first ?? el).focus()
     }
     return () => {
