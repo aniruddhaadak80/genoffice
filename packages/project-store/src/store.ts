@@ -539,6 +539,12 @@ export class ProjectStore {
     const index = this.readIndex()
     const oldKey = canonicalPathKey(oldPath)
     const newKey = canonicalPathKey(newPath)
+    if (newKey !== oldKey && index.fileMap[newKey] !== undefined) {
+      throw new Error(`fileRenamed: target path already mapped: ${newKey}`)
+    }
+    if (newKey !== oldKey && index.chatIdByPath?.[newKey] !== undefined) {
+      throw new Error(`fileRenamed: target path already has a chat mapping: ${newKey}`)
+    }
     const pidKey = this.findMapKey(index.fileMap, oldPath)
     // Read the owner before the entry is dropped: the chat fallback below is
     // the only path that can find a transcript an older version wrote under

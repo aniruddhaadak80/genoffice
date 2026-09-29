@@ -468,6 +468,14 @@ describe('resolveChatForFile / fileRenamed', () => {
     expect(after.chatId).toBe(ids.chatId)
     expect(store.loadChat(after.projectId, after.chatId).map((m) => m.text)).toEqual(['q', 'a'])
   })
+
+  it('refuses to overwrite an occupied target mapping', () => {
+    const pathA = '/docs/occupied-a.docx'
+    const pathB = '/docs/occupied-b.docx'
+    store.resolveProjectForFile(pathA)
+    store.resolveProjectForFile(pathB)
+    expect(() => store.fileRenamed(pathA, pathB)).toThrow(/already mapped/)
+  })
 })
 
 // ────────────────────────────────────────────────────────────
