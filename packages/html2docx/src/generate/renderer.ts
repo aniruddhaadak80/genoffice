@@ -299,11 +299,12 @@ class Generator {
       }
 
       case 'list': {
-        // One numbering instance per sublist, emitted at level 0: docx's
-        // startOverride only restarts level 0, so real multi-level lists
-        // would inherit a document-wide running counter (nested a-e lists
-        // continuing f-j, r-bb...). Level 0 per instance restarts like the
-        // browser restarts each <ol>; visual nesting comes from indentLeftPx.
+        // One numbering instance per sublist: returning to a shallower level
+        // drops the deeper instances, so the next sublist at that depth gets
+        // a fresh one and its counter restarts like the browser's. The real
+        // nesting level is kept on w:ilvl (as bullets already do) so Word's
+        // outline reflects the authored depth; visual indent still comes
+        // from indentLeftPx.
         const instanceByLevel = []
         return node.items.map((entry) => {
           // Older IR snapshots stored runs directly; accept both shapes so
@@ -333,7 +334,7 @@ class Generator {
             opts.numbering = ordered
               ? {
                   reference: orderedReference(item.markerType),
-                  level: 0,
+                  level,
                   instance: instanceByLevel[level],
                 }
               : { reference: bulletReference, level }
