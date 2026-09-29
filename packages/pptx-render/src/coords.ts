@@ -58,7 +58,7 @@ export function makeViewport(size: SlideSize, fitWidthPx: number): Viewport {
   const DEFAULT_CX_EMU = 9144000
   const DEFAULT_CY_EMU = 6858000
   const isPositiveFinite = (v: number): boolean => Number.isFinite(v) && v > 0
-  const safeCx = isPositiveFinite(size.cx) ? size.cx : DEFAULT_CX_EMU
+  const safeCx = isPositiveFinite(size?.cx) ? size.cx : DEFAULT_CX_EMU
   const safeCy = isPositiveFinite(size.cy) ? size.cy : DEFAULT_CY_EMU
   // Fall back to the natural width (scale 1) when the target width is degenerate.
   const safeFitWidthPx = isPositiveFinite(fitWidthPx) ? fitWidthPx : safeCx / EMU_PER_PX_96
