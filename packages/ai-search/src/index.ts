@@ -485,7 +485,7 @@ async function duckImageSearch(query: string, maxResults: number): Promise<Image
   )
   const list: unknown[] = Array.isArray(data.results) ? data.results : []
   const out: ImageSearchResult[] = []
-  for (const item of list.slice(0, maxResults)) {
+  for (const item of list) {
     const img = asRecord(item)
     const imageUrl = String(img.image ?? '')
     if (!imageUrl || isCopyrightHost(imageUrl)) continue
@@ -498,6 +498,7 @@ async function duckImageSearch(query: string, maxResults: number): Promise<Image
     if (typeof img.width === 'number') entry.width = img.width
     if (typeof img.height === 'number') entry.height = img.height
     out.push(entry)
+    if (out.length >= maxResults) break
   }
   return out
 }
