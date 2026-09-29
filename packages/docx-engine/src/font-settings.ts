@@ -1,5 +1,4 @@
 import JSZip from 'jszip'
-import JSZip from 'jszip'
 import { loadDocxZip } from './zip-load'
 import { parseStyles } from './parse-styles'
 import {
