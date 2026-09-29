@@ -227,7 +227,7 @@ export function getFontIndex(): FontIndex {
 export const styleTokens = (ps: string): string[] =>
   (
     norm(ps).match(
-      /semibold|extrabold|bold|italic|oblique|light|thin|medium|heavy|black|regular|w\d/g,
+      /semibold|extrabold|demibold|demi|bold|italic|oblique|light|thin|medium|heavy|black|regular|w\d/g,
     ) ?? []
   ).map((t) => (t === 'oblique' ? 'italic' : t))
 
