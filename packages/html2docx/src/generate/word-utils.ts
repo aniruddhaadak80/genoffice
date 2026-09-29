@@ -160,9 +160,12 @@ function tabStopsFor(context, runs) {
   for (const r of tabs) {
     // Column starting past 75% of the line is a right-aligned tail (dates);
     // otherwise reproduce the measured column position with a left stop.
+    // w:pos is an offset from the left margin, so a separator measured left
+    // of it must floor at 0 rather than emit a negative stop.
+    const frac = r.tabFrac != null && r.tabFrac < 0.75 ? Math.max(0, r.tabFrac) : null
     const stop =
-      r.tabFrac != null && r.tabFrac < 0.75
-        ? { type: TabStopType.LEFT, position: Math.round(r.tabFrac * context.contentDxa) }
+      frac != null
+        ? { type: TabStopType.LEFT, position: Math.round(frac * context.contentDxa) }
         : { type: TabStopType.RIGHT, position: context.contentDxa }
     const key = `${stop.type}:${stop.position}`
     if (!seen.has(key)) {
