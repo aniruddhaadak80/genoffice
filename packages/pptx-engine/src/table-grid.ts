@@ -12,6 +12,7 @@
  */
 export function tableRowGridCols(row: Array<{ gridSpan?: number; merged?: boolean }>): number[] {
   if (!Array.isArray(row)) return []
+  const cols: number[] = []
   let c = 0
   row.forEach((cell, i) => {
     cols.push(c)
