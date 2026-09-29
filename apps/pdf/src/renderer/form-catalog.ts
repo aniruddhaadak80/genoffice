@@ -284,10 +284,17 @@ function rectsSubstantiallyOverlap(a: number[], b: number[]): boolean {
 /** Lightweight pre-parse warning for XFA or mixed AcroForm/XFA documents. */
 export function hasXfaMarker(bytes: Uint8Array): boolean {
   const marker = [0x2f, 0x58, 0x46, 0x41] // /XFA
+  const isSpace = (b: number): boolean =>
+    b === 0 || b === 9 || b === 10 || b === 12 || b === 13 || b === 32
   outer: for (let index = 0; index <= bytes.length - marker.length; index++) {
     for (let offset = 0; offset < marker.length; offset++) {
       if (bytes[index + offset] !== marker[offset]) continue outer
     }
+    // a real /XFA name token is delimited; content text like '(/XFA)' is not
+    const before = index > 0 ? bytes[index - 1]! : null
+    const after = index + marker.length < bytes.length ? bytes[index + marker.length]! : null
+    if (before != null && !isSpace(before) && before !== 0x5b && before !== 0x3c) continue
+    if (after != null && !isSpace(after) && after !== 0x5b) continue
     return true
   }
   return false
