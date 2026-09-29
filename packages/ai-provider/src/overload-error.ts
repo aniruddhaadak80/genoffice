@@ -22,10 +22,15 @@ const OVERLOADED_PATTERN = new RegExp(
 // Credits-exhausted notices ("Your Genspark credits have been exhausted…") are
 // a different failure class (errorCode 'credits', "top up" message) — never
 // misreport them as a transient capacity problem.
-const CREDITS_PATTERN = /credit|pricing/i
+// Status marker that makes the notice a transient capacity failure even when
+// the body also mentions credits ("HTTP 429: rate limit: credits per minute
+// exceeded" is a rate limit, not an exhausted balance).
+const HTTP_STATUS_PATTERN = /\\bHTTP (429|503|529)\\b/i
 
 function matches(text: string): boolean {
-  return OVERLOADED_PATTERN.test(text) && !CREDITS_PATTERN.test(text)
+  if (!OVERLOADED_PATTERN.test(text)) return false
+  if (CREDITS_PATTERN.test(text) && !HTTP_STATUS_PATTERN.test(text)) return false
+  return true
 }
 
 /**
