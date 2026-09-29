@@ -63,6 +63,11 @@ describe('normalizeLang', () => {
     expect(normalizeLang(null)).toBe('en')
   })
 
+  it('maps non-string input to en instead of throwing', () => {
+    expect(normalizeLang(42 as unknown as string)).toBe('en')
+    expect(normalizeLang({} as unknown as string)).toBe('en')
+  })
+
   it('requires a BCP-47 boundary after the language code', () => {
     expect(normalizeLang('deleted')).toBe('en')
     expect(normalizeLang('french')).toBe('en')
