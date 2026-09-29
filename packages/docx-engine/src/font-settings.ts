@@ -14,7 +14,11 @@ export async function previewFontSettings(
   upserts: StyleUpsert[],
   defaults?: DefaultFonts,
 ) {
-  const zip = await loadDocxZip(parsed.internal.originalBytes)
+  // a blank or in-memory document has no package bytes to reopen; fall back to
+  // the empty styles part instead of failing inside the zip reader
+  const zip = parsed.internal.originalBytes
+    ? await loadDocxZip(parsed.internal.originalBytes)
+    : new JSZip()
   let xml =
     (await zip.file('word/styles.xml')?.async('string')) ??
     '<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"></w:styles>'
