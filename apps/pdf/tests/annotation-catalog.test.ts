@@ -1,6 +1,6 @@
 import type { PDFDocumentProxy } from 'pdfjs-dist'
 import { describe, expect, it, vi } from 'vitest'
-import { createSavedAnnotCountsLoader } from '../src/renderer/annotation-catalog'
+import { createSavedAnnotCountsLoader, loadSavedAnnots } from '../src/renderer/annotation-catalog'
 import type { SavedMarkupAnnot } from '../src/renderer/edit-state'
 import type { SavedNoteAnnot } from '../src/renderer/note-threads'
 
@@ -22,6 +22,35 @@ const note = (pageIndex: number, objNum: number, inReplyTo: number | null): Save
   contents: '',
   timeMs: null,
   inReplyTo,
+})
+
+describe('loadSavedAnnots', () => {
+  it('keeps the valid markup when one annotation has a bad rect', async () => {
+    const doc = {
+      numPages: 1,
+      getPage: async () => ({
+        getAnnotations: async () => [
+          {
+            id: '123R',
+            annotationType: 9,
+            quadPoints: new Float32Array([0, 0, 10, 0, 10, 5, 0, 5]),
+            rect: [0, 0, 10, 5],
+          },
+          {
+            id: '124R',
+            annotationType: 9,
+            quadPoints: new Float32Array([0, 0, 10, 0, 10, 5, 0, 5]),
+            rect: undefined,
+          },
+        ],
+      }),
+    } as unknown as PDFDocumentProxy
+
+    const saved = await loadSavedAnnots(doc, 0)
+
+    expect(saved.markups).toHaveLength(1)
+    expect(saved.markups[0]).toMatchObject({ objNum: 123, type: 'highlight', pageIndex: 0 })
+  })
 })
 
 describe('createSavedAnnotCountsLoader', () => {
