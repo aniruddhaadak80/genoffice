@@ -215,7 +215,7 @@ const LABELS: Record<string, ContextMenuLabels> = {
 }
 
 export function contextMenuLabels(lang: string): ContextMenuLabels {
-  return LABELS[lang] ?? EN
+  return LABELS[lang] ?? LABELS[lang.split('-')[0]] ?? EN
 }
 
 export type ContextMenuItem =

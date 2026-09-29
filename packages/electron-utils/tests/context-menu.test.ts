@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { buildContextMenuItems, contextMenuLabels } from '../src/index'
+import { appMenuLabels, buildContextMenuItems, contextMenuLabels } from '../src/index'
 
 const labels = contextMenuLabels('en')
 
@@ -91,6 +91,14 @@ describe('contextMenuLabels', () => {
     expect(contextMenuLabels('zh').copy).toBe('复制')
     expect(contextMenuLabels('zh-TW').paste).toBe('貼上')
     expect(contextMenuLabels('xx')).toEqual(contextMenuLabels('en'))
+  })
+
+  it('falls back to the base language for regional variants', () => {
+    expect(contextMenuLabels('pt-BR').copy).toBe(contextMenuLabels('pt').copy)
+    expect(contextMenuLabels('zh-Hant').copy).toBe(contextMenuLabels('zh').copy)
+    expect(contextMenuLabels('de-AT').copy).toBe(contextMenuLabels('de').copy)
+    expect(appMenuLabels('pt-BR').window).toBe(appMenuLabels('pt').window)
+    expect(appMenuLabels('zh-Hant').window).toBe(appMenuLabels('zh').window)
   })
 })
 
