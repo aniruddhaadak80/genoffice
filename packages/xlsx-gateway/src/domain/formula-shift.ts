@@ -85,7 +85,7 @@ function clampRefPart(part: RefPart, spec: ShiftSpec, side: 'start' | 'end'): Re
 // Quoted sheet names use Excel '' escaping (Bob''s for Bob's), mirroring the
 // save-path FORMULA_REFERENCE_PATTERN in gateway/xlsx-structure.ts.
 const REF_RE =
-  /(?<![A-Za-z0-9_.$!\[])(?:(?:'((?:[^']|'')+)'|([A-Za-z0-9_.]+))!)?(\$?)([A-Z]{1,3})(\$?)([0-9]{1,7})(?::(\$?)([A-Z]{1,3})(\$?)([0-9]{1,7}))?(?![A-Za-z0-9(])/gi
+  /(?<![A-Za-z0-9_.$!\x5B])(?:(?:'((?:[^']|'')+)'|([A-Za-z0-9_.]+))!)?(\$?)([A-Z]{1,3})(\$?)([0-9]{1,7})(?::(\$?)([A-Z]{1,3})(\$?)([0-9]{1,7}))?(?![A-Za-z0-9(])/gi
 
 function decodeQuotedSheetName(quoted: string): string {
   return quoted.replaceAll("''", "'")
