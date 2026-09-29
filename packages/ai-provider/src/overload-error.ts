@@ -22,13 +22,23 @@ const OVERLOADED_PATTERN = new RegExp(
 // Credits-exhausted notices ("Your Genspark credits have been exhausted…") are
 // a different failure class (errorCode 'credits', "top up" message) — never
 // misreport them as a transient capacity problem.
-// Status marker that makes the notice a transient capacity failure even when
-// the body also mentions credits ("HTTP 429: rate limit: credits per minute
-// exceeded" is a rate limit, not an exhausted balance).
-const HTTP_STATUS_PATTERN = /\\bHTTP (429|503|529)\\b/i
+const CREDITS_PATTERN = /credit|pricing/i
+
+// The exhausted-balance wording specifically. A body that merely says "credits"
+// alongside a rate limit ("credits per minute exceeded") is a rate limit, so the
+// exemption keys on the exhausted/insufficient phrasing, not on the word alone.
+const CREDITS_EXHAUSTED_PATTERN =
+  /(credits?[^\n]{0,40}(exhausted|insufficient)|(exhausted|insufficient)[^\n]{0,40}credits?)/i
+
+// A bare 429/503/529 status marker makes it transient even when credits are named.
+const HTTP_STATUS_PATTERN = /\bHTTP (429|503|529)\b/i
 
 function matches(text: string): boolean {
   if (!OVERLOADED_PATTERN.test(text)) return false
+  // The exhausted/insufficient wording wins over the status marker: credits are only
+  // typed on the HTTP 200 JSON path, so a non-2xx credits body is a billing notice,
+  // and "service busy, retry" is the wrong advice for it.
+  if (CREDITS_EXHAUSTED_PATTERN.test(text)) return false
   if (CREDITS_PATTERN.test(text) && !HTTP_STATUS_PATTERN.test(text)) return false
   return true
 }
