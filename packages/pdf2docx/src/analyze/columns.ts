@@ -392,6 +392,7 @@ export function mergeTwinSections(sections: LayoutSection[]): LayoutSection[] {
     const twins =
       prev !== undefined &&
       prev.columns.length >= 2 &&
+      prev.dir === s.dir &&
       prev.columns.length === s.columns.length &&
       prev.gutters.length === s.gutters.length &&
       prev.gutters.every((g, i) => {
