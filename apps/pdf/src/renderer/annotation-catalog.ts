@@ -31,6 +31,8 @@ export async function loadSavedAnnots(
       // Only ref-backed annots can be addressed for deletion (id "123R" → object 123)
       const objNum = /^(\d+)R$/.exec(a.id)
       if (!type || !objNum || !a.quadPoints || a.quadPoints.length < 8) return []
+      // a malformed rect must not take the whole page down with it
+      if (!Array.isArray(a.rect) || a.rect.length < 4) return []
       const quads: number[][] = []
       for (let q = 0; q + 8 <= a.quadPoints.length; q += 8)
         quads.push([...a.quadPoints.slice(q, q + 8)])
