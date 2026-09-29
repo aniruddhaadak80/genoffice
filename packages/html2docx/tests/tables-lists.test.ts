@@ -75,3 +75,15 @@ test('converts an ordered list with decimal numbering', async () => {
   assert.match(numberingXml, /w:numFmt w:val="decimal"/)
   assert.equal((documentXml.match(/w:numPr/g) || []).length, 4)
 })
+
+test('keeps the nesting level of a nested ordered list', async () => {
+  const { documentXml } = await documentParts([
+    {
+      type: 'list',
+      ordered: true,
+      items: [item('Parent'), item('Child', 1), item('Sibling')],
+    },
+  ])
+  const levels = [...documentXml.matchAll(/w:ilvl w:val="(\d+)"/g)].map((match) => match[1])
+  assert.deepEqual(levels, ['0', '1', '0'])
+})
