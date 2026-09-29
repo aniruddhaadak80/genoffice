@@ -477,7 +477,7 @@ const LABELS: Record<string, Labels> = {
 }
 
 export function appMenuLabels(lang: string): AppMenuLabels {
-  return { ...contextMenuLabels(lang), ...(LABELS[lang] ?? EN) }
+  return { ...contextMenuLabels(lang), ...(LABELS[lang] ?? LABELS[lang.split('-')[0]] ?? EN) }
 }
 
 /** macOS keeps the native role (Minimize/Zoom/Front, window list); Windows/Linux
