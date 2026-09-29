@@ -45,7 +45,7 @@ export async function parseRels(zip: JSZip, path: string): Promise<Map<string, R
   // prologue instead of failing the whole document (entities never resolve —
   // XXE-safe — and Relationship elements carry everything in attributes)
   const relsXml = (await file.async('string')).replace(
-    /<!DOCTYPE(?:[^>"'\[\]]|\[[\s\S]*?\]|"[^"]*"|'[^']*')*>/i,
+    /<!DOCTYPE(?:[^>"'\x5B\x5D]|\[[\s\S]*?\]|"[^"]*"|'[^']*')*>/i,
     '',
   )
   const parsed = xmlParser.parse(relsXml) as XNode[]
