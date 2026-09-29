@@ -51,7 +51,8 @@ export function isLang(value: unknown): value is Lang {
 
 /** map a raw locale string ('zh-CN', 'zh-Hans', 'ja-JP', 'ko-KR', …) to a supported Lang */
 export function normalizeLang(raw: string | null | undefined): Lang {
-  const value = raw?.trim().toLowerCase()
+  if (typeof raw !== 'string') return 'en'
+  const value = raw.trim().toLowerCase()
   if (!value) return 'en'
   // traditional-script Chinese variants must win over the generic 'zh' prefix
   if (/^zh[-_](tw|hk|mo|hant)/.test(value)) return 'zh-TW'
