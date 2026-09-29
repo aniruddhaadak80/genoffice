@@ -112,7 +112,7 @@ export function createIpcTransport<S>(options: IpcTransportOptions<S>): AgentTra
           settle()
           if (chunk.stopReason) cb.onStopReason?.(chunk.stopReason)
           cb.onDone()
-        } else {
+        } else if (chunk.type === 'error') {
           settle()
           cb.onError(
             chunk.errorCode === 'timeout'
@@ -126,6 +126,7 @@ export function createIpcTransport<S>(options: IpcTransportOptions<S>): AgentTra
                     : (chunk.error ?? options.unknownErrorText()),
           )
         }
+        // Unknown chunk types (forward-compatible main-process additions) are ignored
       })
       armSilence()
       try {

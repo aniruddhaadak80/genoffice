@@ -213,4 +213,13 @@ describe('createIpcTransport', () => {
     expect(cb.onError).toHaveBeenCalledWith('no handler registered')
     expect(cb.onDone).not.toHaveBeenCalled()
   })
+
+  it('ignores unknown chunk types (forward-compatible main-process additions)', () => {
+    const { cb, emit } = setup()
+    emit({ type: 'progress', text: 'half way' } as unknown as IpcStreamChunk)
+    expect(cb.onError).not.toHaveBeenCalled()
+    expect(cb.onDone).not.toHaveBeenCalled()
+    emit({ type: 'done' })
+    expect(cb.onDone).toHaveBeenCalledTimes(1)
+  })
 })
