@@ -11,7 +11,7 @@
  * advances by its span instead.
  */
 export function tableRowGridCols(row: Array<{ gridSpan?: number; merged?: boolean }>): number[] {
-  const cols: number[] = []
+  if (!Array.isArray(row)) return []
   let c = 0
   row.forEach((cell, i) => {
     cols.push(c)
