@@ -1061,7 +1061,7 @@ export class ProjectStore {
     const chats = this.listChats(projectId)
     for (const { chatId } of chats) {
       const filePath = chatToFile.get(chatId) ?? ''
-      const msgs = this.loadChat(projectId, chatId, 200)
+      const msgs = this.loadChat(projectId, chatId, boundedLimit)
       for (const msg of msgs) {
         entries.push({
           filePath,
