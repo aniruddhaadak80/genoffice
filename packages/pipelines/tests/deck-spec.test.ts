@@ -79,6 +79,16 @@ describe('parseDeckSpec refusals', () => {
     })
   })
 
+  it('rejects an over-large raw payload before parsing it', () => {
+    const filler = 'x'.repeat(20_000)
+    const raw = JSON.stringify({ pages: new Array(60).fill(validPage(filler)) })
+    expect(raw.length).toBeGreaterThan(1_000_000)
+    expect(parseDeckSpec(raw)).toMatchObject({
+      ok: false,
+      error: expect.stringContaining('too large'),
+    })
+  })
+
   it('refuses when no page survives validation', () => {
     const raw = JSON.stringify({
       pages: [{ background: '#0E1A2B', elements: [] }, { background: '#0E1A2B' }],
