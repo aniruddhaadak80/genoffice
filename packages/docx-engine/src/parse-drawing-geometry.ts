@@ -2,7 +2,6 @@
 // anchor metadata and page-position resolution, group transforms.
 import { attrsOf, childrenOf, findChild, nameOf, type XNode } from './xml-utils'
 import { EMU_PER_PX } from './parse-xml-text'
-import { DEFAULT_THEME_COLORS } from './theme'
 import type { SectionSettings, TextGlow, TextOutline, TextboxDisplay, ThemeColors } from './types'
 
 /**
