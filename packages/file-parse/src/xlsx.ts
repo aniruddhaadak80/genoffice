@@ -189,6 +189,12 @@ async function zipText(zip: JSZip, path: string): Promise<string | undefined> {
  *  millions via the padding loop below. */
 export const MAX_XLSX_COLS = 16_384
 
+/** How many times a single row may shift itself right to make room for a
+ *  colliding cell before further collisions append instead. Each shift is
+ *  O(row), so an uncapped row of colliding cells is O(n^2); the cap keeps it
+ *  linear while leaving a real sheet's output unchanged. */
+const MAX_ROW_COLLISION_SHIFTS = 256
+
 /** extract sheet text from an xlsx: one "# SheetName" section per sheet, cells joined with " | " */
 export async function xlsxToText(bytes: Uint8Array): Promise<string> {
   // The declared-size pass below is advisory; this metered gate is the one that
@@ -240,6 +246,17 @@ export async function xlsxToText(bytes: Uint8Array): Promise<string> {
     const sharedFormulas: SharedFormulas = new Map()
     for (const row of rows) {
       const cells: string[] = []
+      // Cap how many times one row may shift itself right. Every collision
+      // splices a blank in at the target column and pushes the rest of the row
+      // one slot further, so a row whose cells all share one ref re-shifts a
+      // growing array once per cell — O(n^2) in the row length, which let a
+      // ~1.5 MB attachment peg a core for minutes and blocked the whole parse.
+      // The budget sits far above any real row (a real sheet has a handful of
+      // unsorted or ref-less cells at most), so a real file's output is
+      // byte-identical to the uncapped algorithm; past the budget a colliding
+      // cell is appended instead of re-shifting, so no value is dropped and
+      // the cost stays linear.
+      let shifts = 0
       for (const cell of asArray(row.c as Cell | Cell[])) {
         const text = cellText(cell, shared, dateStyles, date1904, sharedFormulas)
         const ref = cell['@_r']
@@ -251,8 +268,16 @@ export async function xlsxToText(bytes: Uint8Array): Promise<string> {
         // A ref landing on a slot an earlier ref-less or malformed cell was
         // appended to would drop that value silently: push it right instead.
         // An empty slot (unsorted but valid refs like C1,A1) is just taken.
-        if (col >= 0 && col < MAX_XLSX_COLS && col < cells.length && cells[col] !== '')
-          cells.splice(col, 0, '')
+        if (col >= 0 && col < MAX_XLSX_COLS && col < cells.length && cells[col] !== '') {
+          if (shifts < MAX_ROW_COLLISION_SHIFTS) {
+            cells.splice(col, 0, '')
+            shifts += 1
+          } else {
+            cells.push(text)
+            if (text.trim()) hasData = true
+            continue
+          }
+        }
         const target = col >= 0 && col < MAX_XLSX_COLS ? col : cells.length
         while (cells.length < target) cells.push('')
         cells[target] = text
