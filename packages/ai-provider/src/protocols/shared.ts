@@ -156,6 +156,63 @@ export async function* sseLines(
  */
 export const MAX_TOOL_JSON_CHARS = 512_000
 
+/**
+ * Frames the `data:` payloads of an SSE stream into whole events.
+ *
+ * Two shapes have to work. A server may split one JSON body across several
+ * `data:` lines, in which case those lines are a single event and are joined
+ * with a newline - reading a line at a time dropped such a body, because every
+ * fragment failed JSON.parse and the caller's `catch { continue }` skipped it
+ * with no diagnostic. And a server may instead frame each event as one `data:`
+ * line closed by a single newline, with no blank line at all; waiting only for
+ * a blank line merges a whole run of those into one unparseable payload and
+ * buries the `[DONE]` terminator inside it.
+ *
+ * So a `data:` value that is already whole JSON is dispatched on its own, and
+ * only values that are fragments are held back and joined. A payload still
+ * pending when the stream ends is delivered, the way sseLines delivers a final
+ * line that has no newline.
+ */
+export async function* sseDataEvents(
+  body: NodeJS.ReadableStream | ReadableStream<Uint8Array>,
+  onBytes?: () => void,
+): AsyncGenerator<string> {
+  let parts: string[] = []
+  for await (const line of sseLines(body, onBytes)) {
+    if (!line.startsWith('data:')) {
+      if (parts.length) {
+        yield parts.join('\n')
+        parts = []
+      }
+      continue
+    }
+    const value = line.slice(5).trim()
+    if (!value) continue
+    if (isWholeJson(value)) {
+      // A whole payload is an event in its own right, whatever the server used
+      // as its separator.
+      if (parts.length) {
+        yield parts.join('\n')
+        parts = []
+      }
+      yield value
+      continue
+    }
+    parts.push(value)
+  }
+  if (parts.length) yield parts.join('\n')
+}
+
+/** A complete JSON value parses; a fragment of one does not. */
+function isWholeJson(value: string): boolean {
+  try {
+    JSON.parse(value)
+    return true
+  } catch {
+    return false
+  }
+}
+
 export function throwIfToolJsonOverBudget(jsonLength: number, provider: string): void {
   if (jsonLength > MAX_TOOL_JSON_CHARS) {
     throw new Error(

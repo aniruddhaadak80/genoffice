@@ -5,6 +5,7 @@ import {
   MAX_RESPONSE_BODY_BYTES,
   jsonBodyInsteadOfSse,
   parseToolInput,
+  sseDataEvents,
 } from '../src/protocols/shared'
 import { jsonResponse, okResponse, sseStream } from './test-utils'
 
@@ -73,6 +74,48 @@ describe('sseLines', () => {
     const lines: string[] = []
     for await (const line of sseLines(body)) lines.push(line)
     expect(lines).toEqual(['data: a', 'data: b', 'data: c'])
+  })
+})
+
+describe('sseDataEvents', () => {
+  const collect = async (text: string): Promise<string[]> => {
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode(text))
+        controller.close()
+      },
+    })
+    const payloads: string[] = []
+    for await (const payload of sseDataEvents(body)) payloads.push(payload)
+    return payloads
+  }
+
+  it('dispatches every event when the server separates them with a single newline', async () => {
+    // No blank line anywhere in this stream. Dispatching only on a blank line
+    // merged all three into one unparseable payload, taking [DONE] with it.
+    expect(await collect('data: {"a":1}\ndata: {"b":2}\ndata: [DONE]\n')).toEqual([
+      '{"a":1}',
+      '{"b":2}',
+      '[DONE]',
+    ])
+  })
+
+  it('dispatches every event when the server separates them with a blank line', async () => {
+    expect(await collect('data: {"a":1}\n\ndata: {"b":2}\n\n')).toEqual(['{"a":1}', '{"b":2}'])
+  })
+
+  it('joins a JSON body that one event split across data: lines', async () => {
+    const [payload] = await collect('data: {"a":\ndata: 1}\n\n')
+    expect(payload).toBe('{"a":\n1}')
+    expect(JSON.parse(payload ?? '')).toEqual({ a: 1 })
+  })
+
+  it('joins a split body even when the stream has no blank line at all', async () => {
+    expect(await collect('data: {"a":\ndata: 1}')).toEqual(['{"a":\n1}'])
+  })
+
+  it('delivers a terminator that never gets a trailing blank line', async () => {
+    expect(await collect('data: {"a":1}\ndata: [DONE]')).toEqual(['{"a":1}', '[DONE]'])
   })
 })
 
