@@ -44,8 +44,10 @@ export function parseDeckSpec(
 ): { ok: true; spec: DeckSpec; issues: DeckPageIssue[] } | { ok: false; error: string } {
   let parsed: unknown
   // LLM output is untrusted: refuse a megabyte dump before JSON.parse builds
-  // a giant object graph from it.
-  if (typeof raw !== 'string' || raw.length > MAX_DECK_SPEC_RAW_CHARS) {
+  // a giant object graph from it. The CLI caller passes localImages and documents
+  // data: sources up to 50 MB (image-source.ts), where a base64 payload alone runs
+  // to ~67 M chars, so the cap only guards the default http(s)-only path.
+  if (!opts.localImages && raw.length > MAX_DECK_SPEC_RAW_CHARS) {
     return { ok: false, error: `deck spec too large (limit ${MAX_DECK_SPEC_RAW_CHARS} chars)` }
   }
   try {
