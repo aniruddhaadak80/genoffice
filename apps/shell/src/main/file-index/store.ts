@@ -290,7 +290,8 @@ export class FileIndexStore {
       opts.limit != null && Number.isFinite(opts.limit)
         ? Math.max(0, Math.min(200, opts.limit))
         : 50
-    const offset = opts.offset != null && Number.isFinite(opts.offset) ? Math.max(0, opts.offset) : 0
+    const offset =
+      opts.offset != null && Number.isFinite(opts.offset) ? Math.max(0, opts.offset) : 0
     const page = rows.slice(offset, offset + limit)
     const bodies = this.fetchBodies(page.map((r) => r.id))
     const hits = page.map((r) => {
