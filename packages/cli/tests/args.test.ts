@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { parseArgs } from '../src/args'
+import { flagBool, parseArgs } from '../src/args'
 
 describe('parseArgs', () => {
   it('splits positionals and flags', () => {
@@ -22,5 +22,13 @@ describe('parseArgs', () => {
     const r = parseArgs(['open', '--json', '--', '--weird-name.docx'])
     expect(r.flags).toEqual({ json: true })
     expect(r.positionals).toEqual(['open', '--weird-name.docx'])
+  })
+
+  it('respects --flag=false instead of treating any set flag as true', () => {
+    const r = parseArgs(['convert', 'a.pdf', '--json=false', '--force=true', '--dry-run'])
+    expect(flagBool(r, 'json')).toBe(false)
+    expect(flagBool(r, 'force')).toBe(true)
+    expect(flagBool(r, 'dry-run')).toBe(true)
+    expect(flagBool(r, 'missing')).toBe(false)
   })
 })

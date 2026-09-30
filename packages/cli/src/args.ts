@@ -51,5 +51,6 @@ export function flagString(args: ParsedArgs, name: string): string | undefined {
 }
 
 export function flagBool(args: ParsedArgs, name: string): boolean {
-  return args.flags[name] !== undefined
+  const v = args.flags[name]
+  return v !== undefined && v !== 'false'
 }
