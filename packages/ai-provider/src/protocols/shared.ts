@@ -188,7 +188,12 @@ export async function* sseDataEvents(
     }
     const value = line.slice(5).trim()
     if (!value) continue
-    if (isWholeJson(value)) {
+    // `[DONE]` is not JSON, so a JSON test alone would hold it as a fragment until
+    // the next non-data line or EOF. A newline-only stream whose server keeps the
+    // socket open after `[DONE]` then never terminates: the loop waits on data that
+    // never comes. Treating it as a whole payload also stops a non-JSON keep-alive
+    // from being glued onto the terminator (`data: ping\ndata: [DONE]`).
+    if (value === '[DONE]' || parseWholeJson(value) !== undefined) {
       // A whole payload is an event in its own right, whatever the server used
       // as its separator.
       if (parts.length) {
@@ -203,13 +208,13 @@ export async function* sseDataEvents(
   if (parts.length) yield parts.join('\n')
 }
 
-/** A complete JSON value parses; a fragment of one does not. */
-function isWholeJson(value: string): boolean {
+/** A complete JSON value parses; a fragment of one does not. The parsed value is
+ *  returned too, so a caller that needs the object does not have to parse twice. */
+function parseWholeJson(value: string): { parsed: unknown } | undefined {
   try {
-    JSON.parse(value)
-    return true
+    return { parsed: JSON.parse(value) }
   } catch {
-    return false
+    return undefined
   }
 }
 

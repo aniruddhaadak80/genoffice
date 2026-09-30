@@ -117,6 +117,30 @@ describe('sseDataEvents', () => {
   it('delivers a terminator that never gets a trailing blank line', async () => {
     expect(await collect('data: {"a":1}\ndata: [DONE]')).toEqual(['{"a":1}', '[DONE]'])
   })
+
+  // A newline-only stream whose server keeps the socket open after [DONE]. The
+  // generator cannot end on its own here, so this drives it the way the
+  // OpenAI-compatible loop does: break the moment the terminator arrives. Holding
+  // [DONE] back as a fragment meant that break never happened and the caller sat on
+  // an open socket until its race timeout, while main returned immediately.
+  it('hands [DONE] to a consumer that breaks on it, on an open stream', async () => {
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode('data: {"a":1}\ndata: [DONE]\n'))
+        // deliberately never closed, and nothing further is ever enqueued
+      },
+    })
+    const seen: string[] = []
+    for await (const payload of sseDataEvents(body)) {
+      seen.push(payload)
+      if (payload === '[DONE]') break
+    }
+    expect(seen).toEqual(['{"a":1}', '[DONE]'])
+  })
+
+  it('does not glue a non-JSON keep-alive onto the terminator', async () => {
+    expect(await collect('data: ping\ndata: [DONE]\n')).toEqual(['ping', '[DONE]'])
+  })
 })
 
 describe('non-SSE response body cap', () => {
