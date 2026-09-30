@@ -9,13 +9,7 @@
  */
 import { describe, it, expect } from 'vitest'
 import JSZip from 'jszip'
-import {
-  openPptx,
-  savePptx,
-  addElement,
-  createBlankPptx,
-  scanSlide,
-} from '../src/index'
+import { openPptx, savePptx, addElement, createBlankPptx, scanSlide } from '../src/index'
 import { sliceGroupChildXmls } from '../src/parse'
 
 const SP = (id: number) =>
