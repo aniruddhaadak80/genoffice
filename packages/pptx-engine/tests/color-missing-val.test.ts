@@ -12,8 +12,10 @@ const shapeWithFill = (fill: string) =>
   `<a:prstGeom prst="rect"/>${fill}</p:spPr></p:sp>`
 
 const fillOf = (fill: string): unknown =>
-  (parseSlide({ path: 'ppt/slides/slide1.xml', slideXml: slideWith(shapeWithFill(fill)), ctx: {} })
-    .elements[0] as any).fill
+  (
+    parseSlide({ path: 'ppt/slides/slide1.xml', slideXml: slideWith(shapeWithFill(fill)), ctx: {} })
+      .elements[0] as any
+  ).fill
 
 describe('a:srgbClr with no resolvable val', () => {
   // '#' + String(undefined) is the truthy string '#UNDEFINED', so it slipped past the
