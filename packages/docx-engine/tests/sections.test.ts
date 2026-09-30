@@ -804,6 +804,38 @@ describe('sectPr tags written as empty element pairs', () => {
     expect(applySectionStartType(base, 'nextPage')).not.toContain('<w:type')
     expect(applyTitlePg(base, false)).not.toContain('titlePg')
   })
+
+  it('section bidi round-trips a paired element once and honours an explicit w:val', async () => {
+    const { applySectionSettings, sectionSettingsFromXml } = await import('../src/index')
+    const base =
+      '<w:sectPr><w:pgSz w:w="11906" w:h="16838"/>' +
+      '<w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440" w:header="708" w:footer="708" w:gutter="0"/>' +
+      '<w:cols w:space="425"/></w:sectPr>'
+
+    // the reader learned the pair but the writer still probed for <w:bidi/>, so
+    // re-applying parsed settings wrote a second w:bidi into the same sectPr
+    const paired = base.replace('</w:sectPr>', '<w:bidi></w:bidi></w:sectPr>')
+    const once = applySectionSettings(paired, { ...sectionSettingsFromXml(paired), bidi: true })
+    expect(once.match(/<w:bidi/g)).toHaveLength(1)
+    // and the off path has to take the pair with it, not only a self-closing tag
+    const off = applySectionSettings(paired, { ...sectionSettingsFromXml(paired), bidi: false })
+    expect(off).not.toContain('bidi')
+
+    // ST_OnOff: an explicit off value is off, whichever quote style wrote it
+    for (const tag of ['<w:bidi w:val="0"/>', "<w:bidi w:val='0'/>", '<w:bidi w:val="false"/>']) {
+      expect(
+        sectionSettingsFromXml(base.replace('</w:sectPr>', tag + '</w:sectPr>')).bidi,
+      ).toBeUndefined()
+    }
+    expect(
+      sectionSettingsFromXml(base.replace('</w:sectPr>', '<w:bidi w:val="1"/></w:sectPr>')).bidi,
+    ).toBe(true)
+
+    // w:vAlign is read off its start tag, so it follows the same quote rule
+    expect(
+      sectionSettingsFromXml(base.replace('</w:sectPr>', "<w:vAlign w:val='bottom'/></w:sectPr>")),
+    ).toMatchObject({ vAlign: 'bottom' })
+  })
 })
 
 describe('SaveOptions.numbering write-back', () => {
