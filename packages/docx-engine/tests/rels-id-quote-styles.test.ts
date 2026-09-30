@@ -126,7 +126,11 @@ describe('relationship ids in either quote style', () => {
   })
 
   it('does not reissue an id spelled with whitespace around the =', async () => {
-    const bytes = await mapPart(await buildDocx({ bodyXml: BODY }), 'word/_rels/document.xml.rels', paddedIds)
+    const bytes = await mapPart(
+      await buildDocx({ bodyXml: BODY }),
+      'word/_rels/document.xml.rels',
+      paddedIds,
+    )
     const saved = await saveWithLink(await parseDocx(bytes))
     expectUniqueIds(await zipText(saved, 'word/_rels/document.xml.rels'))
   })
@@ -162,7 +166,8 @@ describe('relationship ids in either quote style', () => {
       extraParts: [
         {
           path: 'word/header1.xml',
-          xml: `${XML_DECL}<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">` +
+          xml:
+            `${XML_DECL}<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">` +
             '<w:p><w:r><w:t>BEFORE</w:t></w:r></w:p></w:hdr>',
           contentType: HEADER_TYPE,
         },
