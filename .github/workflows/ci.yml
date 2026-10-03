@@ -104,9 +104,14 @@ jobs:
           fi
           npm run check:skill-version
 
-      # Added lines only: Han text outside locale tables, review-tool tags,
-      # feedback-ledger ids, sample-corpus ids, internal PR numbers, personal
-      # paths/e-mails, credentials, NUL bytes (tools/check-public-hygiene.mjs).
+      # Internal-only gate. tools/check-public-hygiene.mjs encodes private review
+      # conventions and is deliberately excluded from the public snapshot, so in
+      # this checkout it is absent and the step scans nothing: the `-f` guard below
+      # always takes the else branch. The guard is load-bearing, not rot - public
+      # checkouts have to stay green, and re-authoring a public copy of the checker
+      # would collide with the internal one on the next sync (see #1027). The
+      # hygiene gate that does run on public pull requests is check:english-comments
+      # (tools/check-english-comments.mjs) below.
       - name: Check public-repo hygiene
         env:
           FORMAT_BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before }}
@@ -117,7 +122,7 @@ jobs:
           if [ -f tools/check-public-hygiene.mjs ]; then
             node tools/check-public-hygiene.mjs
           else
-            echo "public-hygiene gate not present in this checkout; skipped"
+            echo "tools/check-public-hygiene.mjs is internal-only and absent from this checkout; no scan performed (see #1027)"
           fi
 
       # Keep tracked code comments and contributor-facing documentation
