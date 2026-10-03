@@ -32,6 +32,8 @@ describe('tabStopsFor', () => {
     expect(tabStopsFor(context, [{ text: 'a\tb', tabFrac: 0.5 }])[0]!.position).toBe(
       Math.round(0.5 * context.contentDxa),
     )
-    expect(tabStopsFor(context, [{ text: 'a\tb', tabFrac: 0.9 }])[0]!.position).toBe(context.contentDxa)
+    expect(tabStopsFor(context, [{ text: 'a\tb', tabFrac: 0.9 }])[0]!.position).toBe(
+      context.contentDxa,
+    )
   })
 })
