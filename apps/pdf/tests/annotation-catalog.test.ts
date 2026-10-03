@@ -1,9 +1,6 @@
 import type { PDFDocumentProxy } from 'pdfjs-dist'
 import { describe, expect, it, vi } from 'vitest'
-import {
-  createSavedAnnotCountsLoader,
-  loadSavedAnnots,
-} from '../src/renderer/annotation-catalog'
+import { createSavedAnnotCountsLoader, loadSavedAnnots } from '../src/renderer/annotation-catalog'
 import type { SavedMarkupAnnot } from '../src/renderer/edit-state'
 import type { PdfJsAnnotData, SavedNoteAnnot } from '../src/renderer/note-threads'
 
