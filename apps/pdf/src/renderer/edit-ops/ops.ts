@@ -51,7 +51,7 @@ const pageIndex = (v: unknown, ctx: OpContext, field = 'pageIndex'): number => {
 }
 
 const rect = (v: unknown, field: string): Rect => {
-  if (!Array.isArray(v) || v.length !== 4 || v.some((n) => typeof n !== 'number'))
+  if (!Array.isArray(v) || v.length !== 4 || v.some((n) => !Number.isFinite(n)))
     throw new GuidedError(`"${field}" must be [x1,y1,x2,y2] in PDF user space`)
   return v as Rect
 }
@@ -190,7 +190,7 @@ register({
   touches: ['drawings'],
   validate(op) {
     id(op)
-    if (typeof op.dx !== 'number' || typeof op.dy !== 'number')
+    if (!Number.isFinite(op.dx) || !Number.isFinite(op.dy))
       throw new GuidedError('"dx" and "dy" must be numbers (PDF user space)')
   },
   apply(op, s) {
