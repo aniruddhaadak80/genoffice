@@ -2186,7 +2186,14 @@ function commentPlainText(commentXml: string): string {
 
 /** set or remove <w:documentProtection> at its CT_Settings position */
 function applyProtection(xml: string, protection: DocProtection | null): string {
-  let out = xml.replace(/<w:documentProtection[^>]*\/>/, '')
+  // Match the start tag and an optional paired end tag. Matching only the
+  // self-closing form left a paired element in place, so clearing protection did
+  // nothing at all and writing a new one appended a second element: the saved
+  // part held both spellings of a zero-or-one element, which is schema-invalid,
+  // and the stale paired copy kept protection switched on. A producer that writes
+  // <w:documentProtection></w:documentProtection> is legal, and this repo's own
+  // reader accepts it.
+  let out = xml.replace(/<w:documentProtection(?=[\s/>])[^>]*>(?:<\/w:documentProtection>)?/, '')
   if (protection) {
     const crypt = protection.hash
       ? ' w:cryptProviderType="rsaAES" w:cryptAlgorithmClass="hash" w:cryptAlgorithmType="typeAny"' +
