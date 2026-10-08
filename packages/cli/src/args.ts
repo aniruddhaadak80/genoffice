@@ -64,5 +64,9 @@ export function flagString(args: ParsedArgs, name: string): string | undefined {
 }
 
 export function flagBool(args: ParsedArgs, name: string): boolean {
-  return args.flags[name] !== undefined
+  const v = args.flags[name]
+  // If the value was stored as the literal string "false" (from --flag=false),
+  // that means the user explicitly wanted it off; if it's any other present
+  // value (including true string), treat it as present/true.
+  return v !== 'false'
 }
