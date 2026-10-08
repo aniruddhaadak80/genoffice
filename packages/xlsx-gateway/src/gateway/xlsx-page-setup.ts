@@ -226,7 +226,7 @@ function encodeHeaderFooterSections(parts: HeaderFooterParts): string {
   ]
   return sections
     .filter(([, text]) => text !== undefined && text !== '')
-    .map(([marker, text]) => marker + (text ?? ''))
+    .map(([marker, text]) => marker + escapeXml(text ?? ''))
     .join('')
 }
 
