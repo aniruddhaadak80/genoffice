@@ -13,7 +13,21 @@
  * - All write failures warn silently, never throw (append path)
  * - JSONL parsing is line-by-line tolerant: bad lines are skipped, no crash
  * - seq is maintained by the store layer: auto-incremented on each appendChatMessage
+ * - Incarnation: a content hash tracks file identity; when the file at a path
+ *   changes (different incarnation), a new chat is minted so history does not
+ *   cross-contaminate.
  */
+
+/** 16-hex-char incarnation hash of a file (first 16 of sha256(content)) */
+export function fileIncarnationHash(filePath: string): string {
+  try {
+    const fs = require('node:fs')
+    const buf = fs.readFileSync(filePath)
+    return createHash('sha256').update(buf).digest('hex').slice(0, 16)
+  } catch {
+    return ''
+  }
+}
 
 import { createHash, randomBytes } from 'node:crypto'
 import {
