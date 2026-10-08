@@ -34,12 +34,14 @@ export function applyDefinedNamesState(workbookXml: string, state: DefinedNamesS
     const name = /\bname="([^"]*)"/.exec(match[0])?.[1]
     if (name === undefined || !preserved.has(unescapeXml(name))) continue
     const scope = /\blocalSheetId="(\d+)"/.exec(match[0])?.[1]
-    preservedKeys.add(`${unescapeXml(name)}\u0000${scope === undefined ? -1 : Number(scope)}`)
+    // Use null for workbook-scoped (no localSheetId) so it differs from sheet index 0.
+    preservedKeys.add(`${unescapeXml(name)}\u0000${scope === undefined ? null : Number(scope)}`)
   }
   const seen = new Set<string>()
   for (const entry of state.names) {
     validateName(entry.name)
-    const key = `${entry.name}\u0000${entry.sheetIndex ?? -1}`
+    // Use null for workbook-scoped (sheetIndex undefined) so it differs from sheet index 0.
+    const key = `${entry.name}\u0000${entry.sheetIndex ?? null}`
     if (preservedKeys.has(key)) {
       throw new DefinedNameError(
         `The name "${entry.name}" also exists in a form the editor cannot model — ` +
