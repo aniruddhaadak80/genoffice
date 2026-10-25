@@ -74,9 +74,7 @@ export function decodeDataUrl(url: string): { bytes: Buffer; mime: string | null
       return null
     }
   }
-  const bytes = isBase64
-    ? Buffer.from(payload, 'base64')
-    : Buffer.from(decodedPayload, 'utf8')
+  const bytes = isBase64 ? Buffer.from(payload, 'base64') : Buffer.from(decodedPayload, 'utf8')
   if (bytes.length > MAX_REMOTE_IMAGE_BYTES) return null
   return { bytes, mime }
 }
