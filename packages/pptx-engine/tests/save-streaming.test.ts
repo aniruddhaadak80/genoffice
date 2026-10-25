@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest'
-import { mkdtempSync, readFileSync } from 'node:fs'
+import { describe, it, expect, vi } from 'vitest'
+import { mkdtempSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
@@ -9,6 +9,32 @@ import { openPptx, savePptx, savePptxToFile, commitSaved, addElement } from '../
 const here = dirname(fileURLToPath(import.meta.url))
 const fx = (name: string) => readFileSync(join(here, 'fixtures', name))
 const out = () => join(mkdtempSync(join(tmpdir(), 'save-stream-')), 'out.pptx')
+
+const writeState = vi.hoisted(() => ({ failAfterFirstChunk: false }))
+
+vi.mock('node:fs', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:fs')>()
+  const { Writable } = await import('node:stream')
+  return {
+    ...actual,
+    createWriteStream: (path: string) => {
+      if (!writeState.failAfterFirstChunk) return actual.createWriteStream(path)
+      let wrote = false
+      // accept one chunk, then fail - the shape a full disk or an aborted
+      // stream takes mid-save, after the target has already been opened
+      return new Writable({
+        write(_chunk, _enc, cb) {
+          if (wrote) {
+            cb(new Error('simulated disk full'))
+            return
+          }
+          wrote = true
+          cb()
+        },
+      })
+    },
+  }
+})
 
 describe('savePptxToFile', () => {
   it('writes a package that reopens with the same slides as the in-memory save', async () => {
@@ -24,6 +50,34 @@ describe('savePptxToFile', () => {
     expect([...fromDisk.archive.entries.keys()].sort()).toEqual(
       [...fromMemory.archive.entries.keys()].sort(),
     )
+  })
+
+  it('keeps the previous file intact when the write fails mid-stream', async () => {
+    const opened = await openPptx(fx('01_standard_business.pptx'))
+    const target = out()
+    const previous = Buffer.from('previous good deck')
+    writeFileSync(target, previous)
+    writeState.failAfterFirstChunk = true
+    try {
+      await expect(savePptxToFile(opened, target)).rejects.toThrow('simulated disk full')
+    } finally {
+      writeState.failAfterFirstChunk = false
+    }
+    // the deck on disk must still be the last good save, not a truncated file
+    expect(readFileSync(target)).toEqual(previous)
+    // the failed temp write must not leave residue beside the target
+    expect(readdirSync(dirname(target)).filter((n) => n.endsWith('.tmp'))).toEqual([])
+  })
+
+  it('replaces an existing deck and leaves no temp files behind', async () => {
+    const opened = await openPptx(fx('01_standard_business.pptx'))
+    const target = out()
+    writeFileSync(target, Buffer.from('stale deck bytes'))
+    await savePptxToFile(opened, target)
+
+    const reopened = await openPptx(readFileSync(target))
+    expect(reopened.deck.slides.length).toBeGreaterThan(0)
+    expect(readdirSync(dirname(target)).filter((n) => n.endsWith('.tmp'))).toEqual([])
   })
 
   it('carries unsaved edits into the streamed file', async () => {

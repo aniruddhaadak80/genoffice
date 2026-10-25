@@ -755,18 +755,49 @@ export async function savePptx(opened: OpenedPptx): Promise<Uint8Array> {
  */
 export async function savePptxToFile(opened: OpenedPptx, filePath: string): Promise<void> {
   const { createWriteStream } = await import('node:fs')
+  const { rename, unlink } = await import('node:fs/promises')
   const { pipeline } = await import('node:stream/promises')
+  const { basename, dirname, join } = await import('node:path')
+  const { randomBytes } = await import('node:crypto')
   const source = buildZip(opened).generateNodeStream({
     type: 'nodebuffer',
     compression: 'DEFLATE',
     compressionOptions: { level: 6 },
     streamFiles: true,
   })
+  // Write beside the target and rename over it. createWriteStream(filePath)
+  // truncates the existing deck on open, so a stream error, full disk or
+  // crash mid-save left a corrupt file where the last good save was
+  // (genoffice#2123). A same-dir temp keeps the rename a metadata-only move.
+  const tmp = join(
+    dirname(filePath),
+    `.${basename(filePath)}.${randomBytes(6).toString('hex')}.tmp`,
+  )
   try {
-    await pipeline(source, createWriteStream(filePath))
+    await pipeline(source, createWriteStream(tmp))
   } catch (err) {
+    await unlink(tmp).catch(() => {})
     saveSnapshot.delete(opened)
     throw err
+  }
+  // Defender/indexer locks the rename target briefly on Windows; retry the
+  // transient codes (same set as packages/electron-utils/src/atomic-write.ts)
+  // before giving up. The old file stays intact either way - only the save
+  // fails, and the caller can retry.
+  const retryable = new Set(['EPERM', 'EACCES', 'EBUSY'])
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      await rename(tmp, filePath)
+      return
+    } catch (err) {
+      const code = (err as NodeJS.ErrnoException).code ?? ''
+      if (!retryable.has(code) || attempt >= 3) {
+        await unlink(tmp).catch(() => {})
+        saveSnapshot.delete(opened)
+        throw err
+      }
+      await new Promise((resolve) => setTimeout(resolve, 50 * 2 ** attempt))
+    }
   }
 }
 
