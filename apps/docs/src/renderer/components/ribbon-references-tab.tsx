@@ -158,8 +158,7 @@ const CAPTION_LABEL_KEYS = [
  * `nextNumber` on every render - or silently miscount fields. Escape the
  * metacharacters (same set as the find bar's escapeRe) so labels count
  * literally. */
-export const escapeReLiteral = (s: string): string =>
-  s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+export const escapeReLiteral = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
 /** Caption dialog: label + optional description, numbered by existing SEQ fields */
 function CaptionModal({
