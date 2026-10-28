@@ -19,4 +19,22 @@ describe('uniqueGeneratedPdfPath', () => {
   it('sanitizes characters that are invalid in file names', () => {
     expect(uniqueGeneratedPdfPath('/save', 'a:b?.pdf', () => false)).toBe(join('/save', 'a_b_.pdf'))
   })
+
+  it('keeps the stem of a suggested name with a colon (win32 basename drive-strip)', () => {
+    // path.win32.basename treats a colon as the drive separator, so the raw
+    // name must have its colons replaced before basename ever sees it:
+    // `a:b?.pdf` would otherwise come out as `b_.pdf` on Windows.
+    expect(uniqueGeneratedPdfPath('/save', 'Report: Q1.pdf', () => false)).toBe(
+      join('/save', 'Report_ Q1.pdf'),
+    )
+  })
+
+  it('still reduces a full path suggestion to its file name', () => {
+    expect(uniqueGeneratedPdfPath('/save', 'C:\\users\\report.pdf', () => false)).toBe(
+      join('/save', 'report.pdf'),
+    )
+    expect(uniqueGeneratedPdfPath('/save', '../report-merged.pdf', () => false)).toBe(
+      join('/save', 'report-merged.pdf'),
+    )
+  })
 })
