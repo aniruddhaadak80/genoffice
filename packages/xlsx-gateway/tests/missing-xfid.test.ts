@@ -1,7 +1,7 @@
 import JSZip from 'jszip'
 import { describe, expect, it } from 'vitest'
 
-import type { ChangePlan } from '../src/domain/workbook.types'
+import type { CellState, ChangePlan } from '../src/domain/workbook.types'
 import { addMissingXfIds } from '../src/gateway/xlsx-styles'
 import { applyCellEditsToXlsx, applyPlanToXlsx } from '../src/gateway/xlsx-gateway'
 
@@ -106,18 +106,65 @@ describe('styles missing the optional xfId', () => {
     expect(styles).toContain('count="3"')
   })
 
-  it('the plan path normalizes the preserved foreign stylesheet too', async () => {
-    const mutation = await applyPlanToXlsx(await fixture(), valuePlan(3, 4), { '1': 'Sheet1' })
+  it('the plan path normalizes the preserved foreign stylesheet on a formula write', async () => {
+    const mutation = await applyPlanToXlsx(
+      await fixture(),
+      {
+        transactionId: 't-formula',
+        baseRevision: 0,
+        sheetRenames: [],
+        structuralChanges: [],
+        formatChanges: [],
+        warnings: [],
+        cellChanges: [
+          {
+            sheetId: '1',
+            address: 'A1',
+            before: { value: 3 },
+            after: { value: null, formula: '=B1*2' },
+          },
+        ],
+      },
+      { '1': 'Sheet1' },
+    )
     const styles = await stylesXmlOf(mutation.buffer)
     expect(styles.match(/<xf\b(?![^>]*\bxfId=)[^>]*>/g)).toBeNull()
+    // the formula itself landed
+    const zip = await JSZip.loadAsync(mutation.buffer)
+    const sheet = await zip.file('xl/worksheets/sheet1.xml')!.async('string')
+    expect(sheet).toContain('<f>B1*2</f>')
+  })
+
+  it('a value-only save keeps the foreign stylesheet byte-identical', async () => {
+    const mutation = await applyPlanToXlsx(await fixture(), valuePlan(3, 4), { '1': 'Sheet1' })
+    expect(mutation.touchedEntries).not.toContain('xl/styles.xml')
+    const styles = await stylesXmlOf(mutation.buffer)
+    expect(styles.match(/<xf\b(?![^>]*\bxfId=)[^>]*>/g)).not.toBeNull()
   })
 
   it('a stylesheet that already carries every xfId is written back byte-identical', async () => {
-    const first = await applyPlanToXlsx(await fixture(), valuePlan(3, 4), { '1': 'Sheet1' })
+    const formulaPlan = (id: string, from: CellState, to: CellState): ChangePlan => ({
+      transactionId: id,
+      baseRevision: 0,
+      sheetRenames: [],
+      structuralChanges: [],
+      formatChanges: [],
+      warnings: [],
+      cellChanges: [{ sheetId: '1', address: 'A1', before: from, after: to }],
+    })
+    const first = await applyPlanToXlsx(
+      await fixture(),
+      formulaPlan('t1', { value: 3 }, { value: null, formula: '=B1*2' }),
+      { '1': 'Sheet1' },
+    )
     const styles = await stylesXmlOf(first.buffer)
     expect(styles.match(/<xf\b(?![^>]*\bxfId=)[^>]*>/g)).toBeNull()
     // re-saving the normalized file changes nothing further in the part
-    const second = await applyPlanToXlsx(first.buffer, valuePlan(4, 5), { '1': 'Sheet1' })
+    const second = await applyPlanToXlsx(
+      first.buffer,
+      formulaPlan('t2', { value: null, formula: '=B1*2' }, { value: null, formula: '=B1*3' }),
+      { '1': 'Sheet1' },
+    )
     expect(await stylesXmlOf(second.buffer)).toBe(styles)
   })
 })

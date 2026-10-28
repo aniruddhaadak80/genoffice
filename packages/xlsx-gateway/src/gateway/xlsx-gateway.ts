@@ -777,11 +777,16 @@ export async function applyPlanToXlsx(
     touchedEntries.add(worksheetPath)
   }
 
-  // The same normalization the streamed save applies: a workbook whose <xf>
-  // entries omit the optional xfId would make the next formula-engine import
-  // fail, and this path preserves a foreign styles.xml verbatim.
+  // The same normalization the streamed save applies, under the same gate:
+  // a workbook whose <xf> entries omit the optional xfId makes the next
+  // formula-engine import fail once the file carries formulas, so normalize
+  // only when this save writes one and keep unrelated parts byte-identical
+  // otherwise.
   const planStylesPath = 'xl/styles.xml'
-  if (await pkg.has(planStylesPath)) {
+  if (
+    plan.cellChanges.some((change) => change.after.formula !== undefined) &&
+    (await pkg.has(planStylesPath))
+  ) {
     const stylesXml = await pkg.readText(planStylesPath)
     const normalized = addMissingXfIds(stylesXml)
     if (normalized !== stylesXml) {
@@ -1473,11 +1478,17 @@ export async function planCellEditsToXlsx(
   if (stylesheet?.changed) {
     pkg.write(stylesPath, addMissingXfIds(stylesheet.serialize()))
     touchedEntries.add(stylesPath)
-  } else if ((await pkg.has(stylesPath)) && (await pkg.canPatch(stylesPath))) {
+  } else if (
+    edits.some((edit) => edit.writeValue && edit.cell.formula !== undefined) &&
+    (await pkg.has(stylesPath)) &&
+    (await pkg.canPatch(stylesPath))
+  ) {
     // A foreign styles.xml is preserved verbatim on a save that touches no
     // styles. Entries that omit the optional xfId (Excel always writes it,
-    // other generators do not) make the next formula-engine import fail, so
-    // normalize once here; a no-op for files that already carry it.
+    // other generators do not) make the next formula-engine import fail
+    // once the file carries formulas - so normalize on the save that writes
+    // one, and only there: a save without a formula write leaves unrelated
+    // parts byte-identical (the preservation contract the zip gate tests).
     const stylesXml = await pkg.readText(stylesPath)
     const normalized = addMissingXfIds(stylesXml)
     if (normalized !== stylesXml) {
