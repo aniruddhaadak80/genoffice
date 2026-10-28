@@ -2,6 +2,25 @@ import type { WorkbookStyleEdit } from '../shared/edit-schemas'
 import { isGradientFill, type FillSpec, type StyleColor } from '../domain/style-color'
 import { shortDateNumFmtId } from '../shared/short-date'
 
+/**
+ * Add `xfId="0"` to the `<xf>` entries (in cellStyleXfs and cellXfs) that omit
+ * it. ECMA-376 makes xfId optional on CT_Xf and Excel reads a missing one as
+ * 0, but the formula engine's importer (ironcalc) fails the whole file with
+ * `Missing "xfId" XML attribute` — so a workbook built by other generators
+ * reads fine until a formula edit makes the next read go through the engine.
+ * The gateway preserves a foreign styles.xml verbatim, so this normalizes on
+ * save instead. Idempotent: entries that already carry xfId are untouched.
+ */
+export function addMissingXfIds(stylesXml: string): string {
+  return stylesXml.replace(
+    /<cellStyleXfs\b[^>]*>[\s\S]*?<\/cellStyleXfs>|<cellXfs\b[^>]*>[\s\S]*?<\/cellXfs>/g,
+    (section) =>
+      section.replace(/<xf\b[^>]*?(\/>|>)/g, (xf) =>
+        /\bxfId=/.test(xf) ? xf : xf.replace(/^<xf\b/, '<xf xfId="0"'),
+      ),
+  )
+}
+
 /// Copy-on-write editor for xl/styles.xml. Existing entries are never
 /// modified — every changed cell gets a new cellXfs entry (deduped) derived
 /// from its current one, so untouched cells keep their exact formatting.

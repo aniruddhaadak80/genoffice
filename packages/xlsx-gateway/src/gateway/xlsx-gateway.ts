@@ -147,7 +147,7 @@ import {
   type TableColumnInsertion,
   translateSharedFormula,
 } from './xlsx-structure'
-import { StylesheetEditor } from './xlsx-styles'
+import { StylesheetEditor, addMissingXfIds } from './xlsx-styles'
 
 /** Shared with the CLI's pre-open check so both layers accept the same files. */
 export const XLSX_ZIP_LIMITS = {
@@ -775,6 +775,19 @@ export async function applyPlanToXlsx(
     }
     pkg.write(worksheetPath, patchCell(worksheetXml, change.address, change.after))
     touchedEntries.add(worksheetPath)
+  }
+
+  // The same normalization the streamed save applies: a workbook whose <xf>
+  // entries omit the optional xfId would make the next formula-engine import
+  // fail, and this path preserves a foreign styles.xml verbatim.
+  const planStylesPath = 'xl/styles.xml'
+  if (await pkg.has(planStylesPath)) {
+    const stylesXml = await pkg.readText(planStylesPath)
+    const normalized = addMissingXfIds(stylesXml)
+    if (normalized !== stylesXml) {
+      pkg.write(planStylesPath, normalized)
+      touchedEntries.add(planStylesPath)
+    }
   }
 
   return assembleWithJsZip(source, pkg.toPlan(touchedEntries))
@@ -1458,8 +1471,19 @@ export async function planCellEditsToXlsx(
     touchedEntries.add(worksheetPath)
   }
   if (stylesheet?.changed) {
-    pkg.write(stylesPath, stylesheet.serialize())
+    pkg.write(stylesPath, addMissingXfIds(stylesheet.serialize()))
     touchedEntries.add(stylesPath)
+  } else if ((await pkg.has(stylesPath)) && (await pkg.canPatch(stylesPath))) {
+    // A foreign styles.xml is preserved verbatim on a save that touches no
+    // styles. Entries that omit the optional xfId (Excel always writes it,
+    // other generators do not) make the next formula-engine import fail, so
+    // normalize once here; a no-op for files that already carry it.
+    const stylesXml = await pkg.readText(stylesPath)
+    const normalized = addMissingXfIds(stylesXml)
+    if (normalized !== stylesXml) {
+      pkg.write(stylesPath, normalized)
+      touchedEntries.add(stylesPath)
+    }
   }
 
   // Chart edits run after structural shifts so they patch the already-shifted
