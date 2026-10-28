@@ -1,4 +1,5 @@
 import { join } from 'node:path'
+import { platform } from 'node:process'
 import { describe, expect, it } from 'vitest'
 import { uniqueGeneratedPdfPath } from '../src/main/generated-output'
 
@@ -29,12 +30,18 @@ describe('uniqueGeneratedPdfPath', () => {
     )
   })
 
-  it('still reduces a full path suggestion to its file name', () => {
-    expect(uniqueGeneratedPdfPath('/save', 'C:\\users\\report.pdf', () => false)).toBe(
-      join('/save', 'report.pdf'),
-    )
+  it('still reduces a relative full path suggestion to its file name', () => {
     expect(uniqueGeneratedPdfPath('/save', '../report-merged.pdf', () => false)).toBe(
       join('/save', 'report-merged.pdf'),
     )
+  })
+
+  it('collapses a win32 drive-path suggestion to its file name on Windows', () => {
+    // basename is platform-flavored: win32 splits on backslashes and would
+    // have eaten the stem had the colon not been replaced first; on posix
+    // the same string is one file name and the sanitizer flattens it.
+    const winPath = 'C:\\users\\report.pdf'
+    const expected = process.platform === 'win32' ? 'report.pdf' : 'C__users_report.pdf'
+    expect(uniqueGeneratedPdfPath('/save', winPath, () => false)).toBe(join('/save', expected))
   })
 })
