@@ -10,6 +10,7 @@
 //! normal sidecar error and the renderer keeps showing cached values.
 
 use std::collections::HashMap;
+use std::io::Write;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
@@ -214,6 +215,159 @@ pub fn recalc_cells(
     Ok(RecalcResult { cells, cached })
 }
 
+/// IronCalc's importer resolves a worksheet's relationship targets relative
+/// to the worksheet part only: its comment loader splices the leading `..` of
+/// a relative target onto the workbook base and has no case for the absolute
+/// OPC spelling. `Target="/xl/comments/comment1.xml"` (what openpyxl writes
+/// for cell comments) becomes `xll/comments/comment1.xml`, misses in the
+/// archive, and the whole import fails with a zip error. Excel, LibreOffice
+/// and this sidecar's own reader resolve a leading `/` from the package root
+/// (ECMA-376 Part 2), so rewrite absolute targets to part-relative in a
+/// staged copy and import that. The user's file is never written to, and the
+/// model is still cached under the workbook's own path.
+fn relativize_absolute_targets(rels_part: &str, xml: &str) -> Option<String> {
+    // `xl/worksheets/_rels/sheet1.xml.rels` -> `xl/worksheets`; the
+    // package-level `_rels/.rels` has no directory of its own.
+    let normalized = rels_part.replace('\\', "/");
+    let source_dir = normalized
+        .strip_suffix(".rels")
+        .and_then(|part| part.rsplit_once("/_rels/"))
+        .map(|(base, _)| base)
+        .unwrap_or("");
+    let source: Vec<&str> = source_dir
+        .split('/')
+        .filter(|segment| !segment.is_empty() && *segment != "." && *segment != "..")
+        .collect();
+
+    let mut rewritten = String::with_capacity(xml.len());
+    let mut rest = xml;
+    let mut changed = false;
+    loop {
+        let double = rest.find("Target=\"");
+        let single = rest.find("Target='");
+        let Some(attribute) = (match (double, single) {
+            (Some(a), Some(b)) => Some(a.min(b)),
+            (Some(a), None) => Some(a),
+            (None, Some(b)) => Some(b),
+            (None, None) => None,
+        }) else {
+            break;
+        };
+        let quote = if rest[attribute..].starts_with("Target=\"") {
+            '"'
+        } else {
+            '\''
+        };
+        let value_start = attribute + "Target=".len() + 1;
+        let Some(end) = rest[value_start..].find(quote) else {
+            break;
+        };
+        let value = &rest[value_start..value_start + end];
+        rewritten.push_str(&rest[..value_start]);
+        rewritten.push_str(&match absolute_target_path(value) {
+            Some(absolute) => {
+                changed = true;
+                relative_target_path(&source, absolute)
+            }
+            None => value.to_string(),
+        });
+        rewritten.push(quote);
+        rest = &rest[value_start + end + 1..];
+    }
+    rewritten.push_str(rest);
+    changed.then_some(rewritten)
+}
+
+/// The package-root path of an absolute OPC target value:
+/// `Some("xl/comments/comment1.xml")` for `Target="/xl/comments/comment1.xml"`.
+/// `None` leaves the value alone: relative targets, and external spellings a
+/// rewrite would only damage (`//server/share/...`).
+fn absolute_target_path(value: &str) -> Option<&str> {
+    let rest = value.strip_prefix('/')?;
+    if rest.starts_with('/') {
+        return None;
+    }
+    Some(rest)
+}
+
+/// The target relative to the part's own directory: from `xl/worksheets`,
+/// `/xl/comments/comment1.xml` becomes `../comments/comment1.xml`; from `xl`
+/// (workbook-level rels), `/xl/theme/theme1.xml` becomes `theme/theme1.xml`.
+fn relative_target_path(source: &[&str], absolute: &str) -> String {
+    let target: Vec<&str> = absolute
+        .split('/')
+        .filter(|segment| !segment.is_empty() && *segment != "." && *segment != "..")
+        .collect();
+    let mut common = 0;
+    while common < source.len() && common < target.len() && source[common] == target[common] {
+        common += 1;
+    }
+    let mut relative = String::new();
+    for _ in common..source.len() {
+        relative.push_str("../");
+    }
+    relative.push_str(&target[common..].join("/"));
+    relative
+}
+
+/// `Ok(None)` - the package has no absolute relationship target, import the
+/// file as is. `Ok(Some(staged))` - a temporary copy with the targets
+/// rewritten; the caller removes it once the import is done. A part that
+/// cannot be read (not UTF-8, over the metadata bound) is left untouched: the
+/// import then fails with its own error rather than one about staging.
+fn stage_absolute_rel_targets(path: &Path) -> Result<Option<PathBuf>, SidecarError> {
+    let archive_file = std::fs::File::open(path)?;
+    let mut archive = zip::ZipArchive::new(archive_file)?;
+    let names: Vec<String> = archive.file_names().map(str::to_string).collect();
+    let mut rewrites: Vec<(usize, String)> = Vec::new();
+    for (index, name) in names.iter().enumerate() {
+        if !name.ends_with(".rels") {
+            continue;
+        }
+        let Ok(text) = crate::xml_util::read_zip_string(&mut archive, name) else {
+            continue;
+        };
+        if let Some(rewritten) = relativize_absolute_targets(name, &text) {
+            rewrites.push((index, rewritten));
+        }
+    }
+    if rewrites.is_empty() {
+        return Ok(None);
+    }
+    let staged = staged_engine_copy_path(path);
+    let out = std::fs::File::create(&staged)?;
+    let mut writer = zip::ZipWriter::new(out);
+    for (index, name) in names.iter().enumerate() {
+        if let Some((_, xml)) = rewrites.iter().find(|(kept, _)| *kept == index) {
+            let options = zip::write::SimpleFileOptions::default()
+                .compression_method(zip::CompressionMethod::Deflated);
+            writer.start_file(name, options)?;
+            writer.write_all(xml.as_bytes())?;
+            continue;
+        }
+        writer.raw_copy_file_rename(archive.by_index_raw(index)?, name)?;
+    }
+    writer.finish()?;
+    Ok(Some(staged))
+}
+
+/// A per-request name in the system temp directory: two sessions importing
+/// the same workbook must not race on one staged copy.
+fn staged_engine_copy_path(workbook: &Path) -> PathBuf {
+    let name = workbook
+        .file_name()
+        .map(|name| name.to_string_lossy().into_owned())
+        .unwrap_or_else(|| "workbook".to_string());
+    let nanos = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .map(|since| since.as_nanos())
+        .unwrap_or_default();
+    std::env::temp_dir().join(format!(
+        "{name}-engine-rels-{}-{nanos}.xlsx",
+        std::process::id()
+    ))
+}
+
 fn run(
     resident: Option<ResidentModel>,
     path: &Path,
@@ -225,12 +379,21 @@ fn run(
     let mut entry = match resident {
         Some(entry) => entry,
         None => {
-            let path_text = path.to_str().ok_or_else(|| {
+            // The strict importer cannot read absolute OPC relationship
+            // targets (openpyxl's comments); hand it a staged copy with them
+            // rewritten when the package carries any. Nothing here writes to
+            // the user's file.
+            let staged = stage_absolute_rel_targets(path).unwrap_or(None);
+            let load_path = staged.as_deref().unwrap_or(path);
+            let path_text = load_path.to_str().ok_or_else(|| {
                 SidecarError::InvalidRequest("Workbook path is not valid UTF-8.".into())
             })?;
             let mut model = load_from_xlsx(path_text, "en", "UTC", "en").map_err(|error| {
                 SidecarError::Workbook(format!("Formula engine import failed: {error}"))
             })?;
+            if let Some(staged_path) = staged {
+                let _ = std::fs::remove_file(staged_path);
+            }
             requote_bare_sheet_names(&mut model);
             pin_unparsable_formulas(&mut model);
             ResidentModel {
@@ -706,6 +869,98 @@ mod tests {
             .clone()
     }
 
+    /// Copies the fixture package entry by entry and adds the two parts
+    /// openpyxl writes for a cell comment: a worksheet rels part whose
+    /// comment target is the absolute OPC spelling (`/xl/...`, resolved from
+    /// the package root) and the comments part itself.
+    fn with_absolute_comment_target(path: &Path, absolute: &Path) {
+        let file = std::fs::File::open(path).unwrap();
+        let mut archive = zip::ZipArchive::new(file).unwrap();
+        let out = std::fs::File::create(absolute).unwrap();
+        let mut writer = zip::ZipWriter::new(out);
+        let names: Vec<String> = archive.file_names().map(str::to_string).collect();
+        for (index, name) in names.iter().enumerate() {
+            writer
+                .raw_copy_file_rename(archive.by_index_raw(index).unwrap(), name)
+                .unwrap();
+        }
+        let options = zip::write::SimpleFileOptions::default()
+            .compression_method(zip::CompressionMethod::Deflated);
+        writer
+            .start_file("xl/worksheets/_rels/sheet1.xml.rels", options)
+            .unwrap();
+        writer
+            .write_all(
+                br#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="comments" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="/xl/comments/comment1.xml"/></Relationships>"#,
+            )
+            .unwrap();
+        let options = zip::write::SimpleFileOptions::default()
+            .compression_method(zip::CompressionMethod::Deflated);
+        writer
+            .start_file("xl/comments/comment1.xml", options)
+            .unwrap();
+        writer
+            .write_all(
+                br#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<comments xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><authors><author>a</author></authors><commentList><comment ref="A1" authorId="0"><r><t>note</t></r></comment></commentList></comments>"#,
+            )
+            .unwrap();
+        writer.finish().unwrap();
+    }
+
+    #[test]
+    fn relativizes_absolute_targets_and_leaves_everything_else() {
+        let sheet_rels = "xl/worksheets/_rels/sheet1.xml.rels";
+        let xml = r#"<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="comments" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="/xl/comments/comment1.xml"/></Relationships>"#;
+        let rewritten = relativize_absolute_targets(sheet_rels, xml).unwrap();
+        assert!(
+            rewritten.contains(r#"Target="../comments/comment1.xml""#),
+            "rewritten: {rewritten}"
+        );
+
+        // the package-level rels have no directory of their own: the target
+        // resolves from the root with only the leading slash dropped
+        let root = r#"<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="workbook" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="/xl/workbook.xml"/></Relationships>"#;
+        let rewritten = relativize_absolute_targets("_rels/.rels", root).unwrap();
+        assert!(rewritten.contains(r#"Target="xl/workbook.xml""#));
+
+        // relative targets are left alone: nothing to stage
+        let relative = r#"<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="comments" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="../comments/comment1.xml"/></Relationships>"#;
+        assert!(relativize_absolute_targets(sheet_rels, relative).is_none());
+
+        // an external target's `//server/...` spelling must not be damaged
+        let external = r#"<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="ext" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" TargetMode="External" Target="//server/share/doc.xlsx"/></Relationships>"#;
+        assert!(relativize_absolute_targets(sheet_rels, external).is_none());
+
+        // single-quoted attributes keep their quote and any fragment
+        let single = "<Relationships><Relationship Id='comments' Type='http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments' Target='/xl/comments/comment1.xml#p1'/></Relationships>";
+        let rewritten = relativize_absolute_targets(sheet_rels, single).unwrap();
+        assert!(rewritten.contains("Target='../comments/comment1.xml#p1'"));
+    }
+
+    #[test]
+    fn reads_a_workbook_with_absolute_comment_targets() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("comments.xlsx");
+        fixture(&path);
+        let absolute = dir.path().join("comments-absolute.xlsx");
+        with_absolute_comment_target(&path, &absolute);
+        // the ordinary fixture carries no absolute targets
+        assert!(stage_absolute_rel_targets(&path).unwrap().is_none());
+        // the openpyxl-shaped one does, and the copy is written
+        let staged = stage_absolute_rel_targets(&absolute).unwrap().unwrap();
+        assert!(staged.exists());
+        let _ = std::fs::remove_file(staged);
+
+        // the regression itself: the import used to fail with
+        // "Formula engine import failed: Zip Error: specified file not found
+        // in archive" because the absolute target became `xll/comments/...`
+        let mut cache = RecalcCache::new();
+        let result = recalc_cells(&mut cache, &absolute, &[], &[read_a1_a3()]).unwrap();
+        assert_eq!(sum_value(&result), "30");
+    }
+
     #[test]
     fn keeps_at_most_one_heavy_model_resident() {
         let mut cache = RecalcCache::new();
@@ -1117,7 +1372,9 @@ mod tests {
     #[test]
     fn an_external_reference_with_a_spaced_or_cjk_sheet_name_is_recognised() {
         assert!(references_an_external_workbook("'[1]Sheet Name'!A1"));
-        assert!(references_an_external_workbook("SUM('[1]Sheet Name'!A1:B2)"));
+        assert!(references_an_external_workbook(
+            "SUM('[1]Sheet Name'!A1:B2)"
+        ));
         // a CJK name needs no quotes
         assert!(references_an_external_workbook("[1]数据!A1"));
         // an R1C1 offset is still not an external workbook, quoted or not
